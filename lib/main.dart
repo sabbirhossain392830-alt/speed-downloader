@@ -522,7 +522,12 @@ class _BrowserPageState extends State<BrowserPage> {
   bool _downloadable(String url) {
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
     // Detect common extensions and extensionless file-host endpoints.
-    final hasExtension = RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)([String url = 'https://www.google.com']) async {
+    final hasExtension = RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)$').hasMatch(path);
+    final isFileEndpoint = RegExp(r'/(file|download|downloads)(/|$)').hasMatch(path);
+    return hasExtension || isFileEndpoint;
+  }
+
+  Future<void> _newTab([String url = 'https://www.google.com']) async {
     final t = _DroxTab(WebViewController(), url);
     tabs.add(t); active = tabs.length - 1;
     final c = t.controller;
