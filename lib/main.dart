@@ -45,6 +45,25 @@ class _DroxAppState extends State<DroxApp> {
   }
 }
 
+class DroxLogoMark extends StatelessWidget {
+  const DroxLogoMark({super.key, this.size = 44});
+  final double size;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size, height: size,
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(colors: [Color(0xFF16D9FF), Color(0xFF0878F9), Color(0xFF071B43)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+      borderRadius: BorderRadius.circular(size * .29),
+      border: Border.all(color: Colors.white.withValues(alpha: .22)),
+      boxShadow: [BoxShadow(color: const Color(0xFF078BFF).withValues(alpha: .28), blurRadius: size * .28, offset: const Offset(0, 4))],
+    ),
+    child: Stack(alignment: Alignment.center, children: [
+      Icon(Icons.bolt_rounded, color: Colors.white, size: size * .72),
+      Positioned(right: size * .12, bottom: size * .08, child: Icon(Icons.download_rounded, color: const Color(0xFFB8F6FF), size: size * .30)),
+    ]),
+  );
+}
+
 class DownloadEntry {
   DownloadEntry(this.task);
   final DownloadTask task;
@@ -305,7 +324,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       appBar: selectedTab == 1 ? null : AppBar(
         titleSpacing: 20,
         title: Row(children: [
-          Container(width: 42, height: 42, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF35B7FF), Color(0xFF0757D8), Color(0xFF071B43)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(13), boxShadow: [BoxShadow(color: const Color(0xFF168BFF).withValues(alpha: .35), blurRadius: 12, offset: const Offset(0, 4))], border: Border.all(color: Colors.white.withValues(alpha: .18))), child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 28)),
+          const DroxLogoMark(size: 42),
           const SizedBox(width: 10),
           const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 20)),
@@ -323,9 +342,9 @@ class _DownloadHomeState extends State<DownloadHome> {
               borderRadius: BorderRadius.circular(22),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('DOWNLOAD SMARTER', style: TextStyle(color: Colors.white70, fontSize: 11, letterSpacing: 2, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 6),
-              const Text('Everything you save.\nAll in one place.', style: TextStyle(color: Colors.white, fontSize: 23, height: 1.15, fontWeight: FontWeight.w800)),
+              const Row(children: [DroxLogoMark(size: 54), SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('DROX PREMIUM', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.3)), Text('DOWNLOAD • BROWSE • MANAGE', style: TextStyle(color: Colors.white70, fontSize: 9, letterSpacing: 1.1, fontWeight: FontWeight.w700))]))]),
+              const SizedBox(height: 16),
+              const Text('Download smarter.\nBrowse faster.', style: TextStyle(color: Colors.white, fontSize: 23, height: 1.15, fontWeight: FontWeight.w800)),
               const SizedBox(height: 14),
               FilledButton.tonalIcon(onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.public), label: const Text('Open Browser')),
             ]),
@@ -367,7 +386,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         ]),
         BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
         ListView(padding: const EdgeInsets.all(16), children: [
-          const Text('DOWNLOADS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          const Row(children: [DroxLogoMark(size: 34), SizedBox(width: 10), Text('Downloads', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20))]),
           const SizedBox(height: 12),
           SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
             _filterChip('All', DownloadFilter.all), _filterChip('Active', DownloadFilter.active),
@@ -378,7 +397,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           else ...visible.map(_downloadCard),
         ]),
         ListView(padding: const EdgeInsets.all(16), children: [
-          const Text('SETTINGS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          const Row(children: [DroxLogoMark(size: 34), SizedBox(width: 10), Text('Settings', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20))]),
           const SizedBox(height: 12),
           Card(child: Column(children: [
             ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Appearance'), subtitle: Text(widget.isDark ? 'Dark theme' : 'Light theme'), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
@@ -515,6 +534,11 @@ class _BrowserPageState extends State<BrowserPage> {
     final p = await SharedPreferences.getInstance();
     await p.setString('drox_browser_history', jsonEncode(history.take(100).toList()));
   }
+  bool _isKnownAdUrl(String url) {
+    final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+    const blocked = ['doubleclick.net', 'googlesyndication.com', 'googleadservices.com', 'adservice.google.com', 'googletagmanager.com', 'adnxs.com', 'taboola.com', 'outbrain.com'];
+    return blocked.any((domain) => host == domain || host.endsWith('.' + domain));
+  }
   bool _downloadable(String url) {
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
     return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)$').hasMatch(path) || RegExp(r'/(file|download|downloads)(/|$)').hasMatch(path);
@@ -526,7 +550,11 @@ class _BrowserPageState extends State<BrowserPage> {
     await ctrl.setJavaScriptMode(JavaScriptMode.unrestricted);
     await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) => _downloadPrompt(m.message));
     await ctrl.setNavigationDelegate(NavigationDelegate(
-      onNavigationRequest: (r) { if (_downloadable(r.url)) { _downloadPrompt(r.url); return NavigationDecision.prevent; } return NavigationDecision.navigate; },
+      onNavigationRequest: (r) {
+        if (_downloadable(r.url)) { _downloadPrompt(r.url); return NavigationDecision.prevent; }
+        if (adBlockEnabled && _isKnownAdUrl(r.url)) return NavigationDecision.prevent;
+        return NavigationDecision.navigate;
+      },
       onPageStarted: (u) { t.url = u; t.loading = true; if (mounted) setState(() { if (tab == t) address.text = u; }); },
       onPageFinished: (u) async {
         t.url = u;
