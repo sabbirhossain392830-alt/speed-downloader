@@ -305,7 +305,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       appBar: selectedTab == 1 ? null : AppBar(
         titleSpacing: 20,
         title: Row(children: [
-          Container(width: 38, height: 38, decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.bolt, color: Colors.white)),
+          Container(width: 42, height: 42, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF35B7FF), Color(0xFF0757D8), Color(0xFF071B43)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(13), boxShadow: [BoxShadow(color: const Color(0xFF168BFF).withValues(alpha: .35), blurRadius: 12, offset: const Offset(0, 4))], border: Border.all(color: Colors.white.withValues(alpha: .18))), child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 28)),
           const SizedBox(width: 10),
           const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 20)),
