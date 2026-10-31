@@ -487,6 +487,13 @@ class _DownloadHomeState extends State<DownloadHome> {
           ]),
           const SizedBox(height: 4),
           Text('${_fileType(entry.task.filename)}  •  ${_formatBytes(entry.expectedFileSize)}', style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 6),
+          Text(
+            entry.expectedFileSize > 0
+                ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} / ${_formatBytes(entry.expectedFileSize)} downloaded'
+                : (entry.progress > 0 ? '${_formatBytes(0)} / Size অজানা' : 'ডাউনলোডের পরিমাণ হিসাব হচ্ছে…'),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 8),
           LinearProgressIndicator(value: entry.progress),
           const SizedBox(height: 8),
