@@ -7,9 +7,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FileDownloader().start();
   FileDownloader().configureNotification(
-    running: const TaskNotification('DROX Downloading', '{filename}'),
-    complete: const TaskNotification('DROX Download complete', '{filename}'),
-    error: const TaskNotification('DROX Download failed', '{filename}'),
+    running: const TaskNotification('DROX • Downloading', '{filename}'),
+    paused: const TaskNotification('DROX • Paused', '{filename}'),
+    complete: const TaskNotification('DROX • Complete', '{filename}'),
+    error: const TaskNotification('DROX • Failed', '{filename}'),
     progressBar: true,
   );
   runApp(const DroxApp());
@@ -49,6 +50,8 @@ class DownloadEntry {
   String? error;
 }
 
+enum DownloadFilter { all, active, completed, failed }
+
 class DownloadHome extends StatefulWidget {
   const DownloadHome({super.key, required this.isDark, required this.onThemeTap});
   final bool isDark;
@@ -61,6 +64,8 @@ class _DownloadHomeState extends State<DownloadHome> {
   final controller = TextEditingController();
   final List<DownloadEntry> entries = [];
   StreamSubscription<TaskUpdate>? subscription;
+  DownloadFilter filter = DownloadFilter.all;
+  bool adding = false;
 
   @override
   void initState() {
@@ -70,8 +75,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   void _onUpdate(TaskUpdate update) {
-    final id = update.task.taskId;
-    final index = entries.indexWhere((e) => e.task.taskId == id);
+    final index = entries.indexWhere((e) => e.task.taskId == update.task.taskId);
     if (index < 0) return;
     setState(() {
       final entry = entries[index];
@@ -82,7 +86,10 @@ class _DownloadHomeState extends State<DownloadHome> {
         if (update.status == TaskStatus.failed) {
           entry.error = update.exception?.description ?? 'ডাউনলোড ব্যর্থ';
         }
-        if (update.status == TaskStatus.complete) entry.progress = 1;
+        if (update.status == TaskStatus.complete) {
+          entry.progress = 1;
+          entry.error = null;
+        }
       }
     });
   }
@@ -109,12 +116,14 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   Future<void> _add() async {
+    if (adding) return;
     final value = controller.text.trim();
     final uri = Uri.tryParse(value);
     if (uri == null || !['http', 'https'].contains(uri.scheme) || uri.host.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('সঠিক HTTP/HTTPS direct link দিন')));
       return;
     }
+    setState(() => adding = true);
     final task = DownloadTask(
       url: value,
       filename: _fileName(value),
@@ -131,10 +140,34 @@ class _DownloadHomeState extends State<DownloadHome> {
     if (!ok && mounted) {
       setState(() => entries.firstWhere((e) => e.task.taskId == task.taskId).status = 'কিউতে যোগ করা যায়নি');
     }
+    if (mounted) setState(() => adding = false);
+  }
+
+  Future<void> _pause(DownloadEntry entry) async {
+    final ok = await FileDownloader().pause(entry.task.taskId);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('এই সার্ভার Pause/Resume সমর্থন নাও করতে পারে')));
+    }
+  }
+
+  Future<void> _resume(DownloadEntry entry) async {
+    final ok = await FileDownloader().resume(entry.task.taskId);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ডাউনলোডটি Resume করা যায়নি')));
+    }
   }
 
   Future<void> _cancel(DownloadEntry entry) async {
     await FileDownloader().cancelTaskWithId(entry.task.taskId);
+  }
+
+  bool _matches(DownloadEntry e) {
+    switch (filter) {
+      case DownloadFilter.all: return true;
+      case DownloadFilter.active: return ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(e.status);
+      case DownloadFilter.completed: return e.status == 'সম্পন্ন';
+      case DownloadFilter.failed: return ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি'].contains(e.status);
+    }
   }
 
   @override
@@ -146,12 +179,13 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   @override
   Widget build(BuildContext context) {
-    final active = entries.where((e) => e.status == 'ডাউনলোড হচ্ছে').length;
+    final active = entries.where((e) => ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(e.status)).length;
     final done = entries.where((e) => e.status == 'সম্পন্ন').length;
+    final visible = entries.where(_matches).toList();
     return Scaffold(
       appBar: AppBar(
         title: const Row(children: [Icon(Icons.downloading, size: 28), SizedBox(width: 8), Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5))]),
-        actions: [IconButton(tooltip: 'Change theme', onPressed: widget.onThemeTap, icon: Icon(widget.isDark ? Icons.light_mode : Icons.dark_mode))],
+        actions: [IconButton(tooltip: 'Theme', onPressed: widget.onThemeTap, icon: Icon(widget.isDark ? Icons.light_mode : Icons.dark_mode))],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -164,11 +198,15 @@ class _DownloadHomeState extends State<DownloadHome> {
               TextField(
                 controller: controller,
                 keyboardType: TextInputType.url,
-                decoration: const InputDecoration(labelText: 'Paste direct download link', hintText: 'https://example.com/file.zip', prefixIcon: Icon(Icons.link), border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Download URL', hintText: 'https://example.com/file.zip', prefixIcon: Icon(Icons.link), border: OutlineInputBorder()),
                 onSubmitted: (_) => _add(),
               ),
               const SizedBox(height: 12),
-              SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add), label: const Text('Add Download'))),
+              SizedBox(width: double.infinity, child: FilledButton.icon(
+                onPressed: adding ? null : _add,
+                icon: adding ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.add),
+                label: const Text('Add to Download Queue'),
+              )),
             ]),
           )),
           const SizedBox(height: 12),
@@ -180,33 +218,64 @@ class _DownloadHomeState extends State<DownloadHome> {
             _stat('DONE', done.toString(), Icons.check_circle_outline),
           ]),
           const SizedBox(height: 18),
-          const Text('DOWNLOAD HISTORY', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+          const Text('MY DOWNLOADS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
           const SizedBox(height: 10),
-          if (entries.isEmpty)
-            const Padding(padding: EdgeInsets.symmetric(vertical: 36), child: Column(children: [Icon(Icons.cloud_download_outlined, size: 54), SizedBox(height: 10), Text('এখনো কোনো ডাউনলোড নেই'), Text('উপরে একটি direct link দিন')]))
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              _filterChip('All', DownloadFilter.all),
+              _filterChip('Active', DownloadFilter.active),
+              _filterChip('Completed', DownloadFilter.completed),
+              _filterChip('Failed', DownloadFilter.failed),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          if (visible.isEmpty)
+            const Padding(padding: EdgeInsets.symmetric(vertical: 36), child: Column(children: [Icon(Icons.cloud_download_outlined, size: 54), SizedBox(height: 10), Text('এই তালিকায় কোনো ডাউনলোড নেই'), Text('উপরে direct link যোগ করুন')]))
           else
-            ...entries.map((entry) => Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Icon(entry.status == 'সম্পন্ন' ? Icons.check_circle : Icons.insert_drive_file, color: entry.status == 'সম্পন্ন' ? Colors.green : Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(entry.task.filename, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
-                    if (entry.status == 'ডাউনলোড হচ্ছে' || entry.status == 'কিউতে আছে')
-                      IconButton(onPressed: () => _cancel(entry), icon: const Icon(Icons.close), tooltip: 'Cancel'),
-                  ]),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(value: entry.progress),
-                  const SizedBox(height: 8),
-                  Row(children: [Expanded(child: Text(entry.error == null ? entry.status : '${entry.status}: ${entry.error}', style: Theme.of(context).textTheme.bodySmall)), Text('${(entry.progress * 100).toStringAsFixed(0)}%', style: Theme.of(context).textTheme.bodySmall)]),
-                ]),
-              ),
-            )),
+            ...visible.map(_downloadCard),
           const SizedBox(height: 16),
-          Text('Downloads continue in the background when Android allows it. Notification permission may be requested. Files are saved in DROX app storage.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+          Text('Background downloads use Android system services. Pause/Resume depends on server Range support. Files are stored in DROX app storage.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
         ],
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, DownloadFilter value) => Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: ChoiceChip(label: Text(label), selected: filter == value, onSelected: (_) => setState(() => filter = value)),
+  );
+
+  Widget _downloadCard(DownloadEntry entry) {
+    final running = entry.status == 'ডাউনলোড হচ্ছে';
+    final paused = entry.status == 'বিরতি';
+    final queued = ['কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status);
+    final failed = entry.status == 'ব্যর্থ';
+    final color = entry.status == 'সম্পন্ন' ? Colors.green : Theme.of(context).colorScheme.primary;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(entry.status == 'সম্পন্ন' ? Icons.check_circle : Icons.insert_drive_file, color: color),
+            const SizedBox(width: 10),
+            Expanded(child: Text(entry.task.filename, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
+            if (running)
+              IconButton(onPressed: () => _pause(entry), icon: const Icon(Icons.pause_circle_outline), tooltip: 'Pause'),
+            if (paused || failed)
+              IconButton(onPressed: () => _resume(entry), icon: const Icon(Icons.play_circle_outline), tooltip: 'Resume / Retry'),
+            if (running || paused || queued)
+              IconButton(onPressed: () => _cancel(entry), icon: const Icon(Icons.close), tooltip: 'Cancel'),
+          ]),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: entry.progress),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: Text(entry.error == null ? entry.status : '${entry.status}: ${entry.error}', style: Theme.of(context).textTheme.bodySmall)),
+            Text('${(entry.progress * 100).toStringAsFixed(0)}%', style: Theme.of(context).textTheme.bodySmall),
+          ]),
+        ]),
       ),
     );
   }
