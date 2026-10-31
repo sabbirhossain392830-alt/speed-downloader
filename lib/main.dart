@@ -166,7 +166,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     final uri = Uri.parse(url);
     final last = uri.pathSegments.isEmpty ? '' : uri.pathSegments.last;
     final decoded = Uri.decodeComponent(last);
-    if (decoded.isEmpty) return 'drox_${DateTime.now().millisecondsSinceEpoch}.bin';
+    if (decoded.isEmpty || !decoded.contains('.')) return 'drox_${DateTime.now().millisecondsSinceEpoch}.bin';
     return decoded.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   }
 
