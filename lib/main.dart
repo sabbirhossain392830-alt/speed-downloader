@@ -31,13 +31,13 @@ class _DroxAppState extends State<DroxApp> {
 
   @override
   Widget build(BuildContext context) {
-    const seed = Color(0xFF00BFA6);
+    const seed = Color(0xFF168BFF);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'DROX',
       themeMode: mode,
       theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: seed)),
-      darkTheme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark)),
+      darkTheme: ThemeData(useMaterial3: true, scaffoldBackgroundColor: const Color(0xFF050B18), colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark, surface: const Color(0xFF101C32))),
       home: DownloadHome(
         isDark: mode == ThemeMode.dark,
         onThemeTap: () => setState(() => mode = mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark),
@@ -305,7 +305,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [cs.primary, cs.primary.withValues(alpha: 0.72)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: const LinearGradient(colors: [Color(0xFF0757B8), Color(0xFF08264D), Color(0xFF101C32)], begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(22),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -664,7 +664,7 @@ class _BrowserPageState extends State<BrowserPage> {
           subtitle: Text(e['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
           onTap: () { address.text = e['url'] ?? ''; go(); },
           trailing: IconButton(tooltip: 'Delete this history item', icon: const Icon(Icons.delete_outline),
-            onPressed: () async { history.remove(e); await _saveHistory(); if (mounted) setState(() {}); })),
+            onPressed: () async { history.remove(e); await _saveHistory(); if (mounted) setState(() {}); }))),
         if (history.isNotEmpty) Padding(padding: const EdgeInsets.all(16), child: OutlinedButton.icon(
           onPressed: () async {
             final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
