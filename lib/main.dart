@@ -568,7 +568,7 @@ class _BrowserPageState extends State<BrowserPage> {
   }
   bool _downloadable(String url) {
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
-    return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)
+    return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)$').hasMatch(path);
   }
   Future<void> _newTab([String url = 'https://www.google.com']) async {
     final t = _DroxTab(WebViewController(), url);
