@@ -351,7 +351,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             ]))
           else ...visible.map(_downloadCard),
         ]),
-        BrowserPage(key: browserKey),
+        BrowserPage(key: browserKey, onDownload: (url) { controller.text = url; _add(); }),
         ListView(padding: const EdgeInsets.all(16), children: [
           const Text('DOWNLOADS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
           const SizedBox(height: 12),
@@ -466,135 +466,180 @@ class _DownloadHomeState extends State<DownloadHome> {
 }
 
 class BrowserPage extends StatefulWidget {
-  const BrowserPage({super.key});
+  const BrowserPage({super.key, required this.onDownload});
+  final ValueChanged<String> onDownload;
   @override
   State<BrowserPage> createState() => _BrowserPageState();
 }
-
+class _DroxTab {
+  _DroxTab(this.controller, this.url);
+  final WebViewController controller;
+  String url;
+  String title = 'New tab';
+  bool loading = false, back = false, forward = false;
+}
 class _BrowserPageState extends State<BrowserPage> {
-  late final WebViewController web;
   final address = TextEditingController(text: 'https://www.google.com');
-  bool loading = true;
-  bool canGoBack = false;
-  bool canGoForward = false;
-  String pageTitle = 'Google';
+  final tabs = <_DroxTab>[];
+  final history = <Map<String,String>>[];
+  int active = 0;
+  bool showHistory = false;
+  _DroxTab? get tab => tabs.isEmpty ? null : tabs[active];
 
   @override
-  void initState() {
-    super.initState();
-    web = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (url) {
-          if (mounted) setState(() { loading = true; address.text = url; });
-          _refreshNavigation();
-        },
-        onPageFinished: (url) async {
-          final title = await web.getTitle();
-          if (!mounted) return;
-          setState(() {
-            address.text = url;
-            pageTitle = (title == null || title.isEmpty) ? Uri.tryParse(url)?.host ?? 'Website' : title;
-            loading = false;
-          });
-          _refreshNavigation();
-        },
-        onWebResourceError: (_) { if (mounted) setState(() => loading = false); },
-      ))
-      ..loadRequest(Uri.parse('https://www.google.com'));
-  }
+  void initState() { super.initState(); _loadHistory(); _newTab(); }
 
-  Future<void> _refreshNavigation() async {
-    final back = await web.canGoBack();
-    final forward = await web.canGoForward();
-    if (mounted) setState(() { canGoBack = back; canGoForward = forward; });
+  Future<void> _loadHistory() async {
+    final p = await SharedPreferences.getInstance();
+    try {
+      final raw = p.getString('drox_browser_history');
+      if (raw != null) {
+        final list = (jsonDecode(raw) as List).cast<Map<String,dynamic>>();
+        history.addAll(list.map((e) => <String,String>{'title': (e['title'] ?? '').toString(), 'url': (e['url'] ?? '').toString()}));
+      }
+      if (mounted) setState(() {});
+    } catch (_) {}
   }
-
-  Future<bool> handleSystemBack() async {
-    if (await web.canGoBack()) {
-      await web.goBack();
-      await _refreshNavigation();
-      return true;
-    }
-    return false;
+  Future<void> _saveHistory() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString('drox_browser_history', jsonEncode(history.take(100).toList()));
   }
-
+  bool _downloadable(String url) {
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
+    return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)$').hasMatch(path);
+  }
+  Future<void> _newTab([String url = 'https://www.google.com']) async {
+    final t = _DroxTab(WebViewController(), url);
+    tabs.add(t); active = tabs.length - 1;
+    final c = t.controller;
+    await c.setJavaScriptMode(JavaScriptMode.unrestricted);
+    await c.setNavigationDelegate(NavigationDelegate(
+      onNavigationRequest: (request) {
+        if (_downloadable(request.url)) { _downloadPrompt(request.url); return NavigationDecision.prevent; }
+        return NavigationDecision.navigate;
+      },
+      onPageStarted: (u) {
+        t.url = u; t.loading = true;
+        if (mounted) setState(() { if (tab == t) address.text = u; });
+      },
+      onPageFinished: (u) async {
+        t.url = u;
+        final title = await c.getTitle();
+        t.title = (title == null || title.isEmpty) ? (Uri.tryParse(u)?.host ?? 'Website') : title;
+        t.loading = false; t.back = await c.canGoBack(); t.forward = await c.canGoForward();
+        if (!mounted) return;
+        setState(() { if (tab == t) address.text = u; });
+        if (u.startsWith('http')) {
+          history.removeWhere((e) => e['url'] == u);
+          history.insert(0, {'title': t.title, 'url': u});
+          if (history.length > 100) history.removeLast();
+          _saveHistory();
+        }
+      },
+      onWebResourceError: (_) { t.loading = false; if (mounted) setState(() {}); },
+    ));
+    if (mounted) setState(() {});
+    await c.loadRequest(Uri.parse(url));
+  }
+  void _downloadPrompt(String url) {
+    final u = Uri.tryParse(url);
+    final name = (u?.pathSegments.isNotEmpty == true) ? Uri.decodeComponent(u!.pathSegments.last) : 'download_file';
+    final type = name.contains('.') ? name.split('.').last.toUpperCase() : 'FILE';
+    showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+      icon: const Icon(Icons.download_for_offline_outlined, size: 36),
+      title: const Text('Download file?'),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text('File type: ' + type),
+        const Text('File size will be shown if the server provides it.'),
+        const SizedBox(height: 8),
+        SelectableText(url, style: Theme.of(context).textTheme.bodySmall),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton.icon(onPressed: () { Navigator.pop(ctx); widget.onDownload(url); }, icon: const Icon(Icons.download), label: const Text('Download')),
+      ],
+    ));
+  }
   void go() {
     var value = address.text.trim();
-    if (value.isEmpty) return;
+    if (value.isEmpty || tab == null) return;
     if (!value.contains('://')) {
-      value = value.contains(' ') || !value.contains('.')
-          ? 'https://www.google.com/search?q=${Uri.encodeQueryComponent(value)}'
-          : 'https://$value';
+      value = (value.contains(' ') || !value.contains('.'))
+          ? 'https://www.google.com/search?q=' + Uri.encodeQueryComponent(value)
+          : 'https://' + value;
     }
     final uri = Uri.tryParse(value);
     if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isNotEmpty) {
-      web.loadRequest(uri);
+      tab!.controller.loadRequest(uri); setState(() => showHistory = false);
     }
   }
-
+  Future<bool> handleSystemBack() async {
+    if (tab != null && await tab!.controller.canGoBack()) { await tab!.controller.goBack(); return true; }
+    if (showHistory) { setState(() => showHistory = false); return true; }
+    return false;
+  }
+  void _select(int i) { setState(() { active = i; address.text = tab?.url ?? ''; showHistory = false; }); }
+  void _close(int i) {
+    if (tabs.length == 1) { tabs[0].controller.loadRequest(Uri.parse('https://www.google.com')); return; }
+    setState(() {
+      tabs.removeAt(i);
+      if (active >= tabs.length) active = tabs.length - 1; else if (i < active) active--;
+      address.text = tab?.url ?? '';
+    });
+  }
   @override
   void dispose() { address.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final t = tab;
     return Column(children: [
-      Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .05), blurRadius: 10, offset: const Offset(0, 3))],
-        ),
-        child: Column(children: [
-          Row(children: [
-            IconButton(
-              tooltip: 'Back',
-              onPressed: canGoBack ? () async { await web.goBack(); _refreshNavigation(); } : null,
-              icon: const Icon(Icons.arrow_back_rounded),
-            ),
-            IconButton(
-              tooltip: 'Forward',
-              onPressed: canGoForward ? () async { await web.goForward(); _refreshNavigation(); } : null,
-              icon: const Icon(Icons.arrow_forward_rounded),
-            ),
-            Expanded(child: Container(
-              decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(16)),
-              child: TextField(
-                controller: address,
-                onSubmitted: (_) => go(),
-                keyboardType: TextInputType.url,
-                textInputAction: TextInputAction.go,
-                decoration: InputDecoration(
-                  hintText: 'Search or enter website',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: IconButton(onPressed: go, icon: const Icon(Icons.arrow_forward_rounded)),
-                  isDense: true,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 13),
-                ),
-              ),
-            )),
-            const SizedBox(width: 4),
-            IconButton(tooltip: 'Reload', onPressed: () => web.reload(), icon: const Icon(Icons.refresh_rounded)),
-          ]),
-          const SizedBox(height: 5),
-          Row(children: [
-            const SizedBox(width: 12),
-            Icon(Icons.lock_outline_rounded, size: 13, color: cs.primary),
-            const SizedBox(width: 5),
-            Expanded(child: Text(pageTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelSmall)),
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              tooltip: 'Home',
-              onPressed: () => web.loadRequest(Uri.parse('https://www.google.com')),
-              icon: const Icon(Icons.home_outlined, size: 20),
-            ),
-          ]),
+      Container(color: cs.surface, padding: const EdgeInsets.fromLTRB(8, 4, 8, 8), child: Column(children: [
+        Row(children: [
+          IconButton(onPressed: t?.back == true ? () => t!.controller.goBack() : null, icon: const Icon(Icons.arrow_back)),
+          IconButton(onPressed: t?.forward == true ? () => t!.controller.goForward() : null, icon: const Icon(Icons.arrow_forward)),
+          Expanded(child: Container(
+            decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(24)),
+            child: TextField(controller: address, onSubmitted: (_) => go(), textInputAction: TextInputAction.go,
+              decoration: InputDecoration(hintText: 'Search Google or enter address', prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(onPressed: go, icon: const Icon(Icons.arrow_forward)), isDense: true, border: InputBorder.none)),
+          )),
+          IconButton(onPressed: () => t?.controller.reload(), icon: const Icon(Icons.refresh)),
         ]),
-      ),
-      if (loading) const LinearProgressIndicator(minHeight: 2),
-      Expanded(child: WebViewWidget(controller: web)),
+        Row(children: [
+          IconButton(onPressed: () => t?.controller.loadRequest(Uri.parse('https://www.google.com')), icon: const Icon(Icons.home_outlined)),
+          Expanded(child: Text(t?.title ?? 'Browser', maxLines: 1, overflow: TextOverflow.ellipsis)),
+          IconButton(tooltip: 'History', onPressed: () => setState(() => showHistory = !showHistory), icon: const Icon(Icons.history)),
+          IconButton(tooltip: 'New tab', onPressed: () => _newTab(), icon: const Icon(Icons.add_box_outlined)),
+          IconButton(tooltip: 'Tabs', onPressed: () => showModalBottomSheet<void>(context: context, showDragHandle: true,
+            builder: (ctx) => SafeArea(child: SizedBox(height: 300, child: Column(children: [
+              ListTile(title: Text('Open tabs (' + tabs.length.toString() + ')'),
+                trailing: IconButton(onPressed: () { Navigator.pop(ctx); _newTab(); }, icon: const Icon(Icons.add))),
+              Expanded(child: ListView.builder(itemCount: tabs.length, itemBuilder: (_, i) => ListTile(
+                selected: i == active, title: Text(tabs[i].title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(tabs[i].url, maxLines: 1, overflow: TextOverflow.ellipsis),
+                onTap: () { Navigator.pop(ctx); _select(i); },
+                trailing: IconButton(onPressed: () { Navigator.pop(ctx); _close(i); }, icon: const Icon(Icons.close)),
+              ))),
+            ])))), icon: const Icon(Icons.tab)),
+          Text(tabs.length.toString() + '  '),
+        ]),
+        SizedBox(height: 32, child: ListView(scrollDirection: Axis.horizontal,
+          children: List.generate(tabs.length, (i) => Padding(padding: const EdgeInsets.only(right: 6),
+            child: ChoiceChip(label: Text('Tab ' + (i + 1).toString()), selected: i == active, onSelected: (_) => _select(i)))))),
+      ])),
+      if (t?.loading == true) const LinearProgressIndicator(minHeight: 2),
+      Expanded(child: showHistory ? ListView(children: [
+        const ListTile(title: Text('BROWSING HISTORY', style: TextStyle(fontWeight: FontWeight.bold))),
+        if (history.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No history yet')),
+        ...history.map((e) => ListTile(leading: const Icon(Icons.history), title: Text(e['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+          subtitle: Text(e['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+          onTap: () { address.text = e['url'] ?? ''; go(); })),
+        if (history.isNotEmpty) TextButton.icon(onPressed: () async { history.clear(); await _saveHistory(); if (mounted) setState(() {}); },
+          icon: const Icon(Icons.delete_outline), label: const Text('Clear history')),
+      ]) : IndexedStack(index: active, children: tabs.map((e) => WebViewWidget(controller: e.controller)).toList())),
     ]);
   }
 }
