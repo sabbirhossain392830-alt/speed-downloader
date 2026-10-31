@@ -629,8 +629,8 @@ class _BrowserPageState extends State<BrowserPage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme; final t = tab;
-    return Column(children: [
-      Material(color: cs.surface, elevation: 2, child: Padding(padding: const EdgeInsets.fromLTRB(8, 8, 2, 8), child: Row(children: [
+    return SafeArea(top: true, bottom: false, child: Column(children: [
+      Material(color: cs.surface, elevation: 2, child: Padding(padding: const EdgeInsets.fromLTRB(8, 6, 2, 6), child: Row(children: [
         Material(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(10), child: InkWell(onTap: _showTabs, borderRadius: BorderRadius.circular(10), child: SizedBox(width: 40, height: 42, child: Center(child: Text(tabs.length.toString(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)))))),
         const SizedBox(width: 7),
         Expanded(child: Container(height: 42, decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(24)), child: TextField(controller: address, onSubmitted: (_) => go(), textInputAction: TextInputAction.go, keyboardType: TextInputType.url, decoration: InputDecoration(hintText: 'Search or enter URL', prefixIcon: const Icon(Icons.search, size: 19), suffixIcon: IconButton(onPressed: go, icon: const Icon(Icons.arrow_forward, size: 19)), isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 10), border: InputBorder.none)))),
@@ -654,6 +654,6 @@ class _BrowserPageState extends State<BrowserPage> {
         ...history.map((e) => ListTile(leading: const Icon(Icons.history), title: Text(e['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(e['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { address.text = e['url'] ?? ''; go(); }, trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { history.remove(e); await _saveHistory(); if (mounted) setState(() {}); }))),
         if (history.isNotEmpty) Padding(padding: const EdgeInsets.all(16), child: OutlinedButton.icon(onPressed: () async { final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Clear history?'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear all'))])); if (ok == true) { history.clear(); await _saveHistory(); if (mounted) setState(() {}); } }, icon: const Icon(Icons.delete_sweep_outlined), label: const Text('Clear all history'))),
       ]) : IndexedStack(index: active, children: tabs.map((e) => WebViewWidget(controller: e.controller)).toList())),
-    ]);
+    ]));
   }
 }
