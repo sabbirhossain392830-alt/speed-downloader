@@ -1,11 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() {
-  runApp(const SpeedDownloader());
+  runApp(const SpeedDownloaderApp());
 }
 
-class SpeedDownloader extends StatelessWidget {
-  const SpeedDownloader({super.key});
+class SpeedDownloaderApp extends StatelessWidget {
+  const SpeedDownloaderApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -13,28 +16,87 @@ class SpeedDownloader extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Speed Downloader',
       theme: ThemeData(
-        brightness: Brightness.dark,
-        primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: const Color(0xFF101827),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
       ),
-      home: const HomePage(),
+      home: const DownloadHome(),
     );
   }
 }
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class DownloadHome extends StatefulWidget {
+  const DownloadHome({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<DownloadHome> createState() => _DownloadHomeState();
 }
 
-class _HomePageState extends State<HomePage> {
-  final controller = TextEditingController();
+class _DownloadHomeState extends State<DownloadHome> {
+  final TextEditingController urlController = TextEditingController();
+  double progress = 0;
+  bool downloading = false;
+  String status = 'Download a file using a direct link';
+  String? savedPath;
+
+  Future<void> startDownload() async {
+    final url = urlController.text.trim();
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      setState(() => status = 'Please enter a valid HTTP/HTTPS link');
+      return;
+    }
+
+    setState(() {
+      downloading = true;
+      progress = 0;
+      savedPath = null;
+      status = 'Connecting...';
+    });
+
+    try {
+      final uri = Uri.parse(url);
+      String fileName = uri.pathSegments.isNotEmpty
+          ? uri.pathSegments.last
+          : 'downloaded_file';
+
+      if (fileName.isEmpty) fileName = 'downloaded_file';
+
+      final directory = await getApplicationDocumentsDirectory();
+      final saveFile = '${directory.path}/$fileName';
+
+      await Dio().download(
+        url,
+        saveFile,
+        onReceiveProgress: (received, total) {
+          if (total > 0 && mounted) {
+            setState(() {
+              progress = received / total;
+              status =
+                  'Downloading ${(progress * 100).toStringAsFixed(0)}%';
+            });
+          }
+        },
+      );
+
+      if (!mounted) return;
+      setState(() {
+        downloading = false;
+        progress = 1;
+        savedPath = saveFile;
+        status = 'Download completed!';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        downloading = false;
+        status = 'Download failed: $e';
+      });
+    }
+  }
 
   @override
   void dispose() {
-    controller.dispose();
+    urlController.dispose();
     super.dispose();
   }
 
@@ -42,75 +104,49 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('⚡ Speed Downloader'),
+        title: const Text('Speed Downloader'),
         centerTitle: true,
-        backgroundColor: const Color(0xFF172554),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 35),
-            const Icon(Icons.download_for_offline,
-                size: 90, color: Colors.blueAccent),
+            const Icon(Icons.download_rounded, size: 80, color: Colors.blue),
             const SizedBox(height: 20),
             const Text(
-              'Fast File Downloader',
+              'Fast & Simple Downloader',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 25,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 25),
             TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                hintText: 'Paste direct download URL',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                prefixIcon: const Icon(Icons.link),
+              controller: urlController,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: 'Paste direct download URL',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.link),
               ),
             ),
             const SizedBox(height: 18),
-            ElevatedButton.icon(
-              onPressed: () {
-                if (controller.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter a download URL'),
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Download engine coming next!'),
-                    ),
-                  );
-                }
-              },
+            FilledButton.icon(
+              onPressed: downloading ? null : startDownload,
               icon: const Icon(Icons.download),
-              label: const Text('DOWNLOAD'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.all(17),
-              ),
+              label: const Text('Download'),
             ),
             const SizedBox(height: 25),
-            const Text('Features'),
-            const ListTile(
-              leading: Icon(Icons.speed, color: Colors.green),
-              title: Text('Fast Download'),
-            ),
-            const ListTile(
-              leading: Icon(Icons.pause_circle, color: Colors.orange),
-              title: Text('Pause & Resume - Coming soon'),
-            ),
-            const ListTile(
-              leading: Icon(Icons.folder, color: Colors.blue),
-              title: Text('Download Manager - Coming soon'),
-            ),
+            LinearProgressIndicator(value: downloading ? progress : null),
+            const SizedBox(height: 12),
+            Text(status, textAlign: TextAlign.center),
+            if (savedPath != null) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Saved inside the app storage:',
+                textAlign: TextAlign.center,
+              ),
+              SelectableText(savedPath!),
+            ],
           ],
         ),
       ),
