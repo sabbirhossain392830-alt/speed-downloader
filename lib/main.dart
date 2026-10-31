@@ -491,7 +491,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           Text(
             entry.expectedFileSize > 0
                 ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} / ${_formatBytes(entry.expectedFileSize)} downloaded'
-                : (entry.progress > 0 ? '${_formatBytes(0)} / Size অজানা' : 'ডাউনলোডের পরিমাণ হিসাব হচ্ছে…'),
+                : (entry.progress > 0 ? 'মোট সাইজ সার্ভার জানায়নি • ${ (entry.progress * 100).toStringAsFixed(0) }% সম্পন্ন' : 'ডাউনলোডের পরিমাণ হিসাব হচ্ছে…'),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
