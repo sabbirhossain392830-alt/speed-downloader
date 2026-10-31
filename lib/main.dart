@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,12 +69,57 @@ class _DownloadHomeState extends State<DownloadHome> {
   StreamSubscription<TaskUpdate>? subscription;
   DownloadFilter filter = DownloadFilter.all;
   bool adding = false;
+  static const _historyKey = 'drox_download_history';
+
+  Future<void> _saveHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = entries.map((e) => {
+      'url': e.task.url,
+      'filename': e.task.filename,
+      'progress': e.progress,
+      'status': e.status,
+      'error': e.error,
+    }).toList();
+    await prefs.setString(_historyKey, jsonEncode(data));
+  }
+
+  Future<void> _loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_historyKey);
+    if (raw == null) return;
+    try {
+      final data = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+      final restored = data.map((item) {
+        final task = DownloadTask(
+          url: item['url'] as String,
+          filename: item['filename'] as String,
+          directory: 'DROX',
+          baseDirectory: BaseDirectory.applicationSupport,
+          updates: Updates.statusAndProgress,
+          allowPause: true,
+          retries: 3,
+        );
+        final entry = DownloadEntry(task)
+          ..progress = (item['progress'] as num?)?.toDouble() ?? 0
+          ..status = (item['status'] as String?) ?? 'ইতিহাসে সংরক্ষিত'
+          ..error = item['error'] as String?;
+        if (entry.status == 'ডাউনলোড হচ্ছে' || entry.status == 'কিউতে আছে' || entry.status == 'আবার চেষ্টা করছে') {
+          entry.status = 'অ্যাপ পুনরায় খুলুন—ডাউনলোডের অবস্থা যাচাই করুন';
+        }
+        return entry;
+      }).toList();
+      if (mounted) setState(() => entries.addAll(restored));
+    } catch (_) {
+      await prefs.remove(_historyKey);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     subscription = FileDownloader().updates.listen(_onUpdate);
     FileDownloader().resumeFromBackground();
+    _loadHistory();
   }
 
   void _onUpdate(TaskUpdate update) {
@@ -92,6 +140,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         }
       }
     });
+    _saveHistory();
   }
 
   String _statusText(TaskStatus s) {
@@ -137,10 +186,12 @@ class _DownloadHomeState extends State<DownloadHome> {
       entries.insert(0, DownloadEntry(task));
       controller.clear();
     });
+    _saveHistory();
     final ok = await FileDownloader().enqueue(task);
     if (!ok && mounted) {
       setState(() => entries.firstWhere((e) => e.task.taskId == task.taskId).status = 'কিউতে যোগ করা যায়নি');
     }
+    _saveHistory();
     if (mounted) setState(() => adding = false);
   }
 
@@ -167,7 +218,9 @@ class _DownloadHomeState extends State<DownloadHome> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ডাউনলোড সম্পন্ন হলে ফাইল Open করা যাবে')));
       return;
     }
-    final result = await FileDownloader().openFile(task: entry.task);
+    final support = await getApplicationSupportDirectory();
+    final path = '${support.path}/DROX/${entry.task.filename}';
+    final result = await FileDownloader().openFile(filePath: path);
     if (!result && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ফাইলটি খোলা যায়নি')));
     }
@@ -178,11 +231,13 @@ class _DownloadHomeState extends State<DownloadHome> {
       url: entry.task.url,
       filename: entry.task.filename,
       directory: 'DROX',
+      baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
       retries: 3,
     );
     setState(() => entries.insert(0, DownloadEntry(task)));
+    _saveHistory();
     final ok = await FileDownloader().enqueue(task);
     if (!ok && mounted) {
       setState(() => entries.firstWhere((e) => e.task.taskId == task.taskId).status = 'কিউতে যোগ করা যায়নি');
@@ -194,6 +249,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       await FileDownloader().cancelTaskWithId(entry.task.taskId);
     }
     if (mounted) setState(() => entries.removeWhere((e) => e.task.taskId == entry.task.taskId));
+    _saveHistory();
   }
 
   bool _matches(DownloadEntry e) {
