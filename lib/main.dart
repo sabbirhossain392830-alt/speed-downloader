@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 void main() async {
@@ -52,6 +51,7 @@ class DownloadEntry {
   double progress = 0;
   String status = 'কিউতে আছে';
   String? error;
+  String? sharedPath;
 }
 
 enum DownloadFilter { all, active, completed, failed }
@@ -82,6 +82,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       'progress': e.progress,
       'status': e.status,
       'error': e.error,
+      'sharedPath': e.sharedPath,
     }).toList();
     await prefs.setString(_historyKey, jsonEncode(data));
   }
@@ -105,7 +106,8 @@ class _DownloadHomeState extends State<DownloadHome> {
         final entry = DownloadEntry(task)
           ..progress = (item['progress'] as num?)?.toDouble() ?? 0
           ..status = (item['status'] as String?) ?? 'ইতিহাসে সংরক্ষিত'
-          ..error = item['error'] as String?;
+          ..error = item['error'] as String?
+          ..sharedPath = item['sharedPath'] as String?;
         if (entry.status == 'ডাউনলোড হচ্ছে' || entry.status == 'কিউতে আছে' || entry.status == 'আবার চেষ্টা করছে') {
           entry.status = 'অ্যাপ পুনরায় খুলুন—ডাউনলোডের অবস্থা যাচাই করুন';
         }
@@ -140,6 +142,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         if (update.status == TaskStatus.complete) {
           entry.progress = 1;
           entry.error = null;
+          _publishToPhone(entry);
         }
       }
     });
@@ -216,14 +219,25 @@ class _DownloadHomeState extends State<DownloadHome> {
     await FileDownloader().cancelTaskWithId(entry.task.taskId);
   }
 
+  Future<void> _publishToPhone(DownloadEntry entry) async {
+    if (entry.sharedPath != null) return;
+    try {
+      final path = await FileDownloader().moveToSharedStorage(entry.task, SharedStorage.downloads, directory: 'DROX');
+      if (path != null) { entry.sharedPath = path; await _saveHistory(); if (mounted) setState(() {}); }
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ফোনের Downloads ফোল্ডারে কপি করা যায়নি')));
+    }
+  }
+
   Future<void> _open(DownloadEntry entry) async {
     if (entry.status != 'সম্পন্ন') {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ডাউনলোড সম্পন্ন হলে ফাইল Open করা যাবে')));
       return;
     }
-    final support = await getApplicationSupportDirectory();
-    final path = '${support.path}/DROX/${entry.task.filename}';
-    final result = await FileDownloader().openFile(filePath: path);
+    if (entry.sharedPath == null) await _publishToPhone(entry);
+    final result = entry.sharedPath != null
+        ? await FileDownloader().openFile(filePath: entry.sharedPath!)
+        : await FileDownloader().openFile(task: entry.task);
     if (!result && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ফাইলটি খোলা যায়নি')));
     }
@@ -484,6 +498,7 @@ class _BrowserPageState extends State<BrowserPage> {
   final history = <Map<String,String>>[];
   int active = 0;
   bool showHistory = false;
+  bool adBlockEnabled = true;
   _DroxTab? get tab => tabs.isEmpty ? null : tabs[active];
 
   @override
@@ -513,6 +528,7 @@ class _BrowserPageState extends State<BrowserPage> {
     tabs.add(t); active = tabs.length - 1;
     final c = t.controller;
     await c.setJavaScriptMode(JavaScriptMode.unrestricted);
+    await c.addJavaScriptChannel('DroxDownload', onMessageReceived: (message) => _downloadPrompt(message.message));
     await c.setNavigationDelegate(NavigationDelegate(
       onNavigationRequest: (request) {
         if (_downloadable(request.url)) { _downloadPrompt(request.url); return NavigationDecision.prevent; }
@@ -524,6 +540,7 @@ class _BrowserPageState extends State<BrowserPage> {
       },
       onPageFinished: (u) async {
         t.url = u;
+        await c.runJavaScript('''document.addEventListener('click', function(e) { var a=e.target.closest('a'); if(a && a.href && /^https?:/i.test(a.href)) { var p=new URL(a.href).pathname.toLowerCase(); if(/\\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)$/.test(p)) { e.preventDefault(); DroxDownload.postMessage(a.href); } } }, true);''');
         final title = await c.getTitle();
         t.title = (title == null || title.isEmpty) ? (Uri.tryParse(u)?.host ?? 'Website') : title;
         t.loading = false; t.back = await c.canGoBack(); t.forward = await c.canGoForward();
@@ -629,6 +646,7 @@ class _BrowserPageState extends State<BrowserPage> {
               if (value == 'refresh') t?.controller.reload();
               if (value == 'history') setState(() => showHistory = true);
               if (value == 'new') _newTab();
+              if (value == 'adblock') setState(() => adBlockEnabled = !adBlockEnabled);
               if (value == 'tabs') {
                 showModalBottomSheet<void>(context: context, showDragHandle: true,
                   builder: (ctx) => SafeArea(child: SizedBox(height: 300, child: Column(children: [
@@ -645,6 +663,7 @@ class _BrowserPageState extends State<BrowserPage> {
             },
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
+              PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'))),
               PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
               PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add), title: Text('New tab'))),
               PopupMenuItem(value: 'tabs', child: ListTile(dense: true, leading: Icon(Icons.tab), title: Text('Switch tabs'))),
@@ -652,9 +671,7 @@ class _BrowserPageState extends State<BrowserPage> {
           ),
           Text(tabs.length.toString() + '  '),
         ]),
-        SizedBox(height: 32, child: ListView(scrollDirection: Axis.horizontal,
-          children: List.generate(tabs.length, (i) => Padding(padding: const EdgeInsets.only(right: 6),
-            child: ChoiceChip(label: Text('Tab ' + (i + 1).toString()), selected: i == active, onSelected: (_) => _select(i)))))),
+        if (adBlockEnabled) const SizedBox.shrink(),
       ])),
       if (t?.loading == true) const LinearProgressIndicator(minHeight: 2),
       Expanded(child: showHistory ? ListView(children: [
@@ -679,6 +696,13 @@ class _BrowserPageState extends State<BrowserPage> {
           },
           icon: const Icon(Icons.delete_sweep_outlined), label: const Text('Clear all history'))),
       ]) : IndexedStack(index: active, children: tabs.map((e) => WebViewWidget(controller: e.controller)).toList())),
+      Container(color: cs.surface, child: SafeArea(top: false, child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+        IconButton(onPressed: t?.back == true ? () => t!.controller.goBack() : null, icon: const Icon(Icons.arrow_back)),
+        IconButton(onPressed: t?.forward == true ? () => t!.controller.goForward() : null, icon: const Icon(Icons.arrow_forward)),
+        IconButton(onPressed: () => t?.controller.loadRequest(Uri.parse('https://www.google.com')), icon: const Icon(Icons.home_outlined)),
+        IconButton(onPressed: () => showModalBottomSheet<void>(context: context, showDragHandle: true, builder: (ctx) => SafeArea(child: SizedBox(height: 300, child: Column(children: [ListTile(title: Text('Open tabs (' + tabs.length.toString() + ')'), trailing: IconButton(onPressed: () { Navigator.pop(ctx); _newTab(); }, icon: const Icon(Icons.add))), Expanded(child: ListView.builder(itemCount: tabs.length, itemBuilder: (_, i) => ListTile(title: Text(tabs[i].title, maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { Navigator.pop(ctx); _select(i); }, trailing: IconButton(onPressed: () { Navigator.pop(ctx); _close(i); }, icon: const Icon(Icons.close)))))])))), icon: const Icon(Icons.tab)),
+        PopupMenuButton<String>(onSelected: (v) { if (v == 'history') setState(() => showHistory = true); if (v == 'refresh') t?.controller.reload(); if (v == 'ad') setState(() => adBlockEnabled = !adBlockEnabled); if (v == 'new') _newTab(); }, itemBuilder: (_) => [const PopupMenuItem(value: 'refresh', child: Text('Refresh')), const PopupMenuItem(value: 'history', child: Text('History')), const PopupMenuItem(value: 'new', child: Text('New tab')), PopupMenuItem(value: 'ad', child: Text(adBlockEnabled ? 'Ad Block: On' : 'Ad Block: Off'))], icon: const Icon(Icons.more_vert)),
+      ]))),
     ]);
   }
 }
