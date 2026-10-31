@@ -71,6 +71,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   DownloadFilter filter = DownloadFilter.all;
   bool adding = false;
   int selectedTab = 0;
+  final GlobalKey<_BrowserPageState> browserKey = GlobalKey<_BrowserPageState>();
   static const _historyKey = 'drox_download_history';
 
   Future<void> _saveHistory() async {
@@ -276,7 +277,17 @@ class _DownloadHomeState extends State<DownloadHome> {
     final done = entries.where((e) => e.status == 'সম্পন্ন').length;
     final visible = entries.where(_matches).toList();
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
+    return PopScope(
+      canPop: selectedTab == 0,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (selectedTab == 1) {
+          final handled = await browserKey.currentState?.handleSystemBack() ?? false;
+          if (handled || !mounted) return;
+        }
+        if (selectedTab != 0) setState(() => selectedTab = 0);
+      },
+      child: Scaffold(
       appBar: AppBar(
         titleSpacing: 20,
         title: Row(children: [
@@ -340,7 +351,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             ]))
           else ...visible.map(_downloadCard),
         ]),
-        const BrowserPage(),
+        BrowserPage(key: browserKey),
         ListView(padding: const EdgeInsets.all(16), children: [
           const Text('DOWNLOADS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
           const SizedBox(height: 12),
@@ -374,7 +385,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings'),
         ],
       ),
-    );
+    ));
   }
 
   Widget _filterChip(String label, DownloadFilter value) => Padding(
@@ -464,42 +475,126 @@ class _BrowserPageState extends State<BrowserPage> {
   late final WebViewController web;
   final address = TextEditingController(text: 'https://www.google.com');
   bool loading = true;
+  bool canGoBack = false;
+  bool canGoForward = false;
+  String pageTitle = 'Google';
+
   @override
   void initState() {
     super.initState();
     web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (_) => setState(() => loading = true),
-        onPageFinished: (url) { address.text = url; if (mounted) setState(() => loading = false); },
+        onPageStarted: (url) {
+          if (mounted) setState(() { loading = true; address.text = url; });
+          _refreshNavigation();
+        },
+        onPageFinished: (url) async {
+          final title = await web.getTitle();
+          if (!mounted) return;
+          setState(() {
+            address.text = url;
+            pageTitle = (title == null || title.isEmpty) ? Uri.tryParse(url)?.host ?? 'Website' : title;
+            loading = false;
+          });
+          _refreshNavigation();
+        },
         onWebResourceError: (_) { if (mounted) setState(() => loading = false); },
       ))
       ..loadRequest(Uri.parse('https://www.google.com'));
   }
+
+  Future<void> _refreshNavigation() async {
+    final back = await web.canGoBack();
+    final forward = await web.canGoForward();
+    if (mounted) setState(() { canGoBack = back; canGoForward = forward; });
+  }
+
+  Future<bool> handleSystemBack() async {
+    if (await web.canGoBack()) {
+      await web.goBack();
+      await _refreshNavigation();
+      return true;
+    }
+    return false;
+  }
+
   void go() {
     var value = address.text.trim();
+    if (value.isEmpty) return;
     if (!value.contains('://')) {
-      value = value.contains(' ') ? 'https://www.google.com/search?q=${Uri.encodeQueryComponent(value)}' : 'https://$value';
+      value = value.contains(' ') || !value.contains('.')
+          ? 'https://www.google.com/search?q=${Uri.encodeQueryComponent(value)}'
+          : 'https://$value';
     }
     final uri = Uri.tryParse(value);
-    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) web.loadRequest(uri);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isNotEmpty) {
+      web.loadRequest(uri);
+    }
   }
+
   @override
   void dispose() { address.dispose(); super.dispose(); }
-  @override
-  Widget build(BuildContext context) => Column(children: [
-    Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 8), child: Row(children: [
-      IconButton(onPressed: () => web.goBack(), icon: const Icon(Icons.arrow_back)),
-      IconButton(onPressed: () => web.goForward(), icon: const Icon(Icons.arrow_forward)),
-      Expanded(child: TextField(controller: address, onSubmitted: (_) => go(), keyboardType: TextInputType.url, decoration: const InputDecoration(hintText: 'Search Google or enter URL', prefixIcon: Icon(Icons.search), isDense: true, border: OutlineInputBorder()))),
-      IconButton(onPressed: go, icon: const Icon(Icons.arrow_circle_right)),
-    ])),
-    if (loading) const LinearProgressIndicator(minHeight: 2),
-    Expanded(child: WebViewWidget(controller: web)),
-    SafeArea(top: false, child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-      IconButton(onPressed: () => web.loadRequest(Uri.parse('https://www.google.com')), icon: const Icon(Icons.home_outlined)),
-      IconButton(onPressed: () => web.reload(), icon: const Icon(Icons.refresh)),
-    ])),
-  ]);
-}
 
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .05), blurRadius: 10, offset: const Offset(0, 3))],
+        ),
+        child: Column(children: [
+          Row(children: [
+            IconButton(
+              tooltip: 'Back',
+              onPressed: canGoBack ? () async { await web.goBack(); _refreshNavigation(); } : null,
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            IconButton(
+              tooltip: 'Forward',
+              onPressed: canGoForward ? () async { await web.goForward(); _refreshNavigation(); } : null,
+              icon: const Icon(Icons.arrow_forward_rounded),
+            ),
+            Expanded(child: Container(
+              decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(16)),
+              child: TextField(
+                controller: address,
+                onSubmitted: (_) => go(),
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.go,
+                decoration: InputDecoration(
+                  hintText: 'Search or enter website',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: IconButton(onPressed: go, icon: const Icon(Icons.arrow_forward_rounded)),
+                  isDense: true,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 13),
+                ),
+              ),
+            )),
+            const SizedBox(width: 4),
+            IconButton(tooltip: 'Reload', onPressed: () => web.reload(), icon: const Icon(Icons.refresh_rounded)),
+          ]),
+          const SizedBox(height: 5),
+          Row(children: [
+            const SizedBox(width: 12),
+            Icon(Icons.lock_outline_rounded, size: 13, color: cs.primary),
+            const SizedBox(width: 5),
+            Expanded(child: Text(pageTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelSmall)),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Home',
+              onPressed: () => web.loadRequest(Uri.parse('https://www.google.com')),
+              icon: const Icon(Icons.home_outlined, size: 20),
+            ),
+          ]),
+        ]),
+      ),
+      if (loading) const LinearProgressIndicator(minHeight: 2),
+      Expanded(child: WebViewWidget(controller: web)),
+    ]);
+  }
+}
