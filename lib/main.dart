@@ -144,14 +144,14 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   Future<void> _pause(DownloadEntry entry) async {
-    final ok = await FileDownloader().pause(entry.task.taskId);
+    final ok = await FileDownloader().pause(entry.task);
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('এই সার্ভার Pause/Resume সমর্থন নাও করতে পারে')));
     }
   }
 
   Future<void> _resume(DownloadEntry entry) async {
-    final ok = await FileDownloader().resume(entry.task.taskId);
+    final ok = await FileDownloader().resume(entry.task);
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ডাউনলোডটি Resume করা যায়নি')));
     }
