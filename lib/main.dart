@@ -544,7 +544,7 @@ class _BrowserPageState extends State<BrowserPage> {
       },
       onPageFinished: (u) async {
         t.url = u;
-        await c.runJavaScript('''document.addEventListener('click', function(e) { var a=e.target.closest('a'); if(a && a.href && /^https?:/i.test(a.href)) { var u=new URL(a.href), p=u.pathname.toLowerCase(); var ext=/\\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)(\$|\\?)/i.test(p); var endpoint=/\\/(file|download|downloads)(\\/|$)/i.test(p); if(a.hasAttribute('download') || ext || endpoint) { e.preventDefault(); e.stopPropagation(); DroxDownload.postMessage(a.href); } } }, true);''');
+        await c.runJavaScript('''document.addEventListener('click', function(e) { var a=e.target.closest('a'); if(a && a.href && /^https?:/i.test(a.href)) { var u=new URL(a.href), p=u.pathname.toLowerCase(); var ext=/\\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)(\$|\\?)/i.test(p); var endpoint=/\\/(file|download|downloads)(\\/|\$)/i.test(p); if(a.hasAttribute('download') || ext || endpoint) { e.preventDefault(); e.stopPropagation(); DroxDownload.postMessage(a.href); } } }, true);''');
         final title = await c.getTitle();
         t.title = (title == null || title.isEmpty) ? (Uri.tryParse(u)?.host ?? 'Website') : title;
         t.loading = false; t.back = await c.canGoBack(); t.forward = await c.canGoForward();
