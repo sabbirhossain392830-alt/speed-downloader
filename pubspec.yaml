@@ -1,32 +1,22 @@
-name: Build Speed Downloader APK
+name: speed_downloader
+description: A fast and simple direct link downloader.
+publish_to: 'none'
 
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
+version: 1.0.0+1
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+environment:
+  sdk: '>=3.3.0 <4.0.0'
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
+dependencies:
+  flutter:
+    sdk: flutter
 
-      - name: Generate Android project
-        run: flutter create --platforms=android --project-name speed_downloader .
+  dio: ^5.8.0+1
+  path_provider: ^2.1.5
 
-      - name: Build APK
-        run: |
-          flutter pub get
-          flutter build apk --release
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: speed-downloader-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+flutter:
+  uses-material-design: true
