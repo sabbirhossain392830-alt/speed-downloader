@@ -5,6 +5,7 @@ import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,6 +70,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   StreamSubscription<TaskUpdate>? subscription;
   DownloadFilter filter = DownloadFilter.all;
   bool adding = false;
+  int selectedTab = 0;
   static const _historyKey = 'drox_download_history';
 
   Future<void> _saveHistory() async {
@@ -273,60 +275,103 @@ class _DownloadHomeState extends State<DownloadHome> {
     final active = entries.where((e) => ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(e.status)).length;
     final done = entries.where((e) => e.status == 'সম্পন্ন').length;
     final visible = entries.where(_matches).toList();
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Row(children: [Icon(Icons.downloading, size: 28), SizedBox(width: 8), Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5))]),
-        actions: [IconButton(tooltip: 'Theme', onPressed: widget.onThemeTap, icon: Icon(widget.isDark ? Icons.light_mode : Icons.dark_mode))],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('POWERFUL DOWNLOAD MANAGER', textAlign: TextAlign.center, style: TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
-          const SizedBox(height: 16),
-          Card(child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(children: [
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.url,
-                decoration: const InputDecoration(labelText: 'Download URL', hintText: 'https://example.com/file.zip', prefixIcon: Icon(Icons.link), border: OutlineInputBorder()),
-                onSubmitted: (_) => _add(),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(width: double.infinity, child: FilledButton.icon(
-                onPressed: adding ? null : _add,
-                icon: adding ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.add),
-                label: const Text('Add to Download Queue'),
-              )),
-            ]),
-          )),
-          const SizedBox(height: 12),
-          Row(children: [
-            _stat('TOTAL', entries.length.toString(), Icons.download),
-            const SizedBox(width: 8),
-            _stat('ACTIVE', active.toString(), Icons.sync),
-            const SizedBox(width: 8),
-            _stat('DONE', done.toString(), Icons.check_circle_outline),
+        titleSpacing: 20,
+        title: Row(children: [
+          Container(width: 38, height: 38, decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.bolt, color: Colors.white)),
+          const SizedBox(width: 10),
+          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 20)),
+            Text('DOWNLOAD MANAGER', style: TextStyle(fontSize: 9, letterSpacing: 1.5, fontWeight: FontWeight.w700)),
           ]),
-          const SizedBox(height: 18),
-          const Text('MY DOWNLOADS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: [
-              _filterChip('All', DownloadFilter.all),
-              _filterChip('Active', DownloadFilter.active),
-              _filterChip('Completed', DownloadFilter.completed),
-              _filterChip('Failed', DownloadFilter.failed),
+        ]),
+        actions: [IconButton(tooltip: 'Theme', onPressed: widget.onThemeTap, icon: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined))],
+      ),
+      body: IndexedStack(index: selectedTab, children: [
+        ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [cs.primary, cs.primary.withValues(alpha: 0.72)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('DOWNLOAD SMARTER', style: TextStyle(color: Colors.white70, fontSize: 11, letterSpacing: 2, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              const Text('Everything you save.\nAll in one place.', style: TextStyle(color: Colors.white, fontSize: 23, height: 1.15, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 14),
+              FilledButton.tonalIcon(onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.public), label: const Text('Open Browser')),
             ]),
           ),
+          const SizedBox(height: 18),
+          Text('QUICK DOWNLOAD', style: TextStyle(fontSize: 11, letterSpacing: 1.6, fontWeight: FontWeight.w800, color: cs.primary)),
+          const SizedBox(height: 9),
+          Card(
+            elevation: 0,
+            child: Padding(padding: const EdgeInsets.all(14), child: Column(children: [
+              TextField(controller: controller, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Paste a download link', hintText: 'https://example.com/file.zip', prefixIcon: Icon(Icons.link), border: OutlineInputBorder())),
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: adding ? null : _add, icon: adding ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download_rounded), label: const Text('Add Download'))),
+            ])),
+          ),
+          const SizedBox(height: 16),
+          Row(children: [
+            _stat('TOTAL', entries.length.toString(), Icons.download_rounded),
+            const SizedBox(width: 8), _stat('ACTIVE', active.toString(), Icons.downloading),
+            const SizedBox(width: 8), _stat('DONE', done.toString(), Icons.check_circle_outline),
+          ]),
+          const SizedBox(height: 20),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text('YOUR DOWNLOADS', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)),
+            TextButton(onPressed: () => setState(() => selectedTab = 2), child: const Text('View all')),
+          ]),
+          SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
+            _filterChip('All', DownloadFilter.all), _filterChip('Active', DownloadFilter.active),
+            _filterChip('Completed', DownloadFilter.completed), _filterChip('Failed', DownloadFilter.failed),
+          ])),
           const SizedBox(height: 10),
           if (visible.isEmpty)
-            const Padding(padding: EdgeInsets.symmetric(vertical: 36), child: Column(children: [Icon(Icons.cloud_download_outlined, size: 54), SizedBox(height: 10), Text('এই তালিকায় কোনো ডাউনলোড নেই'), Text('উপরে direct link যোগ করুন')]))
-          else
-            ...visible.map(_downloadCard),
-          const SizedBox(height: 16),
-          Text('Background downloads use Android system services. Pause/Resume depends on server Range support. Files are stored in DROX app storage.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+            Padding(padding: const EdgeInsets.symmetric(vertical: 30), child: Column(children: [
+              Icon(Icons.cloud_download_outlined, size: 48, color: cs.primary.withValues(alpha: .7)),
+              const SizedBox(height: 10), const Text('No downloads yet', style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4), Text('Paste a direct link above or browse the web.', style: Theme.of(context).textTheme.bodySmall),
+            ]))
+          else ...visible.map(_downloadCard),
+        ]),
+        const BrowserPage(),
+        ListView(padding: const EdgeInsets.all(16), children: [
+          const Text('DOWNLOADS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          const SizedBox(height: 12),
+          SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
+            _filterChip('All', DownloadFilter.all), _filterChip('Active', DownloadFilter.active),
+            _filterChip('Completed', DownloadFilter.completed), _filterChip('Failed', DownloadFilter.failed),
+          ])),
+          const SizedBox(height: 10),
+          if (visible.isEmpty) const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('No downloads here yet')))
+          else ...visible.map(_downloadCard),
+        ]),
+        ListView(padding: const EdgeInsets.all(16), children: [
+          const Text('SETTINGS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          const SizedBox(height: 12),
+          Card(child: Column(children: [
+            ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Appearance'), subtitle: Text(widget.isDark ? 'Dark theme' : 'Light theme'), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
+            const Divider(height: 1),
+            const ListTile(leading: Icon(Icons.folder_outlined), title: Text('Storage'), subtitle: Text('DROX app storage')),
+            const Divider(height: 1),
+            const ListTile(leading: Icon(Icons.info_outline), title: Text('About DROX'), subtitle: Text('Powerful Download Manager')),
+          ])),
+        ]),
+      ]),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: selectedTab,
+        onDestinationSelected: (i) => setState(() => selectedTab = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.public), label: 'Browser'),
+          NavigationDestination(icon: Icon(Icons.download_outlined), selectedIcon: Icon(Icons.download), label: 'Downloads'),
+          NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings'),
         ],
       ),
     );
@@ -336,6 +381,18 @@ class _DownloadHomeState extends State<DownloadHome> {
     padding: const EdgeInsets.only(right: 8),
     child: ChoiceChip(label: Text(label), selected: filter == value, onSelected: (_) => setState(() => filter = value)),
   );
+
+  IconData _fileIcon(String name) {
+    final n = name.toLowerCase();
+    if (n.endsWith('.zip') || n.endsWith('.rar') || n.endsWith('.7z')) return Icons.folder_zip_outlined;
+    if (['.mp4', '.mkv', '.mov', '.avi', '.webm'].any(n.endsWith)) return Icons.video_file_outlined;
+    if (['.mp3', '.wav', '.m4a', '.aac', '.flac'].any(n.endsWith)) return Icons.audio_file_outlined;
+    if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].any(n.endsWith)) return Icons.image_outlined;
+    if (n.endsWith('.pdf')) return Icons.picture_as_pdf_outlined;
+    if (n.endsWith('.apk')) return Icons.android_outlined;
+    if (['.doc', '.docx', '.txt'].any(n.endsWith)) return Icons.description_outlined;
+    return Icons.insert_drive_file_outlined;
+  }
 
   Widget _downloadCard(DownloadEntry entry) {
     final running = entry.status == 'ডাউনলোড হচ্ছে';
@@ -349,7 +406,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(entry.status == 'সম্পন্ন' ? Icons.check_circle : Icons.insert_drive_file, color: color),
+            Icon(_fileIcon(entry.task.filename), color: color, size: 30),
             const SizedBox(width: 10),
             Expanded(child: Text(entry.task.filename, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
             PopupMenuButton<String>(
@@ -396,3 +453,52 @@ class _DownloadHomeState extends State<DownloadHome> {
     )),
   );
 }
+\nclass BrowserPage extends StatefulWidget {
+  const BrowserPage({super.key});
+  @override
+  State<BrowserPage> createState() => _BrowserPageState();
+}
+
+class _BrowserPageState extends State<BrowserPage> {
+  late final WebViewController web;
+  final address = TextEditingController(text: 'https://www.google.com');
+  bool loading = true;
+  @override
+  void initState() {
+    super.initState();
+    web = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageStarted: (_) => setState(() => loading = true),
+        onPageFinished: (url) { address.text = url; if (mounted) setState(() => loading = false); },
+        onWebResourceError: (_) { if (mounted) setState(() => loading = false); },
+      ))
+      ..loadRequest(Uri.parse('https://www.google.com'));
+  }
+  void go() {
+    var value = address.text.trim();
+    if (!value.contains('://')) {
+      value = value.contains(' ') ? 'https://www.google.com/search?q=${Uri.encodeQueryComponent(value)}' : 'https://$value';
+    }
+    final uri = Uri.tryParse(value);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) web.loadRequest(uri);
+  }
+  @override
+  void dispose() { address.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 8), child: Row(children: [
+      IconButton(onPressed: () => web.goBack(), icon: const Icon(Icons.arrow_back)),
+      IconButton(onPressed: () => web.goForward(), icon: const Icon(Icons.arrow_forward)),
+      Expanded(child: TextField(controller: address, onSubmitted: (_) => go(), keyboardType: TextInputType.url, decoration: const InputDecoration(hintText: 'Search Google or enter URL', prefixIcon: Icon(Icons.search), isDense: true, border: OutlineInputBorder()))),
+      IconButton(onPressed: go, icon: const Icon(Icons.arrow_circle_right)),
+    ])),
+    if (loading) const LinearProgressIndicator(minHeight: 2),
+    Expanded(child: WebViewWidget(controller: web)),
+    SafeArea(top: false, child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+      IconButton(onPressed: () => web.loadRequest(Uri.parse('https://www.google.com')), icon: const Icon(Icons.home_outlined)),
+      IconButton(onPressed: () => web.reload(), icon: const Icon(Icons.refresh)),
+    ])),
+  ]);
+}
+
