@@ -540,7 +540,7 @@ class _BrowserPageState extends State<BrowserPage> {
       },
       onPageFinished: (u) async {
         t.url = u;
-        await c.runJavaScript('''document.addEventListener('click', function(e) { var a=e.target.closest('a'); if(a && a.href && /^https?:/i.test(a.href)) { var p=new URL(a.href).pathname.toLowerCase(); if(/\\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)\$/.test(p)) { e.preventDefault(); DroxDownload.postMessage(a.href); } } }, true);''');
+        await c.runJavaScript('''document.addEventListener('click', function(e) { var a=e.target.closest('a'); if(a && a.href && /^https?:/i.test(a.href)) { var u=new URL(a.href), p=u.pathname.toLowerCase(); var ext=/\\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)($|\\?)/i.test(p); var endpoint=/\\/(file|download|downloads)(\\/|$)/i.test(p); if(a.hasAttribute('download') || ext || endpoint) { e.preventDefault(); e.stopPropagation(); DroxDownload.postMessage(a.href); } } }, true);''');
         final title = await c.getTitle();
         t.title = (title == null || title.isEmpty) ? (Uri.tryParse(u)?.host ?? 'Website') : title;
         t.loading = false; t.back = await c.canGoBack(); t.forward = await c.canGoForward();
@@ -560,7 +560,10 @@ class _BrowserPageState extends State<BrowserPage> {
   }
   void _downloadPrompt(String url) {
     final u = Uri.tryParse(url);
-    final name = (u?.pathSegments.isNotEmpty == true) ? Uri.decodeComponent(u!.pathSegments.last) : 'download_file';
+    final rawName = (u?.pathSegments.isNotEmpty == true) ? u!.pathSegments.last : '';
+    String name;
+    try { name = Uri.decodeComponent(rawName); } catch (_) { name = rawName; }
+    if (name.isEmpty || !name.contains('.')) name = 'drox_download_${DateTime.now().millisecondsSinceEpoch}.bin';
     final type = name.contains('.') ? name.split('.').last.toUpperCase() : 'FILE';
     showDialog<void>(context: context, builder: (ctx) => AlertDialog(
       icon: const Icon(Icons.download_for_offline_outlined, size: 36),
@@ -661,12 +664,18 @@ class _BrowserPageState extends State<BrowserPage> {
                   ]))));
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
-              PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'))),
-              PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
-              PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add), title: Text('New tab'))),
-              PopupMenuItem(value: 'tabs', child: ListTile(dense: true, leading: Icon(Icons.tab), title: Text('Switch tabs'))),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
+              PopupMenuItem(value: 'adblock', child: Row(children: [
+                const SizedBox(width: 12),
+                Checkbox(value: adBlockEnabled, onChanged: null, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)), visualDensity: VisualDensity.compact),
+                const Icon(Icons.shield_outlined, size: 20),
+                const SizedBox(width: 12),
+                const Text('Ad Block'),
+              ])),
+              const PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
+              const PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add), title: Text('New tab'))),
+              const PopupMenuItem(value: 'tabs', child: ListTile(dense: true, leading: Icon(Icons.tab), title: Text('Switch tabs'))),
             ],
           ),
           Text(tabs.length.toString() + '  '),
