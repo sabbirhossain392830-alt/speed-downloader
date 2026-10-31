@@ -68,6 +68,7 @@ class DownloadEntry {
   DownloadEntry(this.task);
   final DownloadTask task;
   double progress = 0;
+  int expectedFileSize = -1;
   String status = 'কিউতে আছে';
   String? error;
   String? sharedPath;
@@ -99,6 +100,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       'url': e.task.url,
       'filename': e.task.filename,
       'progress': e.progress,
+      'expectedFileSize': e.expectedFileSize,
       'status': e.status,
       'error': e.error,
       'sharedPath': e.sharedPath,
@@ -124,6 +126,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         );
         final entry = DownloadEntry(task)
           ..progress = (item['progress'] as num?)?.toDouble() ?? 0
+          ..expectedFileSize = (item['expectedFileSize'] as num?)?.toInt() ?? -1
           ..status = (item['status'] as String?) ?? 'ইতিহাসে সংরক্ষিত'
           ..error = item['error'] as String?
           ..sharedPath = item['sharedPath'] as String?;
@@ -153,6 +156,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       final entry = entries[index];
       if (update is TaskProgressUpdate) {
         entry.progress = update.progress.clamp(0.0, 1.0);
+        if (update.hasExpectedFileSize) entry.expectedFileSize = update.expectedFileSize;
       } else if (update is TaskStatusUpdate) {
         entry.status = _statusText(update.status);
         if (update.status == TaskStatus.failed) {
@@ -438,6 +442,20 @@ class _DownloadHomeState extends State<DownloadHome> {
     return Icons.insert_drive_file_outlined;
   }
 
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return 'Size অজানা';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    double value = bytes.toDouble();
+    int unit = 0;
+    while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
+    return value >= 100 || unit == 0 ? '${value.toStringAsFixed(0)} ${units[unit]}' : '${value.toStringAsFixed(1)} ${units[unit]}';
+  }
+
+  String _fileType(String name) {
+    final dot = name.lastIndexOf('.');
+    return dot < 0 ? 'FILE' : name.substring(dot + 1).toUpperCase() + ' FILE';
+  }
+
   Widget _downloadCard(DownloadEntry entry) {
     final running = entry.status == 'ডাউনলোড হচ্ছে';
     final paused = entry.status == 'বিরতি';
@@ -467,6 +485,8 @@ class _DownloadHomeState extends State<DownloadHome> {
               ],
             ),
           ]),
+          const SizedBox(height: 4),
+          Text('${_fileType(entry.task.filename)}  •  ${_formatBytes(entry.expectedFileSize)}', style: Theme.of(context).textTheme.labelSmall),
           const SizedBox(height: 8),
           LinearProgressIndicator(value: entry.progress),
           const SizedBox(height: 8),
@@ -480,7 +500,7 @@ class _DownloadHomeState extends State<DownloadHome> {
               if (running)
                 OutlinedButton.icon(onPressed: () => _pause(entry), icon: const Icon(Icons.pause, size: 18), label: const Text('Pause')),
               if (paused || failed || queued)
-                OutlinedButton.icon(onPressed: () => _resume(entry), icon: const Icon(Icons.play_arrow, size: 18), label: Text(failed ? 'Retry' : 'Resume')),
+                OutlinedButton.icon(onPressed: () => failed ? _redownload(entry) : _resume(entry), icon: Icon(failed ? Icons.refresh : Icons.play_arrow, size: 18), label: Text(failed ? 'Retry' : 'Resume')),
               if (running || paused || queued)
                 TextButton.icon(onPressed: () => _cancel(entry), icon: const Icon(Icons.close, size: 18), label: const Text('Cancel')),
             ]),
