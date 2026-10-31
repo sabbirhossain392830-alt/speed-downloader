@@ -453,7 +453,8 @@ class _DownloadHomeState extends State<DownloadHome> {
     )),
   );
 }
-\nclass BrowserPage extends StatefulWidget {
+
+class BrowserPage extends StatefulWidget {
   const BrowserPage({super.key});
   @override
   State<BrowserPage> createState() => _BrowserPageState();
