@@ -540,7 +540,7 @@ class _BrowserPageState extends State<BrowserPage> {
       },
       onPageFinished: (u) async {
         t.url = u;
-        await c.runJavaScript('''document.addEventListener('click', function(e) { var a=e.target.closest('a'); if(a && a.href && /^https?:/i.test(a.href)) { var p=new URL(a.href).pathname.toLowerCase(); if(/\\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)$/.test(p)) { e.preventDefault(); DroxDownload.postMessage(a.href); } } }, true);''');
+        await c.runJavaScript('''document.addEventListener('click', function(e) { var a=e.target.closest('a'); if(a && a.href && /^https?:/i.test(a.href)) { var p=new URL(a.href).pathname.toLowerCase(); if(/\\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)\$/.test(p)) { e.preventDefault(); DroxDownload.postMessage(a.href); } } }, true);''');
         final title = await c.getTitle();
         t.title = (title == null || title.isEmpty) ? (Uri.tryParse(u)?.host ?? 'Website') : title;
         t.loading = false; t.back = await c.canGoBack(); t.forward = await c.canGoForward();
