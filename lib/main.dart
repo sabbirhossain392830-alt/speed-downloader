@@ -161,6 +161,40 @@ class _DownloadHomeState extends State<DownloadHome> {
     await FileDownloader().cancelTaskWithId(entry.task.taskId);
   }
 
+  Future<void> _open(DownloadEntry entry) async {
+    if (entry.status != 'সম্পন্ন') {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ডাউনলোড সম্পন্ন হলে ফাইল Open করা যাবে')));
+      return;
+    }
+    final result = await FileDownloader().openFile(taskId: entry.task.taskId);
+    if (result != TaskFileOpenResult.opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ফাইলটি খোলা যায়নি')));
+    }
+  }
+
+  Future<void> _redownload(DownloadEntry entry) async {
+    final task = DownloadTask(
+      url: entry.task.url,
+      filename: entry.task.filename,
+      directory: 'DROX',
+      updates: Updates.statusAndProgress,
+      allowPause: true,
+      retries: 3,
+    );
+    setState(() => entries.insert(0, DownloadEntry(task)));
+    final ok = await FileDownloader().enqueue(task);
+    if (!ok && mounted) {
+      setState(() => entries.firstWhere((e) => e.task.taskId == task.taskId).status = 'কিউতে যোগ করা যায়নি');
+    }
+  }
+
+  Future<void> _remove(DownloadEntry entry) async {
+    if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(entry.status)) {
+      await FileDownloader().cancelTaskWithId(entry.task.taskId);
+    }
+    if (mounted) setState(() => entries.removeWhere((e) => e.task.taskId == entry.task.taskId));
+  }
+
   bool _matches(DownloadEntry e) {
     switch (filter) {
       case DownloadFilter.all: return true;
@@ -261,12 +295,19 @@ class _DownloadHomeState extends State<DownloadHome> {
             Icon(entry.status == 'সম্পন্ন' ? Icons.check_circle : Icons.insert_drive_file, color: color),
             const SizedBox(width: 10),
             Expanded(child: Text(entry.task.filename, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
-            if (running)
-              IconButton(onPressed: () => _pause(entry), icon: const Icon(Icons.pause_circle_outline), tooltip: 'Pause'),
-            if (paused || failed)
-              IconButton(onPressed: () => _resume(entry), icon: const Icon(Icons.play_circle_outline), tooltip: 'Resume / Retry'),
-            if (running || paused || queued)
-              IconButton(onPressed: () => _cancel(entry), icon: const Icon(Icons.close), tooltip: 'Cancel'),
+            PopupMenuButton<String>(
+              tooltip: 'More options',
+              onSelected: (value) {
+                if (value == 'open') _open(entry);
+                if (value == 'redownload') _redownload(entry);
+                if (value == 'remove') _remove(entry);
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(value: 'open', enabled: entry.status == 'সম্পন্ন', child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
+                const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Redownload'))),
+                const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove'))),
+              ],
+            ),
           ]),
           const SizedBox(height: 8),
           LinearProgressIndicator(value: entry.progress),
@@ -275,6 +316,17 @@ class _DownloadHomeState extends State<DownloadHome> {
             Expanded(child: Text(entry.error == null ? entry.status : '${entry.status}: ${entry.error}', style: Theme.of(context).textTheme.bodySmall)),
             Text('${(entry.progress * 100).toStringAsFixed(0)}%', style: Theme.of(context).textTheme.bodySmall),
           ]),
+          if (running || paused || queued || failed) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              if (running)
+                OutlinedButton.icon(onPressed: () => _pause(entry), icon: const Icon(Icons.pause, size: 18), label: const Text('Pause')),
+              if (paused || failed || queued)
+                OutlinedButton.icon(onPressed: () => _resume(entry), icon: const Icon(Icons.play_arrow, size: 18), label: Text(failed ? 'Retry' : 'Resume')),
+              if (running || paused || queued)
+                TextButton.icon(onPressed: () => _cancel(entry), icon: const Icon(Icons.close, size: 18), label: const Text('Cancel')),
+            ]),
+          ],
         ]),
       ),
     );
