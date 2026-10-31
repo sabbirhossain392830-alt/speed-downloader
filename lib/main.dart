@@ -558,7 +558,7 @@ class _BrowserPageState extends State<BrowserPage> {
       onPageStarted: (u) { t.url = u; t.loading = true; if (mounted) setState(() { if (tab == t) address.text = u; }); },
       onPageFinished: (u) async {
         t.url = u;
-        await ctrl.runJavaScript('''document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&/^https?:/i.test(a.href)){var u=new URL(a.href),p=u.pathname.toLowerCase();var ext=/\\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)(\\$|\\?)/i.test(p);var ep=/\\/(file|download|downloads)(\\/|\\$)/i.test(p);if(a.hasAttribute('download')||ext||ep){e.preventDefault();e.stopPropagation();DroxDownload.postMessage(a.href);}}},true);''');
+        await ctrl.runJavaScript('''document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&/^https?:/i.test(a.href)){var u=new URL(a.href),p=u.pathname.toLowerCase();var ext=/\\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|docx?|xlsx?|pptx?)(\$|\\?)/i.test(p);var ep=/\\/(file|download|downloads)(\\/|\$)/i.test(p);if(a.hasAttribute('download')||ext||ep){e.preventDefault();e.stopPropagation();DroxDownload.postMessage(a.href);}}},true);''');
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
         t.loading = false; t.back = await ctrl.canGoBack(); t.forward = await ctrl.canGoForward();
@@ -620,7 +620,7 @@ class _BrowserPageState extends State<BrowserPage> {
         await tab?.controller.setUserAgent(desktopMode ? 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' : null);
         tab?.controller.reload(); break;
       case 'about':
-        if (mounted) showAboutDialog(context: context, applicationName: 'DROX', applicationVersion: '1.0', applicationTagline: 'Powerful Download Manager', children: const [Text('Browser and download manager.')]);
+        if (mounted) showAboutDialog(context: context, applicationName: 'DROX', applicationVersion: '1.0', children: const [Text('Browser and download manager.')]);
         break;
     }
   }
