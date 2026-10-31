@@ -288,7 +288,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         if (selectedTab != 0) setState(() => selectedTab = 0);
       },
       child: Scaffold(
-      appBar: AppBar(
+      appBar: selectedTab == 1 ? null : AppBar(
         titleSpacing: 20,
         title: Row(children: [
           Container(width: 38, height: 38, decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.bolt, color: Colors.white)),
@@ -375,7 +375,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           ])),
         ]),
       ]),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: selectedTab == 1 ? null : NavigationBar(
         selectedIndex: selectedTab,
         onDestinationSelected: (i) => setState(() => selectedTab = i),
         destinations: const [
@@ -606,12 +606,10 @@ class _BrowserPageState extends State<BrowserPage> {
               decoration: InputDecoration(hintText: 'Search Google or enter address', prefixIcon: const Icon(Icons.search),
                 suffixIcon: IconButton(onPressed: go, icon: const Icon(Icons.arrow_forward)), isDense: true, border: InputBorder.none)),
           )),
-          IconButton(onPressed: () => t?.controller.reload(), icon: const Icon(Icons.refresh)),
         ]),
         Row(children: [
           IconButton(onPressed: () => t?.controller.loadRequest(Uri.parse('https://www.google.com')), icon: const Icon(Icons.home_outlined)),
           Expanded(child: Text(t?.title ?? 'Browser', maxLines: 1, overflow: TextOverflow.ellipsis)),
-          IconButton(tooltip: 'History', onPressed: () => setState(() => showHistory = !showHistory), icon: const Icon(Icons.history)),
           IconButton(tooltip: 'New tab', onPressed: () => _newTab(), icon: const Icon(Icons.add_box_outlined)),
           IconButton(tooltip: 'Tabs', onPressed: () => showModalBottomSheet<void>(context: context, showDragHandle: true,
             builder: (ctx) => SafeArea(child: SizedBox(height: 300, child: Column(children: [
@@ -624,6 +622,34 @@ class _BrowserPageState extends State<BrowserPage> {
                 trailing: IconButton(onPressed: () { Navigator.pop(ctx); _close(i); }, icon: const Icon(Icons.close)),
               ))),
             ])))), icon: const Icon(Icons.tab)),
+          PopupMenuButton<String>(
+            tooltip: 'Browser menu',
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) async {
+              if (value == 'refresh') t?.controller.reload();
+              if (value == 'history') setState(() => showHistory = true);
+              if (value == 'new') _newTab();
+              if (value == 'tabs') {
+                showModalBottomSheet<void>(context: context, showDragHandle: true,
+                  builder: (ctx) => SafeArea(child: SizedBox(height: 300, child: Column(children: [
+                    ListTile(title: Text('Open tabs (' + tabs.length.toString() + ')'),
+                      trailing: IconButton(onPressed: () { Navigator.pop(ctx); _newTab(); }, icon: const Icon(Icons.add))),
+                    Expanded(child: ListView.builder(itemCount: tabs.length, itemBuilder: (_, i) => ListTile(
+                      selected: i == active, title: Text(tabs[i].title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(tabs[i].url, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      onTap: () { Navigator.pop(ctx); _select(i); },
+                      trailing: IconButton(onPressed: () { Navigator.pop(ctx); _close(i); }, icon: const Icon(Icons.close)),
+                    ))),
+                  ]))));
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
+              PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
+              PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add), title: Text('New tab'))),
+              PopupMenuItem(value: 'tabs', child: ListTile(dense: true, leading: Icon(Icons.tab), title: Text('Switch tabs'))),
+            ],
+          ),
           Text(tabs.length.toString() + '  '),
         ]),
         SizedBox(height: 32, child: ListView(scrollDirection: Axis.horizontal,
@@ -636,9 +662,22 @@ class _BrowserPageState extends State<BrowserPage> {
         if (history.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No history yet')),
         ...history.map((e) => ListTile(leading: const Icon(Icons.history), title: Text(e['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(e['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
-          onTap: () { address.text = e['url'] ?? ''; go(); })),
-        if (history.isNotEmpty) TextButton.icon(onPressed: () async { history.clear(); await _saveHistory(); if (mounted) setState(() {}); },
-          icon: const Icon(Icons.delete_outline), label: const Text('Clear history')),
+          onTap: () { address.text = e['url'] ?? ''; go(); },
+          trailing: IconButton(tooltip: 'Delete this history item', icon: const Icon(Icons.delete_outline),
+            onPressed: () async { history.remove(e); await _saveHistory(); if (mounted) setState(() {}); })),
+        if (history.isNotEmpty) Padding(padding: const EdgeInsets.all(16), child: OutlinedButton.icon(
+          onPressed: () async {
+            final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+              title: const Text('Clear all history?'),
+              content: const Text('সব browsing history মুছে ফেলা হবে।'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear all')),
+              ],
+            ));
+            if (confirm == true) { history.clear(); await _saveHistory(); if (mounted) setState(() {}); }
+          },
+          icon: const Icon(Icons.delete_sweep_outlined), label: const Text('Clear all history'))),
       ]) : IndexedStack(index: active, children: tabs.map((e) => WebViewWidget(controller: e.controller)).toList())),
     ]);
   }
