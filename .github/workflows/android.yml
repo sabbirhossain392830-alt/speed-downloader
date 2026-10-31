@@ -1,4 +1,4 @@
-name: Build Speed Downloader APK
+name: Build DROX APK
 
 on:
   workflow_dispatch:
@@ -21,6 +21,18 @@ jobs:
       - name: Generate Android project
         run: flutter create --platforms=android --project-name speed_downloader .
 
+      - name: Add Android internet permission
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          content = manifest.read_text()
+          permission = '<uses-permission android:name="android.permission.INTERNET"/>'
+          if permission not in content:
+              content = content.replace("<application", f"    {permission}\\n    <application", 1)
+              manifest.write_text(content)
+          PY
+
       - name: Build APK
         run: |
           flutter pub get
@@ -29,5 +41,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: speed-downloader-apk
+          name: drox-apk
           path: build/app/outputs/flutter-apk/app-release.apk
