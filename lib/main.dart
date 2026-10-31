@@ -128,6 +128,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       url: value,
       filename: _fileName(value),
       directory: 'DROX',
+      baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
       retries: 3,
@@ -166,8 +167,8 @@ class _DownloadHomeState extends State<DownloadHome> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ডাউনলোড সম্পন্ন হলে ফাইল Open করা যাবে')));
       return;
     }
-    final result = await FileDownloader().openFile(taskId: entry.task.taskId);
-    if (result != TaskFileOpenResult.opened && mounted) {
+    final result = await FileDownloader().openFile(task: entry.task);
+    if (!result && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ফাইলটি খোলা যায়নি')));
     }
   }
