@@ -585,7 +585,7 @@ class _BrowserPageState extends State<BrowserPage> {
       onPageStarted: (u) { t.url = u; t.loading = true; if (mounted) setState(() { if (tab == t) address.text = u; }); },
       onPageFinished: (u) async {
         t.url = u;
-        await ctrl.runJavaScript(r'''(function(){if(window.__droxDownloadHook)return;window.__droxDownloadHook=true;var exts=/\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|jpg|jpeg|png|gif|docx?|xlsx?|pptx?|csv|txt|epub|torrent)$/i;var files=/\/(file|download|downloads)(\/|\?|#|$)/i;var types=/^(application\/(pdf|zip|x-zip-compressed|x-rar-compressed|vnd\.|octet-stream)|audio\/|video\/|image\/)/i;function send(url){try{DroxDownload.postMessage(url)}catch(_){}}function scanMedia(){document.querySelectorAll('video, audio').forEach(function(m){var s=m.currentSrc||m.src;if(s&&/^https?:/i.test(s)&&exts.test(new URL(s).pathname))send(s)});}document.addEventListener('click',async function(e){var a=(e.target&&e.target.closest)?e.target.closest('a'):null;if(!a||!a.href||!/^https?:/i.test(a.href))return;var u=new URL(a.href);var likely=a.hasAttribute('download')||exts.test(u.pathname)||files.test(u.pathname);if(likely){e.preventDefault();e.stopImmediatePropagation();send(a.href);return;}if(u.origin===location.origin){try{var r=await fetch(a.href,{method:'HEAD',credentials:'include',redirect:'follow'});var cd=r.headers.get('content-disposition')||'';var ct=r.headers.get('content-type')||'';if(/attachment/i.test(cd)||types.test(ct)){e.preventDefault();e.stopImmediatePropagation();send(r.url||a.href);}}catch(_){}}},true);scanMedia();})();''');
+        await ctrl.runJavaScript(r'''(function(){if(window.__droxDownloadHook)return;window.__droxDownloadHook=true;var exts=/\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|m3u8|mp3|m4a|aac|wav|jpg|jpeg|png|gif|webp|docx?|xlsx?|pptx?|csv|txt|epub|torrent)(?:$|[?#])/i;var files=/\/(file|download|downloads)(?:\/|\?|#|$)/i;var seen={};function send(raw){try{var u=new URL(raw,location.href);if(!/^https?:$/.test(u.protocol)||seen[u.href])return;seen[u.href]=1;DroxDownload.postMessage(u.href);setTimeout(function(){delete seen[u.href]},5000)}catch(_){}}function scan(){document.querySelectorAll('a[href],video,audio,video source,audio source').forEach(function(el){var raw=el.href||el.currentSrc||el.src;if(!raw)return;try{var u=new URL(raw,location.href),p=u.pathname,media=el.tagName==='VIDEO'||el.tagName==='AUDIO'||!!el.closest('video,audio');if(el.hasAttribute('download')||exts.test(p)||files.test(p)||(media&&/\.(mp4|mkv|mov|avi|webm|mp3|m4a|aac|wav)(?:$|[?#])/i.test(p)))send(u.href)}catch(_){}})}document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;try{var u=new URL(a.href,location.href);if(a.hasAttribute('download')||exts.test(u.pathname)||files.test(u.pathname)){e.preventDefault();e.stopImmediatePropagation();send(u.href)}}catch(_){}},true);new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src','href']});scan();setTimeout(scan,1200);setTimeout(scan,3500);})();''');
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
         t.loading = false; t.back = await ctrl.canGoBack(); t.forward = await ctrl.canGoForward();
@@ -598,7 +598,9 @@ class _BrowserPageState extends State<BrowserPage> {
     if (mounted) setState(() {});
     await ctrl.loadRequest(Uri.parse(url));
   }
+  final Set<String> _promptedDownloadUrls = <String>{};
   void _downloadPrompt(String url) {
+    if (!_promptedDownloadUrls.add(url)) return;
     final u = Uri.tryParse(url);
     final raw = u?.pathSegments.isNotEmpty == true ? u!.pathSegments.last : '';
     String name;
@@ -609,7 +611,7 @@ class _BrowserPageState extends State<BrowserPage> {
       title: const Text('Download file?'),
       content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(fontWeight: FontWeight.bold)), Text('File type: ' + name.split('.').last.toUpperCase()), SelectableText(url)]),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')), FilledButton.icon(onPressed: () { Navigator.pop(ctx); widget.onDownload(url); }, icon: const Icon(Icons.download), label: const Text('Download'))],
-    ));
+    )).whenComplete(() => _promptedDownloadUrls.remove(url));
   }
   void go() {
     var v = address.text.trim(); if (v.isEmpty || tab == null) return;
