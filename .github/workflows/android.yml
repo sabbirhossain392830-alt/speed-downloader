@@ -21,16 +21,32 @@ jobs:
       - name: Generate Android project
         run: flutter create --platforms=android --project-name speed_downloader .
 
-      - name: Add Android internet permission
+      - name: Configure Android permissions and Kotlin
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           manifest = Path("android/app/src/main/AndroidManifest.xml")
           content = manifest.read_text()
-          permission = '<uses-permission android:name="android.permission.INTERNET"/>'
-          if permission not in content:
-              content = content.replace("<application", f"    {permission}\\n    <application", 1)
-              manifest.write_text(content)
+          permissions = [
+              'android.permission.INTERNET',
+              'android.permission.POST_NOTIFICATIONS',
+          ]
+          for name in permissions:
+              tag = f'<uses-permission android:name="{name}"/>'
+              if tag not in content:
+                  content = content.replace("<application", f"    {tag}\\n    <application", 1)
+          manifest.write_text(content)
+
+          settings = Path("android/settings.gradle")
+          if settings.exists():
+              gradle = settings.read_text()
+              gradle = re.sub(
+                  r'(id ["\\']org\\.jetbrains\\.kotlin\\.android["\\'] version ["\\'])[^"\\']+(["\\'] apply false)',
+                  r'\\g<1>2.1.0\\g<2>',
+                  gradle,
+              )
+              settings.write_text(gradle)
           PY
 
       - name: Build APK
