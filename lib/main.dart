@@ -750,9 +750,9 @@ class _BrowserPageState extends State<BrowserPage> {
       size = _formatFileSize(length);
       type = response.headers.value('content-type')?.split(';').first ?? 'অজানা';
       final disposition = response.headers.value('content-disposition') ?? '';
-      final match = RegExp(r"filename\\*?\\s*=\\s*(?:UTF-8'')?[\"']?([^;\"']+)", caseSensitive: false).firstMatch(disposition);
+      final match = RegExp(r'filename\\s*=\\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
       if (match != null && match.group(1)!.trim().isNotEmpty) {
-        try { name = Uri.decodeComponent(match.group(1)!.trim()); } catch (_) { name = match.group(1)!.trim(); }
+        try { name = Uri.decodeComponent(match.group(1)!.trim().replaceAll('"', '').replaceAll("'", '')); } catch (_) { name = match.group(1)!.trim().replaceAll('"', '').replaceAll("'", ''); }
       }
       if (response.statusCode != null && response.statusCode! >= 400) statusNote = 'সার্ভার তথ্য যাচাই করতে দেয়নি';
     } catch (_) {
