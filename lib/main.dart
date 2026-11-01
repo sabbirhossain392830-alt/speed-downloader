@@ -325,10 +325,10 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
     if (response != null) {
       final responseType = (response.headers.value('content-type') ?? '').toLowerCase();
-      if ((response.statusCode ?? 200) >= 400 || responseType.contains('text/html')) {
-        throw Exception(responseType.contains('text/html')
-            ? 'সার্ভার ভিডিওর বদলে HTML/Cloudflare পেজ পাঠিয়েছে'
-            : 'সার্ভার ডাউনলোড লিংক অনুমোদন করেনি (HTTP ${response.statusCode})');
+      // Some hosts reject HEAD requests but allow the actual GET download.
+      // Keep the original URL and let the download engine attempt the transfer.
+      if (responseType.contains('text/html')) {
+        throw Exception('সার্ভার ভিডিওর বদলে HTML/Cloudflare পেজ পাঠিয়েছে');
       }
       final redirected = response.realUri.toString();
       if (redirected.startsWith('http')) finalUrl = redirected;
@@ -1122,12 +1122,12 @@ class _BrowserPageState extends State<BrowserPage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 10),
                 child: Row(children: [
-                  TextButton(onPressed: statusNote.isEmpty && filenameController.text.trim().isNotEmpty
+                  TextButton(onPressed: (statusNote.isEmpty || statusNote.startsWith('Server rejected the metadata check')) && filenameController.text.trim().isNotEmpty
                     ? () => Navigator.pop(ctx, (filenameController.text.trim(), wifiOnly, retry)) : null, child: const Text('ADD')),
                   const Spacer(),
                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
                   const SizedBox(width: 4),
-                  FilledButton(onPressed: statusNote.isEmpty && filenameController.text.trim().isNotEmpty
+                  FilledButton(onPressed: (statusNote.isEmpty || statusNote.startsWith('Server rejected the metadata check')) && filenameController.text.trim().isNotEmpty
                     ? () => Navigator.pop(ctx, (filenameController.text.trim(), wifiOnly, retry)) : null,
                     child: const Text('START')),
                 ]),
