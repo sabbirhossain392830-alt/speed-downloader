@@ -930,27 +930,33 @@ class _BrowserPageState extends State<BrowserPage> {
           function downloadIntent(el){
             if(!el)return false;
             var label=((el.innerText||el.textContent||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('title')||'')).toLowerCase();
-            return el.hasAttribute('download')||/download|save file|get file|direct link|one click|fastest|high.?speed|\\bfsl\\b|\\bgp\\b|server/i.test(label);
+            var attrs=['href','data-href','data-url','data-download-url','data-download','data-file','data-link','data-target','data-src','data-id','onclick'];
+            var hasTarget=attrs.some(function(k){return !!el.getAttribute(k)});
+            return el.hasAttribute('download')||(/download|save file|get file|direct link|one click|fastest|high.?speed|fsl|gp high|server/i.test(label)&&(hasTarget||el.tagName==='BUTTON'||el.getAttribute('role')==='button'||getComputedStyle(el).cursor==='pointer'));
           }
           function candidate(el){
             if(!el)return null;
             var attrs=['href','data-href','data-url','data-download-url','data-download','data-file','data-link','data-target','data-src','data-id'];
             var raw=null;
             for(var i=0;i<attrs.length&&!raw;i++){var v=el.getAttribute(attrs[i]);if(v&&v.trim())raw=v.trim()}
-            if(!raw&&el.querySelector){var a=el.querySelector('a[href]');if(a)raw=a.getAttribute('href')}
+            if(!raw&&el.querySelector){var a=el.querySelector('a[href], [data-url], [data-href], [data-download-url]');if(a){for(var j=0;j<attrs.length&&!raw;j++){var av=a.getAttribute(attrs[j]);if(av&&av.trim())raw=av.trim()}}}
             if(!raw&&el.form)raw=el.form.action;
             if(!raw){var oc=(el.getAttribute('onclick')||'')+' '+(el.getAttribute('data-onclick')||'');var m=oc.match(/https?:[^\\s'"\\x60]+|['"]((?:\\/|\\.\\.\\/)[^'"]+)['"]/i);if(m)raw=m[1]||m[0]}
             if(!raw)return null;
             return valid(raw);
           }
           document.addEventListener('click',function(e){
-            var el=e.target&&e.target.closest?e.target.closest('a,button,[role="button"],input[type="button"],input[type="submit"]'):null;
-            if(!el||!downloadIntent(el))return;
-            var u=candidate(el);
-            if(u)send(u);
-            // Some sites reveal the actual media URL only after the click.
-            setTimeout(scanResources,350);
-            setTimeout(scanResources,1200);
+            var path=e.composedPath?e.composedPath():[];
+            var nodes=path.length?path:(function(){var a=[],n=e.target;while(n){a.push(n);n=n.parentElement}return a})();
+            for(var i=0;i<nodes.length&&i<8;i++){
+              var el=nodes[i];if(!el||el.nodeType!==1)continue;
+              if(!downloadIntent(el))continue;
+              var u=candidate(el);
+              if(u)send(u);
+              setTimeout(scanResources,250);
+              setTimeout(scanResources,900);
+              break;
+            }
           },true);
           document.addEventListener('submit',function(e){
             var f=e.target;if(!f||!f.action)return;
