@@ -721,19 +721,41 @@ class _DownloadHomeState extends State<DownloadHome> {
     final running = entry.status == 'ডাউনলোড হচ্ছে';
     final paused = entry.status == 'বিরতি';
     final queued = ['কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status);
-    final failed = entry.status == 'ব্যর্থ';
-    final color = entry.status == 'সম্পন্ন' ? Colors.green : Theme.of(context).colorScheme.primary;
+    final completed = entry.status == 'সম্পন্ন';
+    final failed = ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি', 'যাচাই ব্যর্থ'].contains(entry.status);
+    final cs = Theme.of(context).colorScheme;
+    final statusColor = completed ? Colors.green : failed ? cs.error : cs.primary;
+    final percent = (entry.progress * 100).clamp(0, 100).toStringAsFixed(0);
+    final statusLabel = completed ? 'COMPLETED' : running ? 'DOWNLOADING' : paused ? 'PAUSED' : failed ? 'FAILED' : queued ? 'QUEUED' : 'WAITING';
+
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 9),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55))),
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: cs.outlineVariant.withValues(alpha: .55)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(_fileIcon(entry.task.filename), color: color, size: 30),
-            const SizedBox(width: 10),
-            Expanded(child: Text(entry.task.filename, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 46, height: 46,
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(_fileIcon(entry.task.filename), color: statusColor, size: 26),
+            ),
+            const SizedBox(width: 11),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(entry.task.filename, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+              const SizedBox(height: 5),
+              Text('${_fileType(entry.task.filename)}  •  ${_formatBytes(entry.expectedFileSize)}',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+            ])),
             PopupMenuButton<String>(
               tooltip: 'More options',
               onSelected: (value) {
@@ -742,68 +764,58 @@ class _DownloadHomeState extends State<DownloadHome> {
                 if (value == 'remove') _remove(entry);
               },
               itemBuilder: (context) => [
-                PopupMenuItem(value: 'open', enabled: entry.status == 'সম্পন্ন', child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
-                const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Redownload'))),
-                const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove'))),
+                PopupMenuItem(value: 'open', enabled: completed, child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open file'))),
+                const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Download again'))),
+                const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove from list'))),
               ],
             ),
           ]),
-          const SizedBox(height: 4),
-          Text('${_fileType(entry.task.filename)}  •  ${_formatBytes(entry.expectedFileSize)}', style: Theme.of(context).textTheme.labelSmall),
-          const SizedBox(height: 6),
-          Text(
-            entry.expectedFileSize > 0
-                ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} / ${_formatBytes(entry.expectedFileSize)} downloaded'
-                : (entry.progress > 0 ? 'মোট সাইজ সার্ভার জানায়নি • ${ (entry.progress * 100).toStringAsFixed(0) }% সম্পন্ন' : 'ডাউনলোডের পরিমাণ হিসাব হচ্ছে…'),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+          const SizedBox(height: 15),
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              decoration: BoxDecoration(color: statusColor.withValues(alpha: .12), borderRadius: BorderRadius.circular(20)),
+              child: Text(statusLabel, style: TextStyle(color: statusColor, fontSize: 9, letterSpacing: .8, fontWeight: FontWeight.w900)),
+            ),
+            const Spacer(),
+            Text('$percent%', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: statusColor)),
+          ]),
+          const SizedBox(height: 9),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: completed ? 1 : entry.progress,
+              minHeight: 7,
+              backgroundColor: cs.surfaceContainerHighest,
+              color: statusColor,
+            ),
           ),
           const SizedBox(height: 8),
-          LinearProgressIndicator(value: entry.progress),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: Text(entry.error == null ? entry.status : '${entry.status}: ${entry.error}', style: Theme.of(context).textTheme.bodySmall)),
-            Text('${(entry.progress * 100).toStringAsFixed(0)}%', style: Theme.of(context).textTheme.bodySmall),
-          ]),
-          if (running || paused || queued || failed) ...[
-            const SizedBox(height: 10),
+          Text(
+            entry.expectedFileSize > 0
+                ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} of ${_formatBytes(entry.expectedFileSize)}'
+                : (entry.progress > 0 ? '${percent}% downloaded • Total size unavailable' : 'Waiting for download information…'),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+          ),
+          if (entry.error != null || (!completed && !running && !paused && !queued)) ...[
+            const SizedBox(height: 7),
+            Text(entry.error ?? entry.status, style: TextStyle(fontSize: 11, color: failed ? cs.error : cs.onSurfaceVariant)),
+          ],
+          if (running || paused || queued || failed || completed) ...[
+            const SizedBox(height: 12),
             Row(children: [
               if (running)
-                _actionIcon(
-                  icon: Icons.pause_rounded,
-                  label: 'Pause',
-                  onTap: () => _pause(entry),
-                  primary: true,
-                ),
+                _actionIcon(icon: Icons.pause_rounded, label: 'Pause', onTap: () => _pause(entry), primary: true),
               if (paused || queued)
-                _actionIcon(
-                  icon: Icons.play_arrow_rounded,
-                  label: 'Resume',
-                  onTap: () => _resume(entry),
-                  primary: true,
-                ),
+                _actionIcon(icon: Icons.play_arrow_rounded, label: 'Resume', onTap: () => _resume(entry), primary: true),
               if (failed)
-                _actionIcon(
-                  icon: Icons.refresh_rounded,
-                  label: 'Retry',
-                  onTap: () => _redownload(entry),
-                  primary: true,
-                ),
+                _actionIcon(icon: Icons.refresh_rounded, label: 'Retry', onTap: () => _redownload(entry), primary: true),
+              if (completed)
+                _actionIcon(icon: Icons.open_in_new_rounded, label: 'Open', onTap: () => _open(entry), primary: true),
               if (running || paused || queued)
-                _actionIcon(
-                  icon: Icons.close_rounded,
-                  label: 'Cancel',
-                  onTap: () => _cancel(entry),
-                ),
+                _actionIcon(icon: Icons.close_rounded, label: 'Cancel', onTap: () => _cancel(entry)),
               const Spacer(),
-              Text(
-                running ? 'DOWNLOADING' : paused ? 'PAUSED' : failed ? 'ERROR' : 'QUEUED',
-                style: TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 1,
-                  fontWeight: FontWeight.w800,
-                  color: failed ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
+              if (completed) Icon(Icons.check_circle_rounded, color: statusColor, size: 20),
             ]),
           ],
         ]),
