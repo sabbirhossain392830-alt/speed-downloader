@@ -283,6 +283,12 @@ class _DownloadHomeState extends State<DownloadHome> {
       response = null;
     }
     if (response != null) {
+      final responseType = (response.headers.value('content-type') ?? '').toLowerCase();
+      if ((response.statusCode ?? 200) >= 400 || responseType.contains('text/html')) {
+        throw Exception(responseType.contains('text/html')
+            ? 'সার্ভার ভিডিওর বদলে HTML/Cloudflare পেজ পাঠিয়েছে'
+            : 'সার্ভার ডাউনলোড লিংক অনুমোদন করেনি (HTTP ${response.statusCode})');
+      }
       final redirected = response.realUri.toString();
       if (redirected.startsWith('http')) finalUrl = redirected;
       final disposition = response.headers.value('content-disposition') ?? '';
@@ -334,7 +340,19 @@ class _DownloadHomeState extends State<DownloadHome> {
       return;
     }
     setState(() => adding = true);
-    final details = await _downloadDetails(value);
+    late final (String, String) details;
+    try {
+      details = await _downloadDetails(value);
+    } catch (e) {
+      if (mounted) {
+        setState(() => adding = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          duration: const Duration(seconds: 6),
+        ));
+      }
+      return;
+    }
     final task = DownloadTask(
       url: details.$1,
       filename: details.$2,
@@ -702,7 +720,7 @@ class _BrowserPageState extends State<BrowserPage> {
   }
   bool _downloadable(String url) {
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
-    return RegExp(r'\\.(pdf|zip|rar|7z|apk|mp4|m4v|mkv|mov|avi|webm|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|jpg|jpeg|png|gif|webp|bmp|tif|tiff|docx?|xlsx?|pptx?)$').hasMatch(path);
+    return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|m4v|mkv|mov|avi|webm|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|jpg|jpeg|png|gif|webp|bmp|tif|tiff|docx?|xlsx?|pptx?)$').hasMatch(path);
   }
   Future<void> _newTab([String url = 'https://www.google.com']) async {
     final t = _DroxTab(WebViewController(), url);
