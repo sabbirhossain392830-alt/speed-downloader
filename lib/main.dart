@@ -209,23 +209,19 @@ class _DownloadHomeState extends State<DownloadHome> {
       validateStatus: (s) => s != null && s < 500,
     ));
     Response<dynamic>? response;
+    // Use HEAD for metadata only. A server may ignore Range and return the
+    // entire file to a GET probe, so never risk downloading a full file here.
     try {
       response = await dio.head(url);
     } catch (_) {
-      // Some hosts reject HEAD; request only the first byte for metadata.
-      try {
-        response = await dio.get(url, options: Options(
-          headers: const {'Range': 'bytes=0-0'},
-          responseType: ResponseType.bytes,
-        ));
-      } catch (_) {}
+      response = null;
     }
     if (response != null) {
       final redirected = response.realUri.toString();
       if (redirected.startsWith('http')) finalUrl = redirected;
       final disposition = response.headers.value('content-disposition') ?? '';
-      final encoded = RegExp(r"filename\\*=UTF-8''([^;]+)", caseSensitive: false).firstMatch(disposition);
-      final plain = RegExp(r'filename\\s*=\\s*"([^"]+)"|filename\\s*=\\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
+      final encoded = RegExp(r"filename\*=UTF-8''([^;]+)", caseSensitive: false).firstMatch(disposition);
+      final plain = RegExp(r'filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
       final headerName = encoded?.group(1) ?? plain?.group(1) ?? plain?.group(2);
       if (headerName != null && headerName.trim().isNotEmpty) {
         final rawName = headerName.trim().replaceAll('"', '');
