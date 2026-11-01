@@ -824,12 +824,6 @@ class _DownloadHomeState extends State<DownloadHome> {
     );
   }
 
-  Widget _stat(String label, String value, IconData icon) => Expanded(
-    child: Card(child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-      child: Column(children: [Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 4), Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), Text(label, style: Theme.of(context).textTheme.labelSmall)]),
-    )),
-  );
 }
 
 
