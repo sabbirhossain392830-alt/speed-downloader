@@ -94,7 +94,7 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   Future<void> _acceptSharedText(String? text) async {
     if (text == null || text.trim().isEmpty || !mounted) return;
-    final match = RegExp(r'https?://\\S+', caseSensitive: false).firstMatch(text);
+    final match = RegExp(r'https?://\S+', caseSensitive: false).firstMatch(text);
     final shared = (match?.group(0) ?? '').replaceAll(RegExp(r'[),.;]+$'), '');
     if (shared.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
