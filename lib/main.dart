@@ -520,21 +520,10 @@ class _DownloadHomeState extends State<DownloadHome> {
       },
       child: Scaffold(
       appBar: selectedTab == 1 ? null : AppBar(
-        titleSpacing: 22,
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DroxLogoMark(size: 36),
-            SizedBox(width: 10),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 3.2, fontSize: 20)),
-                Text('DOWNLOAD MANAGER', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1.15, fontSize: 8)),
-              ],
-            ),
-          ],
+        titleSpacing: 20,
+        title: const Text(
+          'DROX',
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2.4, fontSize: 22),
         ),
         actions: [
           PopupMenuButton<String>(
@@ -1024,7 +1013,7 @@ class _BrowserPageState extends State<BrowserPage> {
     final approved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const DroxLogoMark(size: 50),
+        icon: const Icon(Icons.download_for_offline_rounded, size: 48),
         title: const Center(child: Text('File Details', style: TextStyle(fontWeight: FontWeight.w800))),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
