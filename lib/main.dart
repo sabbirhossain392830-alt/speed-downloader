@@ -372,7 +372,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     return (finalUrl, filename);
   }
 
-  Future<void> _add() async {
+  Future<void> _add({String? suggestedFilename, int retries = 5}) async {
     if (adding) return;
     final value = controller.text.trim();
     final uri = Uri.tryParse(value);
@@ -396,12 +396,12 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
     final task = DownloadTask(
       url: details.$1,
-      filename: details.$2,
+      filename: suggestedFilename == null || suggestedFilename.trim().isEmpty ? details.$2 : _safeFileName(suggestedFilename.trim()),
       directory: 'DROX',
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
-      retries: 5,
+      retries: retries,
     );
     setState(() {
       entries.insert(0, DownloadEntry(task));
@@ -587,7 +587,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             )
           else ...visible.map(_downloadCard),
         ]),
-        BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
+        BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url, filename, wifiOnly, retry) async { if (wifiOnly) await _setWifiOnly(true); controller.text = url; await _add(suggestedFilename: filename, retries: retry ? 5 : 0); }),
         ListView(padding: const EdgeInsets.all(16), children: [
           Row(children: [
             const Text('Downloads', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
@@ -844,7 +844,7 @@ class _DownloadHomeState extends State<DownloadHome> {
 
 class BrowserPage extends StatefulWidget {
   const BrowserPage({super.key, required this.onDownload, required this.isDark, required this.onThemeTap, required this.onReturn, required this.onSettings});
-  final ValueChanged<String> onDownload;
+  final Future<void> Function(String url, String filename, bool wifiOnly, bool retry) onDownload;
   final bool isDark;
   final VoidCallback onThemeTap, onReturn, onSettings;
   @override
@@ -957,28 +957,13 @@ class _BrowserPageState extends State<BrowserPage> {
     if (_promptedDownloadUrls.contains(url)) return;
     _promptedDownloadUrls.add(url);
     if (!mounted) { _promptedDownloadUrls.remove(url); return; }
-    final wantsDownload = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.video_file_rounded, size: 42),
-        title: const Text('ভিডিওটি ডাউনলোড করবেন?'),
-        content: Text('এই ওয়েবসাইটে একটি ভিডিও পাওয়া গেছে।\n\n${uri.host}'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('এখন নয়')),
-          FilledButton.icon(onPressed: () => Navigator.pop(ctx, true), icon: const Icon(Icons.download_rounded), label: const Text('হ্যাঁ, ডাউনলোড')),
-        ],
-      ),
-    );
-    if (wantsDownload != true || !mounted) {
-      _promptedDownloadUrls.remove(url);
-      return;
-    }
+
     var finalUrl = url;
-    var name = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'media_file';
+    var name = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'download_file';
     try { name = Uri.decodeComponent(name); } catch (_) {}
-    if (name.isEmpty || !name.contains('.')) name = 'media_file';
-    var size = 'অজানা';
-    var type = 'অজানা';
+    if (name.isEmpty || !name.contains('.')) name = 'download_file';
+    var sizeBytes = -1;
+    var type = 'Unknown';
     var statusNote = '';
     try {
       final dio = Dio(BaseOptions(
@@ -990,60 +975,129 @@ class _BrowserPageState extends State<BrowserPage> {
       final response = await dio.head(url);
       final responseType = (response.headers.value('content-type') ?? '').toLowerCase();
       if ((response.statusCode ?? 200) >= 400) {
-        statusNote = 'সার্ভার লিংকটি অনুমোদন করেনি (HTTP ${response.statusCode})';
+        statusNote = 'Server did not allow this file request (HTTP \${response.statusCode})';
       } else if (responseType.contains('text/html')) {
-        statusNote = 'এটি সরাসরি মিডিয়া ফাইল নয়—সার্ভার HTML/Cloudflare পেজ পাঠাচ্ছে';
+        statusNote = 'This link returned a web page, not a direct downloadable file.';
       } else {
         if (response.realUri.toString().startsWith('http')) finalUrl = response.realUri.toString();
-        final length = int.tryParse(response.headers.value('content-length') ?? '');
-        size = _formatFileSize(length);
-        type = responseType.split(';').first.isEmpty ? 'অজানা' : responseType.split(';').first;
+        sizeBytes = int.tryParse(response.headers.value('content-length') ?? '') ?? -1;
+        type = responseType.split(';').first.isEmpty ? 'Unknown' : responseType.split(';').first;
       }
       final disposition = response.headers.value('content-disposition') ?? '';
-      final match = RegExp(r'filename\s*=\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
-      if (match != null && match.group(1)!.trim().isNotEmpty) {
-        try { name = Uri.decodeComponent(match.group(1)!.trim().replaceAll('"', '').replaceAll("'", '')); } catch (_) { name = match.group(1)!.trim().replaceAll('"', '').replaceAll("'", ''); }
+      final encoded = RegExp(r"filename\*\s*=\s*(?:UTF-8'')?([^;]+)", caseSensitive: false).firstMatch(disposition);
+      final plain = RegExp(r'filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
+      final headerName = encoded?.group(1) ?? plain?.group(1) ?? plain?.group(2);
+      if (headerName != null && headerName.trim().isNotEmpty) {
+        final raw = headerName.trim().replaceAll('"', '');
+        try { name = Uri.decodeComponent(raw); } catch (_) { name = raw; }
       }
-      if (response.statusCode != null && response.statusCode! >= 400) statusNote = 'সার্ভার তথ্য যাচাই করতে দেয়নি';
     } catch (_) {
-      statusNote = 'সার্ভার থেকে ফাইলের তথ্য পাওয়া যায়নি';
+      statusNote = 'File information is unavailable. The server may require a session or may not support metadata requests.';
     }
-    name = name.replaceAll(RegExp(r'[\\\\/:*?"<>|]'), '_');
-    if (!mounted) return;
-    final approved = await showDialog<bool>(
+    name = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    if (!mounted) { _promptedDownloadUrls.remove(url); return; }
+
+    final filenameController = TextEditingController(text: name);
+    var wifiOnly = false;
+    var retry = true;
+    var showAdvanced = false;
+    final result = await showDialog<(String, bool, bool)>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.download_for_offline_rounded, size: 48),
-        title: const Center(child: Text('File Details', style: TextStyle(fontWeight: FontWeight.w800))),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: double.infinity, padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, refresh) {
+        final cs = Theme.of(ctx).colorScheme;
+        Widget detail(String label, String value) => Padding(
+          padding: const EdgeInsets.only(bottom: 7),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(width: 68, child: Text(label, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12))),
+            Expanded(child: Text(value, style: const TextStyle(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis)),
+          ]),
+        );
+        Widget option(String label, bool value, ValueChanged<bool> onChanged) => InkWell(
+          onTap: () => refresh(() => onChanged(!value)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
             child: Row(children: [
-              Icon(statusNote.isEmpty ? Icons.insert_drive_file_rounded : Icons.info_outline_rounded, color: Theme.of(ctx).colorScheme.primary, size: 28),
-              const SizedBox(width: 10),
-              Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w700), maxLines: 3, overflow: TextOverflow.ellipsis)),
+              SizedBox(width: 30, height: 30, child: Checkbox(value: value, onChanged: (v) => refresh(() => onChanged(v ?? false)), visualDensity: VisualDensity.compact)),
+              const SizedBox(width: 5),
+              Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
             ]),
           ),
-          const SizedBox(height: 14),
-          _detailRow('ধরন', type),
-          _detailRow('সাইজ', size),
-          _detailRow('সাইট', uri.host),
-          if (statusNote.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(width: double.infinity, padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.errorContainer, borderRadius: BorderRadius.circular(10)),
-              child: Text(statusNote, style: TextStyle(color: Theme.of(ctx).colorScheme.onErrorContainer, fontSize: 12))),
-          ],
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('বাতিল')),
-          FilledButton.icon(onPressed: statusNote.isEmpty ? () => Navigator.pop(ctx, true) : null, icon: const Icon(Icons.download_rounded), label: const Text('Download')),
-        ],
-      ),
+        );
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 520, maxHeight: MediaQuery.of(ctx).size.height * .88),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 12, 8),
+                child: Row(children: [
+                  Expanded(child: Text('Download file!', style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))),
+                  Icon(Icons.dns_outlined, color: cs.onSurfaceVariant),
+                ]),
+              ),
+              Flexible(child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 6, 18, 8),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text('Link  •  \${uri.host}', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    IconButton(tooltip: 'Copy link', visualDensity: VisualDensity.compact, onPressed: () => Clipboard.setData(ClipboardData(text: finalUrl)), icon: const Icon(Icons.copy_rounded, size: 19)),
+                  ]),
+                  Text(finalUrl, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 14),
+                  Text('Save as:', style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  TextField(controller: filenameController, decoration: const InputDecoration(isDense: true, hintText: 'File name', border: OutlineInputBorder())),
+                  const SizedBox(height: 12),
+                  detail('Type', type),
+                  detail('Size', sizeBytes > 0 ? _formatFileSize(sizeBytes) : 'Unknown'),
+                  detail('Website', uri.host),
+                  const Divider(height: 18),
+                  detail('Storage', 'Downloads / DROX'),
+                  option('Wi-Fi only', wifiOnly, (v) => wifiOnly = v),
+                  option('Retry if download fails', retry, (v) => retry = v),
+                  Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+                    onPressed: () => refresh(() => showAdvanced = !showAdvanced),
+                    icon: Icon(showAdvanced ? Icons.expand_less : Icons.tune_rounded, size: 18),
+                    label: Text(showAdvanced ? 'Hide advanced info' : 'Advanced options'),
+                  )),
+                  if (showAdvanced) Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
+                    child: const Text('DROX uses resumable background downloads when supported by the server. Some websites restrict resume or segmented requests.', style: TextStyle(fontSize: 11)),
+                  ),
+                  if (statusNote.isNotEmpty) Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: cs.errorContainer, borderRadius: BorderRadius.circular(10)),
+                    child: Text(statusNote, style: TextStyle(color: cs.onErrorContainer, fontSize: 12)),
+                  ),
+                ]),
+              )),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 10),
+                child: Row(children: [
+                  TextButton(onPressed: statusNote.isEmpty && filenameController.text.trim().isNotEmpty
+                    ? () => Navigator.pop(ctx, (filenameController.text.trim(), wifiOnly, retry)) : null, child: const Text('ADD')),
+                  const Spacer(),
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+                  const SizedBox(width: 4),
+                  FilledButton(onPressed: statusNote.isEmpty && filenameController.text.trim().isNotEmpty
+                    ? () => Navigator.pop(ctx, (filenameController.text.trim(), wifiOnly, retry)) : null,
+                    child: const Text('START')),
+                ]),
+              ),
+            ]),
+          ),
+        );
+      }),
     );
+    filenameController.dispose();
     _promptedDownloadUrls.remove(url);
-    if (approved == true && mounted) widget.onDownload(finalUrl);
+    if (result != null && mounted) {
+      await widget.onDownload(finalUrl, result.$1, result.$2, result.$3);
+    }
   }
 
   Widget _detailRow(String label, String value) => Padding(
