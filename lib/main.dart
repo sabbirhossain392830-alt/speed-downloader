@@ -202,28 +202,42 @@ class _DownloadHomeState extends State<DownloadHome> {
   Future<(String, String)> _downloadDetails(String url) async {
     var finalUrl = url;
     var filename = _fileName(url);
+    final dio = Dio(BaseOptions(
+      followRedirects: true,
+      receiveTimeout: const Duration(seconds: 15),
+      sendTimeout: const Duration(seconds: 15),
+      validateStatus: (s) => s != null && s < 500,
+    ));
+    Response<dynamic>? response;
     try {
-      final response = await Dio(BaseOptions(
-        followRedirects: true,
-        receiveTimeout: const Duration(seconds: 12),
-        sendTimeout: const Duration(seconds: 12),
-        validateStatus: (s) => s != null && s < 500,
-      )).head(url);
+      response = await dio.head(url);
+    } catch (_) {
+      // Some hosts reject HEAD; request only the first byte for metadata.
+      try {
+        response = await dio.get(url, options: Options(
+          headers: const {'Range': 'bytes=0-0'},
+          responseType: ResponseType.bytes,
+        ));
+      } catch (_) {}
+    }
+    if (response != null) {
       final redirected = response.realUri.toString();
       if (redirected.startsWith('http')) finalUrl = redirected;
       final disposition = response.headers.value('content-disposition') ?? '';
       final encoded = RegExp(r"filename\\*=UTF-8''([^;]+)", caseSensitive: false).firstMatch(disposition);
-      final plain = RegExp(r'filename="?([^";]+)"?', caseSensitive: false).firstMatch(disposition);
-      final headerName = encoded?.group(1) ?? plain?.group(1);
+      final plain = RegExp(r'filename\\s*=\\s*"([^"]+)"|filename\\s*=\\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
+      final headerName = encoded?.group(1) ?? plain?.group(1) ?? plain?.group(2);
       if (headerName != null && headerName.trim().isNotEmpty) {
-        try { filename = _safeFileName(Uri.decodeComponent(headerName.trim())); }
-        catch (_) { filename = _safeFileName(headerName.trim()); }
+        final rawName = headerName.trim().replaceAll('"', '');
+        try { filename = _safeFileName(Uri.decodeComponent(rawName)); }
+        catch (_) { filename = _safeFileName(rawName); }
       } else if (!filename.contains('.') || filename.endsWith('.bin')) {
         final path = response.realUri.pathSegments.isEmpty ? '' : response.realUri.pathSegments.last;
-        if (path.contains('.')) filename = _safeFileName(Uri.decodeComponent(path));
+        if (path.contains('.')) {
+          try { filename = _safeFileName(Uri.decodeComponent(path)); }
+          catch (_) { filename = _safeFileName(path); }
+        }
       }
-    } catch (_) {
-      // Some hosts reject HEAD; retain the URL-derived fallback.
     }
     return (finalUrl, filename);
   }
@@ -622,7 +636,33 @@ class _BrowserPageState extends State<BrowserPage> {
       onPageStarted: (u) { t.url = u; t.loading = true; if (mounted) setState(() { if (tab == t) address.text = u; }); },
       onPageFinished: (u) async {
         t.url = u;
-        await ctrl.runJavaScript(r'''(function(){if(window.__droxDownloadHook)return;window.__droxDownloadHook=true;var exts=/\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|aac|wav|jpg|jpeg|png|gif|webp|docx?|xlsx?|pptx?|csv|txt|epub)(?:$|[?#])/i;var seen={};function send(raw){try{var u=new URL(raw,location.href);if(!/^https?:$/.test(u.protocol)||seen[u.href])return;seen[u.href]=1;DroxDownload.postMessage(u.href);setTimeout(function(){delete seen[u.href]},5000)}catch(_){}}document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;try{var u=new URL(a.href,location.href);if(a.hasAttribute('download')||exts.test(u.pathname)){e.preventDefault();e.stopImmediatePropagation();send(u.href)}}catch(_){}},true);})();''');
+        await ctrl.runJavaScript(r'''(function(){
+          if(window.__droxMediaDetector)return;window.__droxMediaDetector=true;
+          var seen={},button=null,current='';
+          var exts=/\\.(mp4|m4v|webm|mov|mp3|m4a|aac|wav|ogg|flac)(?:$|[?#])/i;
+          function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
+          function send(raw){var u=valid(raw);if(!u||seen[u])return;seen[u]=1;DroxDownload.postMessage(u);setTimeout(function(){delete seen[u]},8000)}
+          function show(video){
+            var raw=video.currentSrc||video.src||((video.querySelector('source')||{}).src)||'';
+            var u=valid(raw);if(!u||!video.isConnected)return;
+            if(current===u&&button)return;
+            if(button)button.remove();current=u;
+            button=document.createElement('button');button.type='button';button.textContent='⬇ Download';
+            button.setAttribute('aria-label','Download this video');
+            button.style.cssText='position:fixed;z-index:2147483647;right:14px;top:14px;padding:10px 14px;border:0;border-radius:22px;background:#0878f9;color:white;font:600 14px sans-serif;box-shadow:0 3px 14px #0008';
+            button.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();send(u)});
+            document.documentElement.appendChild(button);
+          }
+          function scan(){document.querySelectorAll('video').forEach(function(v){
+            if(v.__droxBound)return;v.__droxBound=true;
+            v.addEventListener('play',function(){show(v)});
+            v.addEventListener('loadedmetadata',function(){if(!v.paused)show(v)});
+            v.addEventListener('click',function(){if(!v.paused)show(v)});
+          })}
+          scan();new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
+          document.addEventListener('play',function(e){if(e.target&&e.target.tagName==='VIDEO')show(e.target)},true);
+          document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;try{var u=new URL(a.href,location.href);if(a.hasAttribute('download')||exts.test(u.pathname)){e.preventDefault();e.stopImmediatePropagation();send(u.href)}}catch(_){}},true);
+        })();''');
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
         t.loading = false; t.back = await ctrl.canGoBack(); t.forward = await ctrl.canGoForward();
