@@ -649,7 +649,7 @@ class _BrowserPageState extends State<BrowserPage> {
             if(button)button.remove();current=u;
             button=document.createElement('button');button.type='button';button.textContent='⬇ Download';
             button.setAttribute('aria-label','Download this video');
-            button.style.cssText='position:fixed;z-index:2147483647;right:14px;top:14px;padding:10px 14px;border:0;border-radius:22px;background:#0878f9;color:white;font:600 14px sans-serif;box-shadow:0 3px 14px #0008';
+            var rect=video.getBoundingClientRect();button.style.cssText='position:fixed;z-index:2147483647;left:'+Math.max(8,Math.min(innerWidth-120,rect.right-122))+'px;top:'+Math.max(8,Math.min(innerHeight-54,rect.top+12))+'px;padding:10px 14px;border:0;border-radius:22px;background:#0878f9;color:white;font:600 14px sans-serif;box-shadow:0 3px 14px #0008';
             button.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();send(u)});
             document.documentElement.appendChild(button);
           }
