@@ -13,10 +13,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FileDownloader().start();
   FileDownloader().configureNotification(
-    running: const TaskNotification('Speed Downloader • Downloading', '{filename}'),
-    paused: const TaskNotification('Speed Downloader • Paused', '{filename}'),
-    complete: const TaskNotification('Speed Downloader • Complete', '{filename}'),
-    error: const TaskNotification('Speed Downloader • Failed', '{filename}'),
+    running: const TaskNotification('DROX • Downloading', '{filename}'),
+    paused: const TaskNotification('DROX • Paused', '{filename}'),
+    complete: const TaskNotification('DROX • Complete', '{filename}'),
+    error: const TaskNotification('DROX • Failed', '{filename}'),
     progressBar: true,
   );
   runApp(const DroxApp());
@@ -36,7 +36,7 @@ class _DroxAppState extends State<DroxApp> {
     const seed = Color(0xFF168BFF);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Speed Downloader',
+      title: 'DROX',
       themeMode: mode,
       theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: seed)),
       darkTheme: ThemeData(useMaterial3: true, scaffoldBackgroundColor: const Color(0xFF050B18), colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark, surface: const Color(0xFF101C32))),
@@ -521,7 +521,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       child: Scaffold(
       appBar: selectedTab == 1 ? null : AppBar(
         titleSpacing: 22,
-        title: Row(mainAxisSize: MainAxisSize.min, children: [ const DroxLogoMark(size: 34), const SizedBox(width: 10), const Flexible(child: Text('Speed Downloader', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: .2, fontSize: 19))) ]),
+        title: const Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 3.2, fontSize: 23)),
         actions: [
           PopupMenuButton<String>(
             tooltip: 'Main menu',
@@ -616,7 +616,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           const SizedBox(height: 18),
           Text('ABOUT', style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1.3, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
-          Card(child: const ListTile(leading: Icon(Icons.info_outline), title: Text('About Speed Downloader'), subtitle: Text('Browser and download manager'), trailing: Icon(Icons.chevron_right_rounded))),
+          Card(child: const ListTile(leading: Icon(Icons.info_outline), title: Text('About DROX'), subtitle: Text('Browser and download manager'), trailing: Icon(Icons.chevron_right_rounded))),
         ]),
       ]),
       bottomNavigationBar: selectedTab == 1 ? null : NavigationBar(
@@ -1074,7 +1074,7 @@ class _BrowserPageState extends State<BrowserPage> {
         await tab?.controller.setUserAgent(desktopMode ? 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' : null);
         tab?.controller.reload(); break;
       case 'about':
-        if (mounted) showAboutDialog(context: context, applicationName: 'Speed Downloader', applicationVersion: '1.0', children: const [Text('A simple Android download manager.')]);
+        if (mounted) showAboutDialog(context: context, applicationName: 'DROX', applicationVersion: '1.0', children: const [Text('A simple Android download manager.')]);
         break;
     }
   }
