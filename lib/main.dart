@@ -927,7 +927,31 @@ class _BrowserPageState extends State<BrowserPage> {
           scan();new MutationObserver(function(){scan();scanResources();scanFrames()}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
           setInterval(function(){scan();scanResources();scanFrames()},2500);
           document.addEventListener('play',function(e){if(e.target&&(e.target.tagName==='VIDEO'||e.target.tagName==='AUDIO'))mediaSources(e.target)},true);
-          document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;try{var u=new URL(a.href,location.href);if(a.hasAttribute('download')||exts.test(u.pathname)){e.preventDefault();e.stopImmediatePropagation();send(u.href)}}catch(_){}},true);
+          function downloadIntent(el){
+            if(!el)return false;
+            var label=((el.innerText||el.textContent||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('title')||'')).toLowerCase();
+            return el.hasAttribute('download')||/download|save file|get file|direct link|one click/i.test(label);
+          }
+          function candidate(el){
+            if(!el)return null;
+            var raw=el.getAttribute('href')||el.getAttribute('data-href')||el.getAttribute('data-url')||el.getAttribute('data-download-url')||el.getAttribute('data-download');
+            if(!raw&&el.form)raw=el.form.action;
+            if(!raw){var oc=el.getAttribute('onclick')||'';var m=oc.match(/https?:[^\\s'"\\x60]+|['"]((?:\\/|\\.\\.\\/)[^'"]+)['"]/i);if(m)raw=m[1]||m[0]}
+            if(!raw)return null;
+            return valid(raw);
+          }
+          document.addEventListener('click',function(e){
+            var el=e.target&&e.target.closest?e.target.closest('a,button,[role="button"],input[type="button"],input[type="submit"]'):null;
+            if(!el||!downloadIntent(el))return;
+            var u=candidate(el);
+            if(u)send(u);
+          },true);
+          document.addEventListener('submit',function(e){
+            var f=e.target;if(!f||!f.action)return;
+            var label=((f.innerText||'')+' '+(f.getAttribute('aria-label')||'')).toLowerCase();
+            if(/download|save file|get file/i.test(label))send(f.action);
+          },true);
+          if(window.open){var originalOpen=window.open;window.open=function(u){if(u)send(u);return originalOpen.apply(this,arguments)}}
         })();''');
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
@@ -1008,6 +1032,12 @@ class _BrowserPageState extends State<BrowserPage> {
         statusNote = 'File information is unavailable. The server may require a session or may not support metadata requests.';
       }
     }
+    // Intermediate landing pages are not downloadable files. Let the browser
+    // continue normally; the page detector can inspect the next download action.
+    if (statusNote == 'This link returned a web page, not a direct downloadable file.') {
+      _promptedDownloadUrls.remove(url);
+      return;
+    }
     name = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     if (!mounted) { _promptedDownloadUrls.remove(url); return; }
 
@@ -1054,7 +1084,7 @@ class _BrowserPageState extends State<BrowserPage> {
                 padding: const EdgeInsets.fromLTRB(18, 6, 18, 8),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Expanded(child: Text('Link  •  \${uri.host}', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Expanded(child: Text('Link  •  ${uri.host}', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
                     IconButton(tooltip: 'Copy link', visualDensity: VisualDensity.compact, onPressed: () => Clipboard.setData(ClipboardData(text: finalUrl)), icon: const Icon(Icons.copy_rounded, size: 19)),
                   ]),
                   Text(finalUrl, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis),
