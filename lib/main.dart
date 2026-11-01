@@ -92,9 +92,25 @@ class _DownloadHomeState extends State<DownloadHome> {
   StreamSubscription<TaskUpdate>? subscription;
   DownloadFilter filter = DownloadFilter.all;
   bool adding = false;
+  bool wifiOnly = false;
   int selectedTab = 0;
   final GlobalKey<_BrowserPageState> browserKey = GlobalKey<_BrowserPageState>();
   static const _historyKey = 'drox_download_history';
+
+  Future<void> _loadWifiOnly() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('drox_wifi_only') ?? false;
+    if (mounted) setState(() => wifiOnly = enabled);
+    await FileDownloader().requireWiFi(enabled ? RequireWiFi.forAllTasks : RequireWiFi.forNoTasks);
+  }
+
+  Future<void> _setWifiOnly(bool enabled) async {
+    setState(() => wifiOnly = enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('drox_wifi_only', enabled);
+    await FileDownloader().requireWiFi(enabled ? RequireWiFi.forAllTasks : RequireWiFi.forNoTasks);
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(enabled ? 'শুধু Wi‑Fi দিয়ে ডাউনলোড হবে' : 'মোবাইল ডেটাতেও ডাউনলোড হবে')));
+  }
 
   Future<void> _saveHistory() async {
     final prefs = await SharedPreferences.getInstance();
@@ -146,6 +162,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   @override
   void initState() {
     super.initState();
+    _loadWifiOnly();
     subscription = FileDownloader().updates.listen(_onUpdate);
     FileDownloader().resumeFromBackground();
     _loadHistory();
@@ -478,20 +495,29 @@ class _DownloadHomeState extends State<DownloadHome> {
       },
       child: Scaffold(
       appBar: selectedTab == 1 ? null : AppBar(
-        titleSpacing: 20,
-        title: Row(children: [
-          const DroxLogoMark(size: 42),
-          const SizedBox(width: 10),
-          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 20)),
-            Text('DOWNLOAD MANAGER', style: TextStyle(fontSize: 9, letterSpacing: 1.5, fontWeight: FontWeight.w700)),
-          ]),
-        ]),
+        titleSpacing: 22,
+        title: const Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 3.2, fontSize: 23)),
         actions: [
-          IconButton(tooltip: 'Browse', onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.public_rounded)),
-          IconButton(tooltip: 'Quick download', onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded)),
-          IconButton(tooltip: 'Theme', onPressed: widget.onThemeTap, icon: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined)),
-          const SizedBox(width: 4),
+          PopupMenuButton<String>(
+            tooltip: 'Main menu',
+            icon: const Icon(Icons.menu_rounded, size: 28),
+            onSelected: (v) {
+              if (v == 'theme') widget.onThemeTap();
+              if (v == 'wifi') _setWifiOnly(!wifiOnly);
+              if (v == 'quick') _quickDownloadDialog();
+              if (v == 'browser') setState(() => selectedTab = 1);
+              if (v == 'settings') setState(() => selectedTab = 3);
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Dark Mode'), trailing: Icon(widget.isDark ? Icons.check : Icons.circle_outlined))),
+              PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: const Text('Wi‑Fi Only'), trailing: Icon(wifiOnly ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: wifiOnly ? Theme.of(context).colorScheme.primary : null))),
+              const PopupMenuDivider(),
+              const PopupMenuItem(value: 'quick', child: ListTile(dense: true, leading: Icon(Icons.add_link_rounded), title: Text('Quick Download'))),
+              const PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text('Browser'))),
+              const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
+            ],
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: IndexedStack(index: selectedTab, children: [
@@ -557,6 +583,8 @@ class _DownloadHomeState extends State<DownloadHome> {
           const SizedBox(height: 8),
           Card(clipBehavior: Clip.antiAlias, child: Column(children: [
             ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Appearance'), subtitle: Text(widget.isDark ? 'Dark theme' : 'Light theme'), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
+            const Divider(height: 1, indent: 56),
+            ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi‑Fi Only'), subtitle: const Text('Mobile data দিয়ে download বন্ধ রাখবে'), trailing: Switch(value: wifiOnly, onChanged: _setWifiOnly)),
             const Divider(height: 1, indent: 56),
             const ListTile(leading: Icon(Icons.folder_outlined), title: Text('Download folder'), subtitle: Text('Phone storage / Downloads / DROX')),
           ])),
