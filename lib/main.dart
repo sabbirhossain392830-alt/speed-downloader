@@ -487,7 +487,12 @@ class _DownloadHomeState extends State<DownloadHome> {
             Text('DOWNLOAD MANAGER', style: TextStyle(fontSize: 9, letterSpacing: 1.5, fontWeight: FontWeight.w700)),
           ]),
         ]),
-        actions: [IconButton(tooltip: 'Theme', onPressed: widget.onThemeTap, icon: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined))],
+        actions: [
+          IconButton(tooltip: 'Browse', onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.public_rounded)),
+          IconButton(tooltip: 'Quick download', onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded)),
+          IconButton(tooltip: 'Theme', onPressed: widget.onThemeTap, icon: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined)),
+          const SizedBox(width: 4),
+        ],
       ),
       body: IndexedStack(index: selectedTab, children: [
         ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
@@ -508,7 +513,11 @@ class _DownloadHomeState extends State<DownloadHome> {
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
             )),
           const SizedBox(height: 16),
-          const Text('Downloads', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          Row(children: [
+            const Text('Downloads', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            const Spacer(),
+            Text('${entries.length} files', style: Theme.of(context).textTheme.labelSmall),
+          ]),
           if (visible.isEmpty)
             Container(
               width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 18),
@@ -526,8 +535,13 @@ class _DownloadHomeState extends State<DownloadHome> {
         ]),
         BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
         ListView(padding: const EdgeInsets.all(16), children: [
-          const Row(children: [DroxLogoMark(size: 34), SizedBox(width: 10), Text('Downloads', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20))]),
-          const SizedBox(height: 12),
+          Row(children: [
+            const Text('Downloads', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
+            const Spacer(),
+            Text('${entries.length} files', style: Theme.of(context).textTheme.labelMedium),
+            IconButton(tooltip: 'Quick download', onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded)),
+          ]),
+          const SizedBox(height: 8),
           SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
             _filterChip('All', DownloadFilter.all), _filterChip('Active', DownloadFilter.active),
             _filterChip('Completed', DownloadFilter.completed), _filterChip('Failed', DownloadFilter.failed),
@@ -537,15 +551,19 @@ class _DownloadHomeState extends State<DownloadHome> {
           else ...visible.map(_downloadCard),
         ]),
         ListView(padding: const EdgeInsets.all(16), children: [
-          const Row(children: [DroxLogoMark(size: 34), SizedBox(width: 10), Text('Settings', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20))]),
-          const SizedBox(height: 12),
-          Card(child: Column(children: [
+          const Text('Settings', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
+          const SizedBox(height: 14),
+          Text('GENERAL', style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1.3, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Card(clipBehavior: Clip.antiAlias, child: Column(children: [
             ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Appearance'), subtitle: Text(widget.isDark ? 'Dark theme' : 'Light theme'), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
-            const Divider(height: 1),
-            const ListTile(leading: Icon(Icons.folder_outlined), title: Text('Storage'), subtitle: Text('DROX app storage')),
-            const Divider(height: 1),
-            const ListTile(leading: Icon(Icons.info_outline), title: Text('About DROX'), subtitle: Text('Powerful Download Manager')),
+            const Divider(height: 1, indent: 56),
+            const ListTile(leading: Icon(Icons.folder_outlined), title: Text('Download folder'), subtitle: Text('Phone storage / Downloads / DROX')),
           ])),
+          const SizedBox(height: 18),
+          Text('ABOUT', style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1.3, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Card(child: const ListTile(leading: Icon(Icons.info_outline), title: Text('About DROX'), subtitle: Text('Browser and download manager'), trailing: Icon(Icons.chevron_right_rounded))),
         ]),
       ]),
       bottomNavigationBar: selectedTab == 1 ? null : NavigationBar(
