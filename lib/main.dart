@@ -94,8 +94,21 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   Future<void> _acceptSharedText(String? text) async {
     if (text == null || text.trim().isEmpty || !mounted) return;
-    final match = RegExp(r'https?://[^\\s<>\\"\\']+', caseSensitive: false).firstMatch(text);
-    final shared = (match?.group(0) ?? text).trim().replaceAll(RegExp(r'[),.;]+
+    final match = RegExp(r'https?://\\S+', caseSensitive: false).firstMatch(text);
+    final shared = (match?.group(0) ?? '').replaceAll(RegExp(r'[),.;]+$'), '');
+    if (shared.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('শেয়ার করা লেখায় কোনো HTTP/HTTPS লিংক পাওয়া যায়নি')),
+      );
+      return;
+    }
+    setState(() {
+      selectedTab = 0;
+      controller.text = shared;
+    });
+    await _add();
+  }
+
   final controller = TextEditingController();
   final List<DownloadEntry> entries = [];
   StreamSubscription<TaskUpdate>? subscription;
