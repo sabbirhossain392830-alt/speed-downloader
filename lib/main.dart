@@ -716,21 +716,81 @@ class _BrowserPageState extends State<BrowserPage> {
     await ctrl.loadRequest(Uri.parse(url));
   }
   final Set<String> _promptedDownloadUrls = <String>{};
-  void _downloadPrompt(String url) {
+  String _formatFileSize(int? bytes) {
+    if (bytes == null || bytes <= 0) return 'অজানা';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var value = bytes.toDouble();
+    var unit = 0;
+    while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
+    return '${value.toStringAsFixed(value >= 100 || unit == 0 ? 0 : 1)} ${units[unit]}';
+  }
+
+  Future<void> _downloadPrompt(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !['http', 'https'].contains(uri.scheme)) return;
-    final raw = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : '';
-    String name;
-    try { name = Uri.decodeComponent(raw); } catch (_) { name = raw; }
-    if (name.isEmpty || !name.contains('.')) name = 'Media file';
+    if (_promptedDownloadUrls.contains(url)) return;
+    _promptedDownloadUrls.add(url);
+    var finalUrl = url;
+    var name = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'media_file';
+    try { name = Uri.decodeComponent(name); } catch (_) {}
+    if (name.isEmpty || !name.contains('.')) name = 'media_file';
+    var size = 'অজানা';
+    var type = 'অজানা';
+    var statusNote = '';
+    try {
+      final dio = Dio(BaseOptions(
+        followRedirects: true,
+        receiveTimeout: const Duration(seconds: 12),
+        sendTimeout: const Duration(seconds: 12),
+        validateStatus: (s) => s != null && s < 500,
+      ));
+      final response = await dio.head(url);
+      if (response.realUri.toString().startsWith('http')) finalUrl = response.realUri.toString();
+      final length = int.tryParse(response.headers.value('content-length') ?? '');
+      size = _formatFileSize(length);
+      type = response.headers.value('content-type')?.split(';').first ?? 'অজানা';
+      final disposition = response.headers.value('content-disposition') ?? '';
+      final match = RegExp(r"filename\\*?\\s*=\\s*(?:UTF-8'')?[\"']?([^;\"']+)", caseSensitive: false).firstMatch(disposition);
+      if (match != null && match.group(1)!.trim().isNotEmpty) {
+        try { name = Uri.decodeComponent(match.group(1)!.trim()); } catch (_) { name = match.group(1)!.trim(); }
+      }
+      if (response.statusCode != null && response.statusCode! >= 400) statusNote = 'সার্ভার তথ্য যাচাই করতে দেয়নি';
+    } catch (_) {
+      statusNote = 'সার্ভার থেকে ফাইলের তথ্য পাওয়া যায়নি';
+    }
+    name = name.replaceAll(RegExp(r'[\\\\/:*?"<>|]'), '_');
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Download detected: $name', maxLines: 1, overflow: TextOverflow.ellipsis),
-      action: SnackBarAction(label: 'DOWNLOAD', onPressed: () => widget.onDownload(url)),
-      duration: const Duration(seconds: 7),
-    ));
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(children: [Icon(Icons.download_for_offline_outlined), SizedBox(width: 8), Expanded(child: Text('File Details'))]),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(name, style: const TextStyle(fontWeight: FontWeight.w700), maxLines: 3, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 12),
+          _detailRow('ধরন', type),
+          _detailRow('সাইজ', size),
+          _detailRow('সাইট', uri.host),
+          if (statusNote.isNotEmpty) ...[const SizedBox(height: 8), Text(statusNote, style: Theme.of(ctx).textTheme.bodySmall)],
+          const SizedBox(height: 8),
+          const Text('শুধু অনুমোদিত ও নিরাপদ ফাইল ডাউনলোড করুন।', style: TextStyle(fontSize: 12)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('বাতিল')),
+          FilledButton.icon(onPressed: () => Navigator.pop(ctx, true), icon: const Icon(Icons.download), label: const Text('Download')),
+        ],
+      ),
+    );
+    _promptedDownloadUrls.remove(url);
+    if (approved == true && mounted) widget.onDownload(finalUrl);
   }
+
+  Widget _detailRow(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 5),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(width: 58, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+      Expanded(child: Text(value, maxLines: 2, overflow: TextOverflow.ellipsis)),
+    ]),
+  );
   void go() {
     var v = address.text.trim(); if (v.isEmpty || tab == null) return;
     if (!v.contains('://')) v = (v.contains(' ') || !v.contains('.')) ? 'https://www.google.com/search?q=' + Uri.encodeQueryComponent(v) : 'https://' + v;
