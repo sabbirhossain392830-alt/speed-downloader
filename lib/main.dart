@@ -1139,16 +1139,6 @@ class _BrowserPageState extends State<BrowserPage> {
   }
 }
 
-), '');
-    final uri = Uri.tryParse(shared);
-    if (uri == null || !['http', 'https'].contains(uri.scheme) || uri.host.isEmpty) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('শেয়ার করা টেক্সটে বৈধ Download Link পাওয়া যায়নি')));
-      return;
-    }
-    setState(() { selectedTab = 0; controller.text = shared; });
-    await _add();
-  }
-
   final controller = TextEditingController();
   final List<DownloadEntry> entries = [];
   StreamSubscription<TaskUpdate>? subscription;
