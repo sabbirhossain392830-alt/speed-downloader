@@ -1100,13 +1100,6 @@ class _BrowserPageState extends State<BrowserPage> {
     }
   }
 
-  Widget _detailRow(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 5),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SizedBox(width: 58, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-      Expanded(child: Text(value, maxLines: 2, overflow: TextOverflow.ellipsis)),
-    ]),
-  );
   void go() {
     var v = address.text.trim(); if (v.isEmpty || tab == null) return;
     if (!v.contains('://')) v = (v.contains(' ') || !v.contains('.')) ? 'https://www.google.com/search?q=' + Uri.encodeQueryComponent(v) : 'https://' + v;
