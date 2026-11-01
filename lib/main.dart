@@ -490,23 +490,24 @@ class _DownloadHomeState extends State<DownloadHome> {
         actions: [IconButton(tooltip: 'Theme', onPressed: widget.onThemeTap, icon: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined))],
       ),
       body: IndexedStack(index: selectedTab, children: [
-        ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
+        ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF0757B8), Color(0xFF08264D), Color(0xFF101C32)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(22),
+              gradient: const LinearGradient(colors: [Color(0xFF087CF0), Color(0xFF07346B), Color(0xFF101C32)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: .10)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Row(children: [DroxLogoMark(size: 54), SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('DROX PREMIUM', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.3)), Text('DOWNLOAD • BROWSE • MANAGE', style: TextStyle(color: Colors.white70, fontSize: 9, letterSpacing: 1.1, fontWeight: FontWeight.w700))]))]),
               const SizedBox(height: 16),
-              const Text('Download smarter.\nBrowse faster.', style: TextStyle(color: Colors.white, fontSize: 23, height: 1.15, fontWeight: FontWeight.w800)),
+              const Text('Your browser.\nYour download manager.', style: TextStyle(color: Colors.white, fontSize: 21, height: 1.15, fontWeight: FontWeight.w800)),
               const SizedBox(height: 14),
               FilledButton.tonalIcon(onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.public), label: const Text('Open Browser')),
             ]),
           ),
           const SizedBox(height: 18),
-          Text('QUICK DOWNLOAD', style: TextStyle(fontSize: 11, letterSpacing: 1.6, fontWeight: FontWeight.w800, color: cs.primary)),
+          Text('ADD DOWNLOAD LINK', style: TextStyle(fontSize: 11, letterSpacing: 1.4, fontWeight: FontWeight.w800, color: cs.primary)),
           const SizedBox(height: 9),
           Card(
             elevation: 0,
@@ -615,9 +616,11 @@ class _DownloadHomeState extends State<DownloadHome> {
     final failed = entry.status == 'ব্যর্থ';
     final color = entry.status == 'সম্পন্ন' ? Colors.green : Theme.of(context).colorScheme.primary;
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 9),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55))),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(_fileIcon(entry.task.filename), color: color, size: 30),
