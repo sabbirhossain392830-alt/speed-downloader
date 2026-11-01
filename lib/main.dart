@@ -203,24 +203,37 @@ class _DownloadHomeState extends State<DownloadHome> {
     final mime = (contentType ?? '').split(';').first.trim().toLowerCase();
     const extensions = <String, String>{
       'application/pdf': 'pdf',
+      'application/x-pdf': 'pdf',
+      'application/x-zip-compressed': 'zip',
       'application/zip': 'zip',
       'application/x-rar-compressed': 'rar',
       'application/vnd.rar': 'rar',
       'application/x-7z-compressed': '7z',
+      'application/x-msdownload': 'exe',
       'application/vnd.android.package-archive': 'apk',
       'video/mp4': 'mp4',
+      'video/x-msvideo': 'avi',
+      'video/mpeg': 'mpeg',
+      'video/ogg': 'ogv',
       'video/webm': 'webm',
       'video/x-matroska': 'mkv',
       'video/quicktime': 'mov',
       'audio/mpeg': 'mp3',
+      'audio/ogg': 'ogg',
+      'audio/flac': 'flac',
+      'audio/x-wav': 'wav',
       'audio/mp4': 'm4a',
       'audio/aac': 'aac',
       'audio/wav': 'wav',
       'image/jpeg': 'jpg',
+      'image/bmp': 'bmp',
+      'image/tiff': 'tiff',
       'image/png': 'png',
       'image/gif': 'gif',
       'image/webp': 'webp',
       'text/plain': 'txt',
+      'text/csv': 'csv',
+      'application/json': 'json',
       'application/msword': 'doc',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
       'application/vnd.ms-excel': 'xls',
@@ -668,7 +681,143 @@ class _BrowserPageState extends State<BrowserPage> {
   }
   bool _downloadable(String url) {
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
-    return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|m4v|mkv|mov|avi|webm|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|jpg|jpeg|png|docx?|xlsx?|pptx?)$').hasMatch(path);
+    return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|m4v|mkv|mov|avi|webm|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|jpg|jpeg|png|gif|webp|bmp|tif|tiff|docx?|xlsx?|pptx?)).hasMatch(path);
+  }
+  Future<void> _newTab([String url = 'https://www.google.com']) async {
+    final t = _DroxTab(WebViewController(), url);
+    tabs.add(t); active = tabs.length - 1; showHistory = false;
+    final ctrl = t.controller;
+    await ctrl.setJavaScriptMode(JavaScriptMode.unrestricted);
+    await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) => _downloadPrompt(m.message));
+    await ctrl.setNavigationDelegate(NavigationDelegate(
+      onNavigationRequest: (r) {
+        if (_downloadable(r.url)) { _downloadPrompt(r.url); return NavigationDecision.prevent; }
+        if (adBlockEnabled && _isKnownAdUrl(r.url)) return NavigationDecision.prevent;
+        return NavigationDecision.navigate;
+      },
+      onPageStarted: (u) { t.url = u; t.loading = true; if (mounted) setState(() { if (tab == t) address.text = u; }); },
+      onPageFinished: (u) async {
+        t.url = u;
+        await ctrl.runJavaScript(r'''(function(){
+          if(window.__droxMediaDetector)return;window.__droxMediaDetector=true;
+          var seen={};
+          var exts=/\.(pdf|zip|rar|7z|apk|mp4|m4v|mkv|webm|mov|avi|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|jpg|jpeg|png|gif|webp|bmp|tif|tiff|doc|docx|xls|xlsx|ppt|pptx)(?:$|[?#])/i;
+          function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
+          function send(raw){var u=valid(raw);if(!u||seen[u])return;seen[u]=1;DroxDownload.postMessage(u);setTimeout(function(){delete seen[u]},8000)}
+          function mediaSources(v){var list=[v.currentSrc,v.src];v.querySelectorAll('source[src]').forEach(function(s){list.push(s.src)});list.forEach(function(u){if(u)send(u)})}
+          function scan(){document.querySelectorAll('video,audio').forEach(function(v){
+            if(v.__droxBound)return;v.__droxBound=true;
+            v.addEventListener('play',function(){mediaSources(v)});
+            v.addEventListener('loadedmetadata',function(){mediaSources(v)});
+            v.addEventListener('canplay',function(){mediaSources(v)});
+            v.addEventListener('loadstart',function(){mediaSources(v)});
+          })}
+          scan();new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
+          document.addEventListener('play',function(e){if(e.target&&(e.target.tagName==='VIDEO'||e.target.tagName==='AUDIO'))send(e.target.currentSrc||e.target.src||'')},true);
+          document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;try{var u=new URL(a.href,location.href);if(a.hasAttribute('download')||exts.test(u.pathname)){e.preventDefault();e.stopImmediatePropagation();send(u.href)}}catch(_){}},true);
+        })();''');
+        final title = await ctrl.getTitle();
+        t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
+        t.loading = false; t.back = await ctrl.canGoBack(); t.forward = await ctrl.canGoForward();
+        if (!mounted) return;
+        setState(() { if (tab == t) address.text = u; });
+        if (u.startsWith('http')) { history.removeWhere((e) => e['url'] == u); history.insert(0, {'title': t.title, 'url': u}); if (history.length > 100) history.removeLast(); _saveHistory(); }
+      },
+      onWebResourceError: (_) { t.loading = false; if (mounted) setState(() {}); },
+    ));
+    if (mounted) setState(() {});
+    await ctrl.loadRequest(Uri.parse(url));
+  }
+  final Set<String> _promptedDownloadUrls = <String>{};
+  void _downloadPrompt(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !['http', 'https'].contains(uri.scheme)) return;
+    final raw = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : '';
+    String name;
+    try { name = Uri.decodeComponent(raw); } catch (_) { name = raw; }
+    if (name.isEmpty || !name.contains('.')) name = 'Media file';
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Download detected: $name', maxLines: 1, overflow: TextOverflow.ellipsis),
+      action: SnackBarAction(label: 'DOWNLOAD', onPressed: () => widget.onDownload(url)),
+      duration: const Duration(seconds: 7),
+    ));
+  }
+  void go() {
+    var v = address.text.trim(); if (v.isEmpty || tab == null) return;
+    if (!v.contains('://')) v = (v.contains(' ') || !v.contains('.')) ? 'https://www.google.com/search?q=' + Uri.encodeQueryComponent(v) : 'https://' + v;
+    final uri = Uri.tryParse(v);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isNotEmpty) { tab!.controller.loadRequest(uri); setState(() => showHistory = false); }
+  }
+  Future<bool> handleSystemBack() async {
+    if (tab != null && await tab!.controller.canGoBack()) { await tab!.controller.goBack(); return true; }
+    if (showHistory) { setState(() => showHistory = false); return true; }
+    return false;
+  }
+  void _select(int i) { setState(() { active = i; address.text = tab?.url ?? ''; showHistory = false; }); }
+  void _close(int i) {
+    if (tabs.length == 1) { tabs.first.controller.loadRequest(Uri.parse('https://www.google.com')); return; }
+    setState(() { tabs.removeAt(i); if (active >= tabs.length) active = tabs.length - 1; else if (i < active) active--; address.text = tab?.url ?? ''; });
+  }
+  void _showTabs() {
+    showModalBottomSheet<void>(context: context, showDragHandle: true, builder: (ctx) => SafeArea(child: SizedBox(height: 350, child: Column(children: [
+      ListTile(title: Text('Open pages (' + tabs.length.toString() + ')'), trailing: IconButton(onPressed: () { Navigator.pop(ctx); _newTab(); }, icon: const Icon(Icons.add))),
+      Expanded(child: ListView.builder(itemCount: tabs.length, itemBuilder: (_, i) => ListTile(selected: i == active, leading: const Icon(Icons.language), title: Text(tabs[i].title, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(tabs[i].url, maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { Navigator.pop(ctx); _select(i); }, trailing: IconButton(onPressed: () { Navigator.pop(ctx); _close(i); }, icon: const Icon(Icons.close))))),
+    ]))));
+  }
+  Future<void> _action(String v) async {
+    switch (v) {
+      case 'new': _newTab(); break;
+      case 'adblock': setState(() => adBlockEnabled = !adBlockEnabled); break;
+      case 'refresh': tab?.controller.reload(); break;
+      case 'history': setState(() => showHistory = true); break;
+      case 'return': widget.onReturn(); break;
+      case 'settings': widget.onSettings(); break;
+      case 'dark': widget.onThemeTap(); break;
+      case 'desktop':
+        setState(() => desktopMode = !desktopMode);
+        await tab?.controller.setUserAgent(desktopMode ? 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' : null);
+        tab?.controller.reload(); break;
+      case 'about':
+        if (mounted) showAboutDialog(context: context, applicationName: 'DROX', applicationVersion: '1.0', children: const [Text('Browser and download manager.')]);
+        break;
+    }
+  }
+  @override
+  void dispose() { address.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme; final t = tab;
+    return SafeArea(top: true, bottom: false, child: Column(children: [
+      Material(color: cs.surface, elevation: 2, child: Padding(padding: const EdgeInsets.fromLTRB(8, 6, 2, 6), child: Row(children: [
+        Material(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(10), child: InkWell(onTap: _showTabs, borderRadius: BorderRadius.circular(10), child: SizedBox(width: 40, height: 42, child: Center(child: Text(tabs.length.toString(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)))))),
+        const SizedBox(width: 7),
+        Expanded(child: Container(height: 42, decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(24)), child: TextField(controller: address, onSubmitted: (_) => go(), textInputAction: TextInputAction.go, keyboardType: TextInputType.url, decoration: InputDecoration(hintText: 'Search or enter URL', prefixIcon: const Icon(Icons.search, size: 19), suffixIcon: IconButton(onPressed: go, icon: const Icon(Icons.arrow_forward, size: 19)), isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 10), border: InputBorder.none)))),
+        PopupMenuButton<String>(tooltip: 'Browser menu', icon: const Icon(Icons.more_vert), onSelected: _action, itemBuilder: (_) => [
+          const PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New Tab'))),
+          PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'), trailing: Icon(adBlockEnabled ? Icons.toggle_on : Icons.toggle_off))),
+          const PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
+          const PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
+          const PopupMenuDivider(),
+          const PopupMenuItem(value: 'return', child: ListTile(dense: true, leading: Icon(Icons.home_outlined), title: Text('Return to DROX'))),
+          const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
+          PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Dark Mode'), trailing: Icon(widget.isDark ? Icons.check : Icons.circle_outlined))),
+          PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop Mode'), trailing: Icon(desktopMode ? Icons.check_box : Icons.check_box_outline_blank))),
+          const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('About'))),
+        ]),
+      ]))),
+      if (t?.loading == true) const LinearProgressIndicator(minHeight: 2),
+      Expanded(child: showHistory ? ListView(children: [
+        const ListTile(title: Text('BROWSING HISTORY', style: TextStyle(fontWeight: FontWeight.bold))),
+        if (history.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No history yet')),
+        ...history.map((e) => ListTile(leading: const Icon(Icons.history), title: Text(e['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(e['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { address.text = e['url'] ?? ''; go(); }, trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { history.remove(e); await _saveHistory(); if (mounted) setState(() {}); }))),
+        if (history.isNotEmpty) Padding(padding: const EdgeInsets.all(16), child: OutlinedButton.icon(onPressed: () async { final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Clear history?'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear all'))])); if (ok == true) { history.clear(); await _saveHistory(); if (mounted) setState(() {}); } }, icon: const Icon(Icons.delete_sweep_outlined), label: const Text('Clear all history'))),
+      ]) : IndexedStack(index: active, children: tabs.map((e) => WebViewWidget(controller: e.controller)).toList())),
+    ]));
+  }
+}
+).hasMatch(path);
   }
   Future<void> _newTab([String url = 'https://www.google.com']) async {
     final t = _DroxTab(WebViewController(), url);
