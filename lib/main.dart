@@ -941,6 +941,23 @@ class _BrowserPageState extends State<BrowserPage> {
     if (uri == null || !['http', 'https'].contains(uri.scheme)) return;
     if (_promptedDownloadUrls.contains(url)) return;
     _promptedDownloadUrls.add(url);
+    if (!mounted) { _promptedDownloadUrls.remove(url); return; }
+    final wantsDownload = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.video_file_rounded, size: 42),
+        title: const Text('ভিডিওটি ডাউনলোড করবেন?'),
+        content: Text('এই ওয়েবসাইটে একটি ভিডিও পাওয়া গেছে।\n\n${uri.host}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('এখন নয়')),
+          FilledButton.icon(onPressed: () => Navigator.pop(ctx, true), icon: const Icon(Icons.download_rounded), label: const Text('হ্যাঁ, ডাউনলোড')),
+        ],
+      ),
+    );
+    if (wantsDownload != true || !mounted) {
+      _promptedDownloadUrls.remove(url);
+      return;
+    }
     var finalUrl = url;
     var name = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'media_file';
     try { name = Uri.decodeComponent(name); } catch (_) {}
