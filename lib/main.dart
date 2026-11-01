@@ -804,8 +804,6 @@ class _BrowserPageState extends State<BrowserPage> {
     ]));
   }
 }
-).hasMatch(path);
-  }
   Future<void> _newTab([String url = 'https://www.google.com']) async {
     final t = _DroxTab(WebViewController(), url);
     tabs.add(t); active = tabs.length - 1; showHistory = false;
