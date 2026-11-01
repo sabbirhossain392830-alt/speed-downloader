@@ -199,6 +199,38 @@ class _DownloadHomeState extends State<DownloadHome> {
     return decoded.contains('.') ? _safeFileName(decoded) : 'drox_' + DateTime.now().millisecondsSinceEpoch.toString() + '.bin';
   }
 
+  String? _extensionForMime(String? contentType) {
+    final mime = (contentType ?? '').split(';').first.trim().toLowerCase();
+    const extensions = <String, String>{
+      'application/pdf': 'pdf',
+      'application/zip': 'zip',
+      'application/x-rar-compressed': 'rar',
+      'application/vnd.rar': 'rar',
+      'application/x-7z-compressed': '7z',
+      'application/vnd.android.package-archive': 'apk',
+      'video/mp4': 'mp4',
+      'video/webm': 'webm',
+      'video/x-matroska': 'mkv',
+      'video/quicktime': 'mov',
+      'audio/mpeg': 'mp3',
+      'audio/mp4': 'm4a',
+      'audio/aac': 'aac',
+      'audio/wav': 'wav',
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'text/plain': 'txt',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'application/vnd.ms-excel': 'xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      'application/vnd.ms-powerpoint': 'ppt',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    };
+    return extensions[mime];
+  }
+
   Future<(String, String)> _downloadDetails(String url) async {
     var finalUrl = url;
     var filename = _fileName(url);
@@ -209,8 +241,8 @@ class _DownloadHomeState extends State<DownloadHome> {
       validateStatus: (s) => s != null && s < 500,
     ));
     Response<dynamic>? response;
-    // Use HEAD for metadata only. A server may ignore Range and return the
-    // entire file to a GET probe, so never risk downloading a full file here.
+    // HEAD reads metadata only; do not probe with GET because some servers
+    // ignore Range and may send the entire file.
     try {
       response = await dio.head(url);
     } catch (_) {
@@ -220,18 +252,39 @@ class _DownloadHomeState extends State<DownloadHome> {
       final redirected = response.realUri.toString();
       if (redirected.startsWith('http')) finalUrl = redirected;
       final disposition = response.headers.value('content-disposition') ?? '';
-      final encoded = RegExp(r"filename\*=UTF-8''([^;]+)", caseSensitive: false).firstMatch(disposition);
-      final plain = RegExp(r'filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
+      // RFC 5987 filename*=UTF-8''... takes precedence over filename=...
+      final encoded = RegExp(
+        r"filename\*\s*=\s*(?:UTF-8'')?([^;]+)",
+        caseSensitive: false,
+      ).firstMatch(disposition);
+      final plain = RegExp(
+        r'filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)',
+        caseSensitive: false,
+      ).firstMatch(disposition);
       final headerName = encoded?.group(1) ?? plain?.group(1) ?? plain?.group(2);
       if (headerName != null && headerName.trim().isNotEmpty) {
         final rawName = headerName.trim().replaceAll('"', '');
-        try { filename = _safeFileName(Uri.decodeComponent(rawName)); }
-        catch (_) { filename = _safeFileName(rawName); }
-      } else if (!filename.contains('.') || filename.endsWith('.bin')) {
-        final path = response.realUri.pathSegments.isEmpty ? '' : response.realUri.pathSegments.last;
+        try {
+          filename = _safeFileName(Uri.decodeComponent(rawName));
+        } catch (_) {
+          filename = _safeFileName(rawName);
+        }
+      } else {
+        final path = response.realUri.pathSegments.isEmpty
+            ? ''
+            : response.realUri.pathSegments.last;
         if (path.contains('.')) {
-          try { filename = _safeFileName(Uri.decodeComponent(path)); }
-          catch (_) { filename = _safeFileName(path); }
+          try {
+            filename = _safeFileName(Uri.decodeComponent(path));
+          } catch (_) {
+            filename = _safeFileName(path);
+          }
+        } else {
+          final extension = _extensionForMime(response.headers.value('content-type'));
+          if (extension != null) {
+            final base = filename.replaceFirst(RegExp(r'\.bin$', caseSensitive: false), '');
+            filename = _safeFileName('$base.$extension');
+          }
         }
       }
     }
