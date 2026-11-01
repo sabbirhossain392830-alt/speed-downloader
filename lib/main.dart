@@ -694,17 +694,75 @@ class _DownloadHomeState extends State<DownloadHome> {
             Text('${(entry.progress * 100).toStringAsFixed(0)}%', style: Theme.of(context).textTheme.bodySmall),
           ]),
           if (running || paused || queued || failed) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(children: [
               if (running)
-                OutlinedButton.icon(onPressed: () => _pause(entry), icon: const Icon(Icons.pause, size: 18), label: const Text('Pause')),
-              if (paused || failed || queued)
-                OutlinedButton.icon(onPressed: () => failed ? _redownload(entry) : _resume(entry), icon: Icon(failed ? Icons.refresh : Icons.play_arrow, size: 18), label: Text(failed ? 'Retry' : 'Resume')),
+                _actionIcon(
+                  icon: Icons.pause_rounded,
+                  label: 'Pause',
+                  onTap: () => _pause(entry),
+                  primary: true,
+                ),
+              if (paused || queued)
+                _actionIcon(
+                  icon: Icons.play_arrow_rounded,
+                  label: 'Resume',
+                  onTap: () => _resume(entry),
+                  primary: true,
+                ),
+              if (failed)
+                _actionIcon(
+                  icon: Icons.refresh_rounded,
+                  label: 'Retry',
+                  onTap: () => _redownload(entry),
+                  primary: true,
+                ),
               if (running || paused || queued)
-                TextButton.icon(onPressed: () => _cancel(entry), icon: const Icon(Icons.close, size: 18), label: const Text('Cancel')),
+                _actionIcon(
+                  icon: Icons.close_rounded,
+                  label: 'Cancel',
+                  onTap: () => _cancel(entry),
+                ),
+              const Spacer(),
+              Text(
+                running ? 'DOWNLOADING' : paused ? 'PAUSED' : failed ? 'ERROR' : 'QUEUED',
+                style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w800,
+                  color: failed ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
             ]),
           ],
         ]),
+      ),
+    );
+  }
+
+  Widget _actionIcon({required IconData icon, required String label, required VoidCallback onTap, bool primary = false}) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 9),
+      child: Tooltip(
+        message: label,
+        child: Material(
+          color: primary ? cs.primaryContainer : cs.surfaceContainerHighest,
+          shape: const CircleBorder(),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: 42,
+              height: 42,
+              child: Icon(
+                icon,
+                size: 22,
+                color: primary ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
