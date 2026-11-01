@@ -930,15 +930,16 @@ class _BrowserPageState extends State<BrowserPage> {
           function downloadIntent(el){
             if(!el)return false;
             var label=((el.innerText||el.textContent||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('title')||'')).toLowerCase();
-            return el.hasAttribute('download')||/download|save file|get file|direct link|one click/i.test(label);
+            return el.hasAttribute('download')||/download|save file|get file|direct link|one click|fastest|high.?speed|\\bfsl\\b|\\bgp\\b|server/i.test(label);
           }
           function candidate(el){
             if(!el)return null;
-            var attrs=['href','data-href','data-url','data-download-url','data-download','data-file','data-link','data-target'];
+            var attrs=['href','data-href','data-url','data-download-url','data-download','data-file','data-link','data-target','data-src','data-id'];
             var raw=null;
             for(var i=0;i<attrs.length&&!raw;i++){var v=el.getAttribute(attrs[i]);if(v&&v.trim())raw=v.trim()}
+            if(!raw&&el.querySelector){var a=el.querySelector('a[href]');if(a)raw=a.getAttribute('href')}
             if(!raw&&el.form)raw=el.form.action;
-            if(!raw){var oc=el.getAttribute('onclick')||'';var m=oc.match(/https?:[^\\s'"\\x60]+|['"]((?:\\/|\\.\\.\\/)[^'"]+)['"]/i);if(m)raw=m[1]||m[0]}
+            if(!raw){var oc=(el.getAttribute('onclick')||'')+' '+(el.getAttribute('data-onclick')||'');var m=oc.match(/https?:[^\\s'"\\x60]+|['"]((?:\\/|\\.\\.\\/)[^'"]+)['"]/i);if(m)raw=m[1]||m[0]}
             if(!raw)return null;
             return valid(raw);
           }
@@ -947,6 +948,9 @@ class _BrowserPageState extends State<BrowserPage> {
             if(!el||!downloadIntent(el))return;
             var u=candidate(el);
             if(u)send(u);
+            // Some sites reveal the actual media URL only after the click.
+            setTimeout(scanResources,350);
+            setTimeout(scanResources,1200);
           },true);
           document.addEventListener('submit',function(e){
             var f=e.target;if(!f||!f.action)return;
