@@ -803,9 +803,6 @@ class _BrowserPageState extends State<BrowserPage> {
       ]) : IndexedStack(index: active, children: tabs.map((e) => WebViewWidget(controller: e.controller)).toList())),
     ]));
   }
-}
-).hasMatch(path);
-  }
   Future<void> _newTab([String url = 'https://www.google.com']) async {
     final t = _DroxTab(WebViewController(), url);
     tabs.add(t); active = tabs.length - 1; showHistory = false;
