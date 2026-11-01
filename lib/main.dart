@@ -934,7 +934,9 @@ class _BrowserPageState extends State<BrowserPage> {
           }
           function candidate(el){
             if(!el)return null;
-            var raw=el.getAttribute('href')||el.getAttribute('data-href')||el.getAttribute('data-url')||el.getAttribute('data-download-url')||el.getAttribute('data-download');
+            var attrs=['href','data-href','data-url','data-download-url','data-download','data-file','data-link','data-target'];
+            var raw=null;
+            for(var i=0;i<attrs.length&&!raw;i++){var v=el.getAttribute(attrs[i]);if(v&&v.trim())raw=v.trim()}
             if(!raw&&el.form)raw=el.form.action;
             if(!raw){var oc=el.getAttribute('onclick')||'';var m=oc.match(/https?:[^\\s'"\\x60]+|['"]((?:\\/|\\.\\.\\/)[^'"]+)['"]/i);if(m)raw=m[1]||m[0]}
             if(!raw)return null;
@@ -1010,7 +1012,9 @@ class _BrowserPageState extends State<BrowserPage> {
       final response = await dio.head(url);
       final responseType = (response.headers.value('content-type') ?? '').toLowerCase();
       if ((response.statusCode ?? 200) >= 400) {
-        statusNote = 'Server did not allow this file request (HTTP \${response.statusCode})';
+        // HEAD is only a metadata probe. Many file hosts reject HEAD while
+        // still allowing GET; keep the original URL and allow a download try.
+        statusNote = 'Metadata check blocked (HTTP ${response.statusCode}). You can still try START; the file server will decide whether GET is allowed.';
       } else if (responseType.contains('text/html')) {
         statusNote = 'This link returned a web page, not a direct downloadable file.';
       } else {
@@ -1122,12 +1126,12 @@ class _BrowserPageState extends State<BrowserPage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 10),
                 child: Row(children: [
-                  TextButton(onPressed: (statusNote.isEmpty || statusNote.startsWith('Server rejected the metadata check')) && filenameController.text.trim().isNotEmpty
+                  TextButton(onPressed: (statusNote.isEmpty || statusNote.startsWith('Metadata check blocked')) && filenameController.text.trim().isNotEmpty
                     ? () => Navigator.pop(ctx, (filenameController.text.trim(), wifiOnly, retry)) : null, child: const Text('ADD')),
                   const Spacer(),
                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
                   const SizedBox(width: 4),
-                  FilledButton(onPressed: (statusNote.isEmpty || statusNote.startsWith('Server rejected the metadata check')) && filenameController.text.trim().isNotEmpty
+                  FilledButton(onPressed: (statusNote.isEmpty || statusNote.startsWith('Metadata check blocked')) && filenameController.text.trim().isNotEmpty
                     ? () => Navigator.pop(ctx, (filenameController.text.trim(), wifiOnly, retry)) : null,
                     child: const Text('START')),
                 ]),
