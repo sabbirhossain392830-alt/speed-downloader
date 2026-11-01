@@ -751,7 +751,9 @@ class _BrowserPageState extends State<BrowserPage> {
             v.addEventListener('canplay',function(){mediaSources(v)});
             v.addEventListener('loadstart',function(){mediaSources(v)});
           })}
-          scan();new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
+          function scanResources(){try{performance.getEntriesByType('resource').forEach(function(e){if(exts.test(e.name))send(e.name)})}catch(_){}}
+          scan();new MutationObserver(function(){scan();scanResources()}).observe(document.documentElement,{childList:true,subtree:true});
+          setInterval(scanResources,2500);
           document.addEventListener('play',function(e){if(e.target&&(e.target.tagName==='VIDEO'||e.target.tagName==='AUDIO'))send(e.target.currentSrc||e.target.src||'')},true);
           document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;try{var u=new URL(a.href,location.href);if(a.hasAttribute('download')||exts.test(u.pathname)){e.preventDefault();e.stopImmediatePropagation();send(u.href)}}catch(_){}},true);
         })();''');
@@ -797,10 +799,17 @@ class _BrowserPageState extends State<BrowserPage> {
         validateStatus: (s) => s != null && s < 500,
       ));
       final response = await dio.head(url);
-      if (response.realUri.toString().startsWith('http')) finalUrl = response.realUri.toString();
-      final length = int.tryParse(response.headers.value('content-length') ?? '');
-      size = _formatFileSize(length);
-      type = response.headers.value('content-type')?.split(';').first ?? 'অজানা';
+      final responseType = (response.headers.value('content-type') ?? '').toLowerCase();
+      if ((response.statusCode ?? 200) >= 400) {
+        statusNote = 'সার্ভার লিংকটি অনুমোদন করেনি (HTTP ${response.statusCode})';
+      } else if (responseType.contains('text/html')) {
+        statusNote = 'এটি সরাসরি মিডিয়া ফাইল নয়—সার্ভার HTML/Cloudflare পেজ পাঠাচ্ছে';
+      } else {
+        if (response.realUri.toString().startsWith('http')) finalUrl = response.realUri.toString();
+        final length = int.tryParse(response.headers.value('content-length') ?? '');
+        size = _formatFileSize(length);
+        type = responseType.split(';').first.isEmpty ? 'অজানা' : responseType.split(';').first;
+      }
       final disposition = response.headers.value('content-disposition') ?? '';
       final match = RegExp(r'filename\s*=\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
       if (match != null && match.group(1)!.trim().isNotEmpty) {
@@ -815,20 +824,32 @@ class _BrowserPageState extends State<BrowserPage> {
     final approved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(children: [Icon(Icons.download_for_offline_outlined), SizedBox(width: 8), Expanded(child: Text('File Details'))]),
+        icon: const DroxLogoMark(size: 50),
+        title: const Center(child: Text('File Details', style: TextStyle(fontWeight: FontWeight.w800))),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name, style: const TextStyle(fontWeight: FontWeight.w700), maxLines: 3, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 12),
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
+            child: Row(children: [
+              Icon(statusNote.isEmpty ? Icons.insert_drive_file_rounded : Icons.info_outline_rounded, color: Theme.of(ctx).colorScheme.primary, size: 28),
+              const SizedBox(width: 10),
+              Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w700), maxLines: 3, overflow: TextOverflow.ellipsis)),
+            ]),
+          ),
+          const SizedBox(height: 14),
           _detailRow('ধরন', type),
           _detailRow('সাইজ', size),
           _detailRow('সাইট', uri.host),
-          if (statusNote.isNotEmpty) ...[const SizedBox(height: 8), Text(statusNote, style: Theme.of(ctx).textTheme.bodySmall)],
-          const SizedBox(height: 8),
-          const Text('শুধু অনুমোদিত ও নিরাপদ ফাইল ডাউনলোড করুন।', style: TextStyle(fontSize: 12)),
+          if (statusNote.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(width: double.infinity, padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.errorContainer, borderRadius: BorderRadius.circular(10)),
+              child: Text(statusNote, style: TextStyle(color: Theme.of(ctx).colorScheme.onErrorContainer, fontSize: 12))),
+          ],
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('বাতিল')),
-          FilledButton.icon(onPressed: () => Navigator.pop(ctx, true), icon: const Icon(Icons.download), label: const Text('Download')),
+          FilledButton.icon(onPressed: statusNote.isEmpty ? () => Navigator.pop(ctx, true) : null, icon: const Icon(Icons.download_rounded), label: const Text('Download')),
         ],
       ),
     );
