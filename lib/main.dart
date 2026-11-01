@@ -638,29 +638,17 @@ class _BrowserPageState extends State<BrowserPage> {
         t.url = u;
         await ctrl.runJavaScript(r'''(function(){
           if(window.__droxMediaDetector)return;window.__droxMediaDetector=true;
-          var seen={},button=null,current='';
-          var exts=/\\.(mp4|m4v|webm|mov|mp3|m4a|aac|wav|ogg|flac)(?:$|[?#])/i;
+          var seen={};
+          var exts=/\.(mp4|m4v|webm|mov|mp3|m4a|aac|wav|ogg|flac)(?:$|[?#])/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
           function send(raw){var u=valid(raw);if(!u||seen[u])return;seen[u]=1;DroxDownload.postMessage(u);setTimeout(function(){delete seen[u]},8000)}
-          function show(video){
-            var raw=video.currentSrc||video.src||((video.querySelector('source')||{}).src)||'';
-            var u=valid(raw);if(!u||!video.isConnected)return;
-            if(current===u&&button)return;
-            if(button)button.remove();current=u;
-            button=document.createElement('button');button.type='button';button.textContent='⬇ Download';
-            button.setAttribute('aria-label','Download this video');
-            var rect=video.getBoundingClientRect();button.style.cssText='position:fixed;z-index:2147483647;left:'+Math.max(8,Math.min(innerWidth-120,rect.right-122))+'px;top:'+Math.max(8,Math.min(innerHeight-54,rect.top+12))+'px;padding:10px 14px;border:0;border-radius:22px;background:#0878f9;color:white;font:600 14px sans-serif;box-shadow:0 3px 14px #0008';
-            button.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();send(u)});
-            document.documentElement.appendChild(button);
-          }
-          function scan(){document.querySelectorAll('video').forEach(function(v){
+          function scan(){document.querySelectorAll('video,audio').forEach(function(v){
             if(v.__droxBound)return;v.__droxBound=true;
-            v.addEventListener('play',function(){show(v)});
-            v.addEventListener('loadedmetadata',function(){if(!v.paused)show(v)});
-            v.addEventListener('click',function(){if(!v.paused)show(v)});
+            v.addEventListener('play',function(){send(v.currentSrc||v.src||((v.querySelector('source')||{}).src)||'')});
+            v.addEventListener('loadedmetadata',function(){if(!v.paused)send(v.currentSrc||v.src||'')});
           })}
           scan();new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
-          document.addEventListener('play',function(e){if(e.target&&e.target.tagName==='VIDEO')show(e.target)},true);
+          document.addEventListener('play',function(e){if(e.target&&(e.target.tagName==='VIDEO'||e.target.tagName==='AUDIO'))send(e.target.currentSrc||e.target.src||'')},true);
           document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;try{var u=new URL(a.href,location.href);if(a.hasAttribute('download')||exts.test(u.pathname)){e.preventDefault();e.stopImmediatePropagation();send(u.href)}}catch(_){}},true);
         })();''');
         final title = await ctrl.getTitle();
@@ -677,18 +665,19 @@ class _BrowserPageState extends State<BrowserPage> {
   }
   final Set<String> _promptedDownloadUrls = <String>{};
   void _downloadPrompt(String url) {
-    if (!_promptedDownloadUrls.add(url)) return;
-    final u = Uri.tryParse(url);
-    final raw = u?.pathSegments.isNotEmpty == true ? u!.pathSegments.last : '';
+    final uri = Uri.tryParse(url);
+    if (uri == null || !['http', 'https'].contains(uri.scheme)) return;
+    final raw = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : '';
     String name;
     try { name = Uri.decodeComponent(raw); } catch (_) { name = raw; }
-    if (name.isEmpty || !name.contains('.')) name = 'drox_file.bin';
-    showDialog<void>(context: context, builder: (ctx) => AlertDialog(
-      icon: const Icon(Icons.download_for_offline_outlined, size: 36),
-      title: const Text('Download file?'),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(fontWeight: FontWeight.bold)), Text('File type: ' + name.split('.').last.toUpperCase()), SelectableText(url)]),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')), FilledButton.icon(onPressed: () { Navigator.pop(ctx); widget.onDownload(url); }, icon: const Icon(Icons.download), label: const Text('Download'))],
-    )).whenComplete(() => _promptedDownloadUrls.remove(url));
+    if (name.isEmpty || !name.contains('.')) name = 'Media file';
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Download detected: $name', maxLines: 1, overflow: TextOverflow.ellipsis),
+      action: SnackBarAction(label: 'DOWNLOAD', onPressed: () => widget.onDownload(url)),
+      duration: const Duration(seconds: 7),
+    ));
   }
   void go() {
     var v = address.text.trim(); if (v.isEmpty || tab == null) return;
