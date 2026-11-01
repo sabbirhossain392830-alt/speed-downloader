@@ -491,25 +491,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       ),
       body: IndexedStack(index: selectedTab, children: [
         ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
-          Row(children: [
-            Expanded(child: Text('Download Manager', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600))),
-            IconButton(tooltip: 'Browser', onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.language_rounded)),
-            IconButton(tooltip: 'Quick download', onPressed: () => _quickDownloadDialog(), icon: const Icon(Icons.add_link_rounded)),
-          ]),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .55), borderRadius: BorderRadius.circular(16)),
-            child: Row(children: [
-              const DroxLogoMark(size: 42),
-              const SizedBox(width: 12),
-              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('DROX', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1.8)),
-                Text('Fast • Smart • Reliable', style: TextStyle(fontSize: 11, color: Colors.grey)),
-              ])),
-              FilledButton.tonalIcon(onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.public_rounded, size: 18), label: const Text('Browse')),
-            ]),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 4),
           Row(children: [
             _homeCategory('All', entries.length, DownloadFilter.all, Icons.apps_rounded),
             _homeCategory('Downloading', active, DownloadFilter.active, Icons.downloading_rounded),
@@ -526,10 +508,7 @@ class _DownloadHomeState extends State<DownloadHome> {
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
             )),
           const SizedBox(height: 16),
-          Row(children: [
-            const Expanded(child: Text('Downloads', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
-            TextButton.icon(onPressed: () => setState(() => selectedTab = 2), icon: const Icon(Icons.open_in_new, size: 16), label: const Text('Manage')),
-          ]),
+          const Text('Downloads', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           if (visible.isEmpty)
             Container(
               width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 18),
@@ -540,8 +519,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                 const Text('No downloads yet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                 const SizedBox(height: 5),
                 Text('Browse websites or paste a direct link to start.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 14),
-                FilledButton.icon(onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.language_rounded), label: const Text('Open Browser')),
+
               ]),
             )
           else ...visible.map(_downloadCard),
