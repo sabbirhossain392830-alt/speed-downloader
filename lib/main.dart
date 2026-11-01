@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -185,12 +186,46 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
   }
 
+  String _safeFileName(String value) {
+    final cleaned = value.replaceAll(RegExp(r'[\\/:*?"<>|\r\n]'), '_').trim();
+    return cleaned.isEmpty ? 'drox_download.bin' : cleaned;
+  }
+
   String _fileName(String url) {
-    final uri = Uri.parse(url);
-    final last = uri.pathSegments.isEmpty ? '' : uri.pathSegments.last;
-    final decoded = Uri.decodeComponent(last);
-    if (decoded.isEmpty || !decoded.contains('.')) return 'drox_${DateTime.now().millisecondsSinceEpoch}.bin';
-    return decoded.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final uri = Uri.tryParse(url);
+    final last = uri == null || uri.pathSegments.isEmpty ? '' : uri.pathSegments.last;
+    String decoded;
+    try { decoded = Uri.decodeComponent(last); } catch (_) { decoded = last; }
+    return decoded.contains('.') ? _safeFileName(decoded) : 'drox_' + DateTime.now().millisecondsSinceEpoch.toString() + '.bin';
+  }
+
+  Future<(String, String)> _downloadDetails(String url) async {
+    var finalUrl = url;
+    var filename = _fileName(url);
+    try {
+      final response = await Dio(BaseOptions(
+        followRedirects: true,
+        receiveTimeout: const Duration(seconds: 12),
+        sendTimeout: const Duration(seconds: 12),
+        validateStatus: (s) => s != null && s < 500,
+      )).head(url);
+      final redirected = response.realUri.toString();
+      if (redirected.startsWith('http')) finalUrl = redirected;
+      final disposition = response.headers.value(Headers.contentDisposition) ?? '';
+      final encoded = RegExp(r"filename\\*=UTF-8''([^;]+)", caseSensitive: false).firstMatch(disposition);
+      final plain = RegExp(r'filename="?([^";]+)"?', caseSensitive: false).firstMatch(disposition);
+      final headerName = encoded?.group(1) ?? plain?.group(1);
+      if (headerName != null && headerName.trim().isNotEmpty) {
+        try { filename = _safeFileName(Uri.decodeComponent(headerName.trim())); }
+        catch (_) { filename = _safeFileName(headerName.trim()); }
+      } else if (!filename.contains('.') || filename.endsWith('.bin')) {
+        final path = response.realUri.pathSegments.isEmpty ? '' : response.realUri.pathSegments.last;
+        if (path.contains('.')) filename = _safeFileName(Uri.decodeComponent(path));
+      }
+    } catch (_) {
+      // Some hosts reject HEAD; retain the URL-derived fallback.
+    }
+    return (finalUrl, filename);
   }
 
   Future<void> _add() async {
@@ -202,9 +237,10 @@ class _DownloadHomeState extends State<DownloadHome> {
       return;
     }
     setState(() => adding = true);
+    final details = await _downloadDetails(value);
     final task = DownloadTask(
-      url: value,
-      filename: _fileName(value),
+      url: details.$1,
+      filename: details.$2,
       directory: 'DROX',
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
@@ -267,9 +303,10 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   Future<void> _redownload(DownloadEntry entry) async {
+    final details = await _downloadDetails(entry.task.url);
     final task = DownloadTask(
-      url: entry.task.url,
-      filename: entry.task.filename,
+      url: details.$1,
+      filename: details.$2,
       directory: 'DROX',
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
@@ -585,7 +622,7 @@ class _BrowserPageState extends State<BrowserPage> {
       onPageStarted: (u) { t.url = u; t.loading = true; if (mounted) setState(() { if (tab == t) address.text = u; }); },
       onPageFinished: (u) async {
         t.url = u;
-        await ctrl.runJavaScript(r'''(function(){if(window.__droxDownloadHook)return;window.__droxDownloadHook=true;var exts=/\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|m3u8|mp3|m4a|aac|wav|jpg|jpeg|png|gif|webp|docx?|xlsx?|pptx?|csv|txt|epub|torrent)(?:$|[?#])/i;var files=/\/(file|download|downloads)(?:\/|\?|#|$)/i;var seen={};function send(raw){try{var u=new URL(raw,location.href);if(!/^https?:$/.test(u.protocol)||seen[u.href])return;seen[u.href]=1;DroxDownload.postMessage(u.href);setTimeout(function(){delete seen[u.href]},5000)}catch(_){}}function scan(){document.querySelectorAll('a[href],video,audio,video source,audio source').forEach(function(el){var raw=el.href||el.currentSrc||el.src;if(!raw)return;try{var u=new URL(raw,location.href),p=u.pathname,media=el.tagName==='VIDEO'||el.tagName==='AUDIO'||!!el.closest('video,audio');if(el.hasAttribute('download')||exts.test(p)||files.test(p)||(media&&/\.(mp4|mkv|mov|avi|webm|mp3|m4a|aac|wav)(?:$|[?#])/i.test(p)))send(u.href)}catch(_){}})}document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;try{var u=new URL(a.href,location.href);if(a.hasAttribute('download')||exts.test(u.pathname)||files.test(u.pathname)){e.preventDefault();e.stopImmediatePropagation();send(u.href)}}catch(_){}},true);new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src','href']});scan();setTimeout(scan,1200);setTimeout(scan,3500);})();''');
+        await ctrl.runJavaScript(r'''(function(){if(window.__droxDownloadHook)return;window.__droxDownloadHook=true;var exts=/\.(pdf|zip|rar|7z|apk|mp4|mkv|mov|avi|webm|mp3|m4a|aac|wav|jpg|jpeg|png|gif|webp|docx?|xlsx?|pptx?|csv|txt|epub)(?:$|[?#])/i;var seen={};function send(raw){try{var u=new URL(raw,location.href);if(!/^https?:$/.test(u.protocol)||seen[u.href])return;seen[u.href]=1;DroxDownload.postMessage(u.href);setTimeout(function(){delete seen[u.href]},5000)}catch(_){}}document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;try{var u=new URL(a.href,location.href);if(a.hasAttribute('download')||exts.test(u.pathname)){e.preventDefault();e.stopImmediatePropagation();send(u.href)}}catch(_){}},true);})();''');
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
         t.loading = false; t.back = await ctrl.canGoBack(); t.forward = await ctrl.canGoForward();
