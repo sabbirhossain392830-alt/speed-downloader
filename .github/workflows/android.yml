@@ -21,34 +21,57 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          manifest = Path("android/app/src/main/AndroidManifest.xml")
-          content = manifest.read_text()
-          for name in ['android.permission.INTERNET', 'android.permission.POST_NOTIFICATIONS']:
-              tag = f'<uses-permission android:name="{name}"/>'
-              if tag not in content:
-                  content = content.replace("<application", f"    {tag}\n    <application", 1)
-          marker = 'android:name="io.flutter.embedding.android.NormalTheme"'
-          activity_end = content.find('</activity>', content.find(marker))
-          if activity_end < 0:
-              raise SystemExit("Flutter activity not found")
-          filters = """
-                  <intent-filter>
-                      <action android:name="android.intent.action.SEND" />
-                      <category android:name="android.intent.category.DEFAULT" />
-                      <data android:mimeType="text/plain" />
-                  </intent-filter>
-                  <intent-filter>
-                      <action android:name="android.intent.action.VIEW" />
-                      <category android:name="android.intent.category.DEFAULT" />
-                      <category android:name="android.intent.category.BROWSABLE" />
-                      <data android:scheme="http" />
-                      <data android:scheme="https" />
-                  </intent-filter>
-          """
-          if 'android.intent.action.SEND' not in content:
-              content = content[:activity_end] + filters + content[activity_end:]
-          content = content.replace('android:name=".MainActivity"', 'android:name=".MainActivity"\n            android:exported="true"\n            android:launchMode="singleTop"')
-          manifest.write_text(content)
+          import xml.etree.ElementTree as ET
+
+          path = Path("android/app/src/main/AndroidManifest.xml")
+          ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
+          ns = "{http://schemas.android.com/apk/res/android}"
+          tree = ET.parse(path)
+          root = tree.getroot()
+
+          for permission in ("android.permission.INTERNET", "android.permission.POST_NOTIFICATIONS"):
+              if not any(node.get(ns + "name") == permission for node in root.findall("uses-permission")):
+                  ET.SubElement(root, "uses-permission", {ns + "name": permission})
+
+          app = root.find("application")
+          if app is None:
+              raise SystemExit("Android application element not found")
+
+          activity = next((node for node in app.findall("activity")
+                           if node.get(ns + "name", "").endswith("MainActivity")), None)
+          if activity is None:
+              raise SystemExit("MainActivity not found in AndroidManifest.xml")
+
+          activity.set(ns + "exported", "true")
+          activity.set(ns + "launchMode", "singleTop")
+
+          def add_filter(action, categories, mime=None, schemes=()):
+              f = ET.SubElement(activity, "intent-filter")
+              ET.SubElement(f, "action", {ns + "name": action})
+              for category in categories:
+                  ET.SubElement(f, "category", {ns + "name": category})
+              if mime:
+                  ET.SubElement(f, "data", {ns + "mimeType": mime})
+              for scheme in schemes:
+                  ET.SubElement(f, "data", {ns + "scheme": scheme})
+
+          if not any(x.find("action") is not None and
+                     x.find("action").get(ns + "name") == "android.intent.action.SEND"
+                     for x in activity.findall("intent-filter")):
+              add_filter("android.intent.action.SEND",
+                         ["android.intent.category.DEFAULT"], "text/plain")
+
+          if not any(x.find("action") is not None and
+                     x.find("action").get(ns + "name") == "android.intent.action.VIEW"
+                     for x in activity.findall("intent-filter")):
+              add_filter("android.intent.action.VIEW",
+                         ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"],
+                         schemes=("http", "https"))
+
+          ET.indent(tree, space="    ")
+          tree.write(path, encoding="utf-8", xml_declaration=True)
+          ET.parse(path)
+          print("AndroidManifest.xml validated")
           PY
           mkdir -p android/app/src/main/kotlin/com/example/speed_downloader
           cat > android/app/src/main/kotlin/com/example/speed_downloader/MainActivity.kt <<'KOTLIN'
