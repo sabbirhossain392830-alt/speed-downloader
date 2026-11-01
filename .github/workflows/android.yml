@@ -8,41 +8,103 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-
       - name: Generate Android project
         run: flutter create --platforms=android --project-name speed_downloader .
-
-      - name: Configure Android permissions
+      - name: Configure Android permissions and share intents
         run: |
           python3 - <<'PY'
           from pathlib import Path
           manifest = Path("android/app/src/main/AndroidManifest.xml")
           content = manifest.read_text()
-          permissions = [
-              'android.permission.INTERNET',
-              'android.permission.POST_NOTIFICATIONS',
-          ]
-          for name in permissions:
+          for name in ['android.permission.INTERNET', 'android.permission.POST_NOTIFICATIONS']:
               tag = f'<uses-permission android:name="{name}"/>'
               if tag not in content:
                   content = content.replace("<application", f"    {tag}\\n    <application", 1)
+          marker = 'android:name="io.flutter.embedding.android.NormalTheme"'
+          activity_end = content.find('</activity>', content.find(marker))
+          if activity_end < 0:
+              raise SystemExit("Flutter activity not found")
+          filters = """
+                  <intent-filter>
+                      <action android:name="android.intent.action.SEND" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <data android:mimeType="text/plain" />
+                  </intent-filter>
+                  <intent-filter>
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+                      <data android:scheme="http" />
+                      <data android:scheme="https" />
+                  </intent-filter>
+          """
+          if 'android.intent.action.SEND' not in content:
+              content = content[:activity_end] + filters + content[activity_end:]
+          content = content.replace('android:name=".MainActivity"', 'android:name=".MainActivity"\\n            android:exported="true"\\n            android:launchMode="singleTop"')
           manifest.write_text(content)
           PY
+          mkdir -p android/app/src/main/kotlin/com/example/speed_downloader
+          cat > android/app/src/main/kotlin/com/example/speed_downloader/MainActivity.kt <<'KOTLIN'
+          package com.example.speed_downloader
 
+          import android.content.Intent
+          import android.os.Bundle
+          import io.flutter.embedding.android.FlutterActivity
+          import io.flutter.embedding.engine.FlutterEngine
+          import io.flutter.plugin.common.EventChannel
+          import io.flutter.plugin.common.MethodChannel
+
+          class MainActivity : FlutterActivity() {
+              private val methodName = "drox/share"
+              private val eventName = "drox/share_events"
+              private var eventSink: EventChannel.EventSink? = null
+              private var pendingText: String? = null
+
+              override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+                  super.configureFlutterEngine(flutterEngine)
+                  MethodChannel(flutterEngine.dartExecutor.binaryMessenger, methodName).setMethodCallHandler { call, result ->
+                      if (call.method == "getInitialSharedText") {
+                          result.success(pendingText ?: sharedText(intent))
+                          pendingText = null
+                      } else result.notImplemented()
+                  }
+                  EventChannel(flutterEngine.dartExecutor.binaryMessenger, eventName).setStreamHandler(object : EventChannel.StreamHandler {
+                      override fun onListen(arguments: Any?, events: EventChannel.EventSink?) { eventSink = events }
+                      override fun onCancel(arguments: Any?) { eventSink = null }
+                  })
+              }
+
+              override fun onNewIntent(intent: Intent) {
+                  super.onNewIntent(intent)
+                  setIntent(intent)
+                  val text = sharedText(intent)
+                  if (text != null) {
+                      if (eventSink != null) eventSink?.success(text) else pendingText = text
+                  }
+              }
+
+              private fun sharedText(source: Intent?): String? {
+                  if (source == null) return null
+                  return when (source.action) {
+                      Intent.ACTION_SEND -> source.getStringExtra(Intent.EXTRA_TEXT) ?: source.getStringExtra(Intent.EXTRA_SUBJECT)
+                      Intent.ACTION_VIEW -> source.dataString
+                      else -> null
+                  }?.takeIf { it.isNotBlank() }
+              }
+          }
+          KOTLIN
       - name: Build APK
         run: |
           flutter pub get
+          flutter analyze
           flutter build apk --release
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
