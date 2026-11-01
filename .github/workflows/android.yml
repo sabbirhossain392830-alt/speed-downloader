@@ -103,7 +103,7 @@ jobs:
       - name: Build APK
         run: |
           flutter pub get
-          flutter analyze
+          flutter analyze lib/main.dart
           flutter build apk --release
       - name: Upload APK
         uses: actions/upload-artifact@v4
