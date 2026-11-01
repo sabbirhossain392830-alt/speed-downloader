@@ -965,7 +965,18 @@ class _BrowserPageState extends State<BrowserPage> {
     var sizeBytes = -1;
     var type = 'Unknown';
     var statusNote = '';
+    final manifestPath = uri.path.toLowerCase();
+    final isHlsManifest = manifestPath.endsWith('.m3u8');
+    final isDashManifest = manifestPath.endsWith('.mpd');
+    if (isHlsManifest) {
+      type = 'HLS streaming playlist';
+      statusNote = 'HLS stream detected. This is a playlist, not the complete video. Full stream download and file packaging are not enabled yet.';
+    } else if (isDashManifest) {
+      type = 'DASH streaming manifest';
+      statusNote = 'DASH stream detected. This is a manifest, not the complete video. Full stream download and file packaging are not enabled yet.';
+    }
     try {
+      if (!isHlsManifest && !isDashManifest) {
       final dio = Dio(BaseOptions(
         followRedirects: true,
         receiveTimeout: const Duration(seconds: 12),
@@ -991,8 +1002,11 @@ class _BrowserPageState extends State<BrowserPage> {
         final raw = headerName.trim().replaceAll('"', '');
         try { name = Uri.decodeComponent(raw); } catch (_) { name = raw; }
       }
+      }
     } catch (_) {
-      statusNote = 'File information is unavailable. The server may require a session or may not support metadata requests.';
+      if (!isHlsManifest && !isDashManifest) {
+        statusNote = 'File information is unavailable. The server may require a session or may not support metadata requests.';
+      }
     }
     name = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     if (!mounted) { _promptedDownloadUrls.remove(url); return; }
