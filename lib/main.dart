@@ -159,18 +159,51 @@ class _DownloadHomeState extends State<DownloadHome> {
         entry.progress = update.progress.clamp(0.0, 1.0);
         if (update.hasExpectedFileSize) entry.expectedFileSize = update.expectedFileSize;
       } else if (update is TaskStatusUpdate) {
-        entry.status = _statusText(update.status);
-        if (update.status == TaskStatus.failed) {
-          entry.error = update.exception?.description ?? 'ডাউনলোড ব্যর্থ';
-        }
         if (update.status == TaskStatus.complete) {
+          entry.status = 'ফাইল যাচাই হচ্ছে';
           entry.progress = 1;
           entry.error = null;
-          _publishToPhone(entry);
+          _verifyCompletedFile(entry);
+        } else {
+          entry.status = _statusText(update.status);
+          if (update.status == TaskStatus.failed) {
+            entry.error = update.exception?.description ?? 'ডাউনলোড ব্যর্থ';
+          }
         }
       }
     });
     _saveHistory();
+  }
+
+  Future<void> _verifyCompletedFile(DownloadEntry entry) async {
+    try {
+      final path = await entry.task.filePath();
+      final file = File(path);
+      if (!await file.exists()) {
+        throw Exception('ডাউনলোড করা ফাইল পাওয়া যায়নি');
+      }
+      final actualSize = await file.length();
+      if (actualSize <= 0) {
+        throw Exception('ফাইলটি খালি—ডাউনলোড সম্পূর্ণ হয়নি');
+      }
+      if (entry.expectedFileSize > 0 && actualSize != entry.expectedFileSize) {
+        throw Exception('ফাইলের সাইজ অসম্পূর্ণ');
+      }
+      if (!mounted) return;
+      setState(() {
+        entry.status = 'সম্পন্ন';
+        entry.progress = 1;
+        entry.error = null;
+      });
+      await _publishToPhone(entry);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        entry.status = 'যাচাই ব্যর্থ';
+        entry.error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+    await _saveHistory();
   }
 
   String _statusText(TaskStatus s) {
@@ -750,7 +783,7 @@ class _BrowserPageState extends State<BrowserPage> {
       size = _formatFileSize(length);
       type = response.headers.value('content-type')?.split(';').first ?? 'অজানা';
       final disposition = response.headers.value('content-disposition') ?? '';
-      final match = RegExp(r'filename\\s*=\\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
+      final match = RegExp(r'filename\s*=\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
       if (match != null && match.group(1)!.trim().isNotEmpty) {
         try { name = Uri.decodeComponent(match.group(1)!.trim().replaceAll('"', '').replaceAll("'", '')); } catch (_) { name = match.group(1)!.trim().replaceAll('"', '').replaceAll("'", ''); }
       }
