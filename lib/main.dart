@@ -521,7 +521,21 @@ class _DownloadHomeState extends State<DownloadHome> {
       child: Scaffold(
       appBar: selectedTab == 1 ? null : AppBar(
         titleSpacing: 22,
-        title: const Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 3.2, fontSize: 23)),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DroxLogoMark(size: 36),
+            SizedBox(width: 10),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 3.2, fontSize: 20)),
+                Text('DOWNLOAD MANAGER', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1.15, fontSize: 8)),
+              ],
+            ),
+          ],
+        ),
         actions: [
           PopupMenuButton<String>(
             tooltip: 'Main menu',
