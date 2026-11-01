@@ -490,93 +490,61 @@ class _DownloadHomeState extends State<DownloadHome> {
         actions: [IconButton(tooltip: 'Theme', onPressed: widget.onThemeTap, icon: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined))],
       ),
       body: IndexedStack(index: selectedTab, children: [
-        ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 28), children: [
+        ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
+          Row(children: [
+            Expanded(child: Text('Download Manager', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600))),
+            IconButton(tooltip: 'Browser', onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.language_rounded)),
+            IconButton(tooltip: 'Quick download', onPressed: () => _quickDownloadDialog(), icon: const Icon(Icons.add_link_rounded)),
+          ]),
           Container(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF087CF0), Color(0xFF0750A5), Color(0xFF10233F)],
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [BoxShadow(color: const Color(0xFF087CF0).withValues(alpha: .20), blurRadius: 22, offset: const Offset(0, 9))],
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const DroxLogoMark(size: 48),
-                const SizedBox(width: 12),
-                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('DROX', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 21, letterSpacing: 2)),
-                  Text('BROWSER  •  DOWNLOADER', style: TextStyle(color: Colors.white70, fontSize: 9, letterSpacing: 1.3, fontWeight: FontWeight.w700)),
-                ])),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .13), borderRadius: BorderRadius.circular(20)), child: const Row(children: [Icon(Icons.bolt_rounded, color: Color(0xFF9CEBFF), size: 14), SizedBox(width: 4), Text('SMART', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800))])),
-              ]),
-              const SizedBox(height: 22),
-              const Text('Download anything.\nBrowse everywhere.', style: TextStyle(color: Colors.white, fontSize: 25, height: 1.12, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 7),
-              const Text('Your all-in-one browser and download manager', style: TextStyle(color: Colors.white70, fontSize: 12)),
-              const SizedBox(height: 18),
-              SizedBox(width: double.infinity, child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF0750A5), padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                onPressed: () => setState(() => selectedTab = 1),
-                child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.language_rounded), SizedBox(width: 8), Text('OPEN BROWSER', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: .7))]),
-              )),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .55), borderRadius: BorderRadius.circular(16)),
+            child: Row(children: [
+              const DroxLogoMark(size: 42),
+              const SizedBox(width: 12),
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('DROX', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1.8)),
+                Text('Fast • Smart • Reliable', style: TextStyle(fontSize: 11, color: Colors.grey)),
+              ])),
+              FilledButton.tonalIcon(onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.public_rounded, size: 18), label: const Text('Browse')),
             ]),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 16),
           Row(children: [
-            const Expanded(child: Text('Quick download', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
-            Text('DIRECT LINK', style: TextStyle(fontSize: 9, letterSpacing: 1.2, color: cs.primary, fontWeight: FontWeight.w800)),
+            _homeCategory('All', entries.length, DownloadFilter.all, Icons.apps_rounded),
+            _homeCategory('Downloading', active, DownloadFilter.active, Icons.downloading_rounded),
+            _homeCategory('Finished', done, DownloadFilter.completed, Icons.check_circle_outline_rounded),
+            _homeCategory('Error', entries.where((e) => ['ব্যর্থ','বাতিল','কিউতে যোগ করা যায়নি','যাচাই ব্যর্থ'].contains(e.status)).length, DownloadFilter.failed, Icons.error_outline_rounded),
           ]),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: cs.outlineVariant.withValues(alpha: .6))),
-            child: Column(children: [
-              TextField(controller: controller, keyboardType: TextInputType.url, decoration: InputDecoration(
-                hintText: 'Paste your download link here', prefixIcon: const Icon(Icons.link_rounded),
-                filled: true, fillColor: cs.surfaceContainerHighest.withValues(alpha: .55),
-                contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 14),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-              )),
-              const SizedBox(height: 10),
-              SizedBox(width: double.infinity, child: FilledButton.icon(
-                onPressed: adding ? null : _add,
-                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                icon: adding ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.add_link_rounded),
-                label: const Text('START DOWNLOAD', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: .6)),
-              )),
-            ]),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
+          TextField(controller: controller, keyboardType: TextInputType.url, onSubmitted: (_) => _add(),
+            decoration: InputDecoration(
+              hintText: 'Paste download link or URL',
+              prefixIcon: const Icon(Icons.link_rounded),
+              suffixIcon: IconButton(tooltip: 'Quick download', onPressed: adding ? null : _add, icon: adding ? const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)) : const Icon(Icons.download_rounded)),
+              filled: true, fillColor: cs.surfaceContainerHighest.withValues(alpha: .45),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+            )),
+          const SizedBox(height: 16),
           Row(children: [
-            _stat('TOTAL FILES', entries.length.toString(), Icons.folder_copy_outlined),
-            const SizedBox(width: 8), _stat('DOWNLOADING', active.toString(), Icons.downloading_rounded),
-            const SizedBox(width: 8), _stat('COMPLETED', done.toString(), Icons.task_alt_rounded),
+            const Expanded(child: Text('Downloads', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
+            TextButton.icon(onPressed: () => setState(() => selectedTab = 2), icon: const Icon(Icons.open_in_new, size: 16), label: const Text('Manage')),
           ]),
-          const SizedBox(height: 23),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Recent downloads', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-            TextButton(onPressed: () => setState(() => selectedTab = 2), child: const Text('See all')),
-          ]),
-          SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
-            _filterChip('All', DownloadFilter.all), _filterChip('Active', DownloadFilter.active),
-            _filterChip('Completed', DownloadFilter.completed), _filterChip('Failed', DownloadFilter.failed),
-          ])),
-          const SizedBox(height: 10),
           if (visible.isEmpty)
             Container(
-              width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 18),
-              decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: cs.outlineVariant.withValues(alpha: .5))),
+              width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 18),
+              decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .28), borderRadius: BorderRadius.circular(16), border: Border.all(color: cs.outlineVariant.withValues(alpha: .5))),
               child: Column(children: [
-                Container(width: 68, height: 68, decoration: BoxDecoration(color: cs.primary.withValues(alpha: .10), shape: BoxShape.circle), child: Icon(Icons.download_for_offline_rounded, size: 34, color: cs.primary)),
-                const SizedBox(height: 12),
-                const Text('Ready for your first download?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                Icon(Icons.downloading_rounded, size: 46, color: cs.primary),
+                const SizedBox(height: 10),
+                const Text('No downloads yet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                 const SizedBox(height: 5),
-                Text('Open the browser or paste a direct file link above.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+                Text('Browse websites or paste a direct link to start.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 14),
+                FilledButton.icon(onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.language_rounded), label: const Text('Open Browser')),
               ]),
             )
-          else ...visible.take(5).map(_downloadCard),
+          else ...visible.map(_downloadCard),
         ]),
         BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
         ListView(padding: const EdgeInsets.all(16), children: [
@@ -613,6 +581,46 @@ class _DownloadHomeState extends State<DownloadHome> {
         ],
       ),
     ));
+  }
+
+  Widget _homeCategory(String label, int count, DownloadFilter value, IconData icon) {
+    final selected = filter == value;
+    final cs = Theme.of(context).colorScheme;
+    return Expanded(child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => setState(() => filter = value),
+      child: Container(
+        margin: const EdgeInsets.only(right: 5),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 3),
+        decoration: BoxDecoration(
+          color: selected ? cs.primaryContainer : cs.surfaceContainerHighest.withValues(alpha: .35),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: selected ? cs.primary.withValues(alpha: .45) : cs.outlineVariant.withValues(alpha: .35)),
+        ),
+        child: Column(children: [
+          Icon(icon, size: 19, color: selected ? cs.onPrimaryContainer : cs.onSurfaceVariant),
+          const SizedBox(height: 4),
+          Text('$count', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: selected ? cs.onPrimaryContainer : cs.onSurface)),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: selected ? cs.onPrimaryContainer : cs.onSurfaceVariant)),
+        ]),
+      ),
+    ));
+  }
+
+  Future<void> _quickDownloadDialog() async {
+    controller.clear();
+    final value = await showDialog<String>(context: context, builder: (ctx) {
+      final field = TextEditingController();
+      return AlertDialog(
+        title: const Text('Quick download'),
+        content: TextField(controller: field, autofocus: true, keyboardType: TextInputType.url, decoration: const InputDecoration(hintText: 'Paste direct download URL')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, field.text.trim()), child: const Text('Download')),
+        ],
+      );
+    });
+    if (value != null && value.isNotEmpty && mounted) { controller.text = value; _add(); }
   }
 
   Widget _filterChip(String label, DownloadFilter value) => Padding(
