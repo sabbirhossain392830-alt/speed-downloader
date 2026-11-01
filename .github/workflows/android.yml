@@ -26,7 +26,7 @@ jobs:
           for name in ['android.permission.INTERNET', 'android.permission.POST_NOTIFICATIONS']:
               tag = f'<uses-permission android:name="{name}"/>'
               if tag not in content:
-                  content = content.replace("<application", f"    {tag}\\n    <application", 1)
+                  content = content.replace("<application", f"    {tag}\n    <application", 1)
           marker = 'android:name="io.flutter.embedding.android.NormalTheme"'
           activity_end = content.find('</activity>', content.find(marker))
           if activity_end < 0:
@@ -47,7 +47,7 @@ jobs:
           """
           if 'android.intent.action.SEND' not in content:
               content = content[:activity_end] + filters + content[activity_end:]
-          content = content.replace('android:name=".MainActivity"', 'android:name=".MainActivity"\\n            android:exported="true"\\n            android:launchMode="singleTop"')
+          content = content.replace('android:name=".MainActivity"', 'android:name=".MainActivity"\n            android:exported="true"\n            android:launchMode="singleTop"')
           manifest.write_text(content)
           PY
           mkdir -p android/app/src/main/kotlin/com/example/speed_downloader
