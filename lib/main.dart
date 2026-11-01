@@ -211,7 +211,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       )).head(url);
       final redirected = response.realUri.toString();
       if (redirected.startsWith('http')) finalUrl = redirected;
-      final disposition = response.headers.value(Headers.contentDisposition) ?? '';
+      final disposition = response.headers.value('content-disposition') ?? '';
       final encoded = RegExp(r"filename\\*=UTF-8''([^;]+)", caseSensitive: false).firstMatch(disposition);
       final plain = RegExp(r'filename="?([^";]+)"?', caseSensitive: false).firstMatch(disposition);
       final headerName = encoded?.group(1) ?? plain?.group(1);
