@@ -906,7 +906,7 @@ class _BrowserPageState extends State<BrowserPage> {
           if(window.__droxMediaDetector)return;window.__droxMediaDetector=true;
           var seen={};
           var exts=/\.(mp4|m4v|webm|mov|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd)(?:$|[?#])/i;
-          var mediaTypes=/^(video\/|audio\/|application\/(vnd\.apple\.mpegurl|x-mpegurl|dash\+xml))/i;
+          var mediaTypes=/^(video\/|audio\/|image\/|application\/(octet-stream|pdf|zip|x-rar-compressed|vnd\.rar|x-7z-compressed|vnd\.android\.package-archive|vnd\.apple\.mpegurl|x-mpegurl|dash\+xml|msword|vnd\.openxmlformats-officedocument|vnd\.ms-|vnd\.oasis\.opendocument))/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
           function send(raw){var u=valid(raw);if(!u||seen[u])return;seen[u]=1;DroxDownload.postMessage(u)}
           function mediaSources(v){var list=[v.currentSrc,v.src];v.querySelectorAll('source[src]').forEach(function(s){list.push(s.src)});list.forEach(function(u){if(u)send(u)})}
@@ -922,8 +922,8 @@ class _BrowserPageState extends State<BrowserPage> {
           })}
           function scanResources(){try{performance.getEntriesByType('resource').forEach(function(e){if(exts.test(e.name))send(e.name)})}catch(_){}}
           function scanFrames(){document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument){f.contentDocument.querySelectorAll('video,audio').forEach(function(v){mediaSources(v)})}}catch(_){}})}
-          if(window.fetch){var originalFetch=window.fetch;window.fetch=function(){var p=originalFetch.apply(this,arguments);try{var u=typeof arguments[0]==='string'?arguments[0]:arguments[0].url; p.then(function(r){var ct=r.headers.get('content-type')||'';var target=r.url||u;if(mediaTypes.test(ct)||exts.test(target||''))send(target)})}catch(_){}return p}}
-          if(window.XMLHttpRequest){var originalOpen=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){this.__droxUrl=u;return originalOpen.apply(this,arguments)};var originalSend=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){this.addEventListener('load',function(){var ct=this.getResponseHeader('content-type')||'';if(mediaTypes.test(ct)||exts.test(this.__droxUrl||''))send(this.responseURL||this.__droxUrl)});return originalSend.apply(this,arguments)}}
+          if(window.fetch){var originalFetch=window.fetch;window.fetch=function(){var p=originalFetch.apply(this,arguments);try{var u=typeof arguments[0]==='string'?arguments[0]:arguments[0].url; p.then(function(r){var ct=r.headers.get('content-type')||'';var cd=r.headers.get('content-disposition')||'';var target=r.url||u;if(mediaTypes.test(ct)||exts.test(target||'')||/attachment/i.test(cd))send(target)})}catch(_){}return p}}
+          if(window.XMLHttpRequest){var originalOpen=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){this.__droxUrl=u;return originalOpen.apply(this,arguments)};var originalSend=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){this.addEventListener('load',function(){var ct=this.getResponseHeader('content-type')||'';var cd=this.getResponseHeader('content-disposition')||'';if(mediaTypes.test(ct)||exts.test(this.__droxUrl||'')||/attachment/i.test(cd))send(this.responseURL||this.__droxUrl)});return originalSend.apply(this,arguments)}}
           scan();new MutationObserver(function(){scan();scanResources();scanFrames()}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
           setInterval(function(){scan();scanResources();scanFrames()},2500);
           document.addEventListener('play',function(e){if(e.target&&(e.target.tagName==='VIDEO'||e.target.tagName==='AUDIO'))mediaSources(e.target)},true);
@@ -953,11 +953,14 @@ class _BrowserPageState extends State<BrowserPage> {
               if(!downloadIntent(el))continue;
               var u=candidate(el);
               if(u)send(u);
-              setTimeout(scanResources,250);
-              setTimeout(scanResources,900);
+              setTimeout(scanResources,150);
+              setTimeout(scanResources,500);
+              setTimeout(scanResources,1200);
+              setTimeout(scanResources,2500);
               break;
             }
           },true);
+          document.addEventListener('click',function(){setTimeout(scanResources,350);setTimeout(scanResources,1000);setTimeout(scanResources,2200)},false);
           document.addEventListener('submit',function(e){
             var f=e.target;if(!f||!f.action)return;
             var label=((f.innerText||'')+' '+(f.getAttribute('aria-label')||'')).toLowerCase();
