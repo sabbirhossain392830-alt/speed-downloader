@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter/services.dart';
+import 'package:ytdlp_flutter/ytdlp_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -106,7 +107,72 @@ class _DownloadHomeState extends State<DownloadHome> {
       selectedTab = 0;
       controller.text = shared;
     });
-    await _add();
+    if (_isVideoPlatformUrl(shared)) {
+      await _extractVideo(shared);
+    } else {
+      await _add();
+    }
+  }
+
+  bool _isVideoPlatformUrl(String value) {
+    final host = Uri.tryParse(value)?.host.toLowerCase() ?? '';
+    return host == 'youtu.be' || host.endsWith('youtube.com') || host.endsWith('facebook.com') || host.endsWith('fb.watch');
+  }
+
+  Future<void> _extractVideo(String url) async {
+    if (adding) return;
+    setState(() => adding = true);
+    try {
+      await Ytdlp.init();
+      final info = await Ytdlp.getVideoInfo(url);
+      final rawFormats = (info.raw?['formats'] as List?) ?? const [];
+      final formats = rawFormats.whereType<Map>().where((f) {
+        final direct = (f['url'] ?? '').toString();
+        final video = (f['vcodec'] ?? 'none').toString() != 'none';
+        final audio = (f['acodec'] ?? 'none').toString() != 'none';
+        return direct.startsWith('http') && video && audio;
+      }).toList();
+      formats.sort((a,b) => ((b['height'] as num?)?.toInt() ?? 0).compareTo((a['height'] as num?)?.toInt() ?? 0));
+      if (!mounted) return;
+      setState(() => adding = false);
+      if (formats.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('এই ভিডিওতে সরাসরি Audio+Video quality পাওয়া যায়নি। অন্য quality/format লাগতে পারে।'), duration: Duration(seconds: 6)));
+        return;
+      }
+      final selected = await showModalBottomSheet<Map>(
+        context: context, showDragHandle: true, isScrollControlled: true,
+        builder: (ctx) => SafeArea(child: SizedBox(height: 430, child: Column(children: [
+          Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+            Text(info.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+            if (info.uploader != null) Text(info.uploader!, style: Theme.of(ctx).textTheme.bodySmall),
+            const SizedBox(height: 8), const Text('ডাউনলোড কোয়ালিটি বেছে নিন'),
+          ])),
+          Expanded(child: ListView.builder(itemCount: formats.length, itemBuilder: (_, i) {
+            final format = formats[i];
+            final height = format['height']?.toString() ?? '?';
+            final ext = format['ext']?.toString() ?? 'video';
+            final size = format['filesize'] ?? format['filesize_approx'];
+            final sizeText = size is num && size > 0 ? ' • ${(size / 1048576).toStringAsFixed(1)} MB' : '';
+            return ListTile(leading: const Icon(Icons.high_quality), title: Text(height == '?' ? 'Original quality' : '${height}p'), subtitle: Text('$ext$sizeText • Audio + Video'), trailing: const Icon(Icons.download_rounded), onTap: () => Navigator.pop(ctx, format));
+          })),
+        ]))),
+      );
+      if (selected == null || !mounted) return;
+      final formatUrl = selected['url'].toString();
+      final ext = (selected['ext'] ?? 'mp4').toString();
+      final safeTitle = _safeFileName(info.title.replaceAll(RegExp(r'\\s+'), '_'));
+      final filename = safeTitle.toLowerCase().endsWith('.$ext') ? safeTitle : '$safeTitle.$ext';
+      final task = DownloadTask(url: formatUrl, filename: filename, directory: 'DROX', baseDirectory: BaseDirectory.applicationSupport, updates: Updates.statusAndProgress, allowPause: true, retries: 5);
+      setState(() { entries.insert(0, DownloadEntry(task)); selectedTab = 0; });
+      await _saveHistory();
+      final ok = await FileDownloader().enqueue(task);
+      if (!ok && mounted) setState(() => entries.firstWhere((e) => e.task.taskId == task.taskId).status = 'কিউতে যোগ করা যায়নি');
+      await _saveHistory();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ভিডিও Extract করা যায়নি: ${e.toString().replaceFirst('Exception: ', '')}'), duration: const Duration(seconds: 7)));
+    } finally {
+      if (mounted) setState(() => adding = false);
+    }
   }
 
   final controller = TextEditingController();
@@ -378,6 +444,10 @@ class _DownloadHomeState extends State<DownloadHome> {
     final uri = Uri.tryParse(value);
     if (uri == null || !['http', 'https'].contains(uri.scheme) || uri.host.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('সঠিক HTTP/HTTPS direct link দিন')));
+      return;
+    }
+    if (_isVideoPlatformUrl(value)) {
+      await _extractVideo(value);
       return;
     }
     setState(() => adding = true);
