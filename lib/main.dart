@@ -490,43 +490,74 @@ class _DownloadHomeState extends State<DownloadHome> {
         actions: [IconButton(tooltip: 'Theme', onPressed: widget.onThemeTap, icon: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined))],
       ),
       body: IndexedStack(index: selectedTab, children: [
-        ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
+        ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 28), children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF087CF0), Color(0xFF07346B), Color(0xFF101C32)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withValues(alpha: .10)),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF087CF0), Color(0xFF0750A5), Color(0xFF10233F)],
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [BoxShadow(color: const Color(0xFF087CF0).withValues(alpha: .20), blurRadius: 22, offset: const Offset(0, 9))],
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Row(children: [DroxLogoMark(size: 54), SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('DROX PREMIUM', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.3)), Text('DOWNLOAD • BROWSE • MANAGE', style: TextStyle(color: Colors.white70, fontSize: 9, letterSpacing: 1.1, fontWeight: FontWeight.w700))]))]),
-              const SizedBox(height: 16),
-              const Text('Your browser.\nYour download manager.', style: TextStyle(color: Colors.white, fontSize: 21, height: 1.15, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 14),
-              FilledButton.tonalIcon(onPressed: () => setState(() => selectedTab = 1), icon: const Icon(Icons.public), label: const Text('Open Browser')),
+              Row(children: [
+                const DroxLogoMark(size: 48),
+                const SizedBox(width: 12),
+                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('DROX', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 21, letterSpacing: 2)),
+                  Text('BROWSER  •  DOWNLOADER', style: TextStyle(color: Colors.white70, fontSize: 9, letterSpacing: 1.3, fontWeight: FontWeight.w700)),
+                ])),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .13), borderRadius: BorderRadius.circular(20)), child: const Row(children: [Icon(Icons.bolt_rounded, color: Color(0xFF9CEBFF), size: 14), SizedBox(width: 4), Text('SMART', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800))])),
+              ]),
+              const SizedBox(height: 22),
+              const Text('Download anything.\nBrowse everywhere.', style: TextStyle(color: Colors.white, fontSize: 25, height: 1.12, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 7),
+              const Text('Your all-in-one browser and download manager', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              const SizedBox(height: 18),
+              SizedBox(width: double.infinity, child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF0750A5), padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                onPressed: () => setState(() => selectedTab = 1),
+                child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.language_rounded), SizedBox(width: 8), Text('OPEN BROWSER', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: .7))]),
+              )),
             ]),
           ),
-          const SizedBox(height: 18),
-          Text('ADD DOWNLOAD LINK', style: TextStyle(fontSize: 11, letterSpacing: 1.4, fontWeight: FontWeight.w800, color: cs.primary)),
-          const SizedBox(height: 9),
-          Card(
-            elevation: 0,
-            child: Padding(padding: const EdgeInsets.all(14), child: Column(children: [
-              TextField(controller: controller, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Paste a download link', hintText: 'https://example.com/file.zip', prefixIcon: Icon(Icons.link), border: OutlineInputBorder())),
-              const SizedBox(height: 10),
-              SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: adding ? null : _add, icon: adding ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download_rounded), label: const Text('Add Download'))),
-            ])),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 22),
           Row(children: [
-            _stat('TOTAL', entries.length.toString(), Icons.download_rounded),
-            const SizedBox(width: 8), _stat('ACTIVE', active.toString(), Icons.downloading),
-            const SizedBox(width: 8), _stat('DONE', done.toString(), Icons.check_circle_outline),
+            const Expanded(child: Text('Quick download', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
+            Text('DIRECT LINK', style: TextStyle(fontSize: 9, letterSpacing: 1.2, color: cs.primary, fontWeight: FontWeight.w800)),
           ]),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: cs.outlineVariant.withValues(alpha: .6))),
+            child: Column(children: [
+              TextField(controller: controller, keyboardType: TextInputType.url, decoration: InputDecoration(
+                hintText: 'Paste your download link here', prefixIcon: const Icon(Icons.link_rounded),
+                filled: true, fillColor: cs.surfaceContainerHighest.withValues(alpha: .55),
+                contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 14),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              )),
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: FilledButton.icon(
+                onPressed: adding ? null : _add,
+                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                icon: adding ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.add_link_rounded),
+                label: const Text('START DOWNLOAD', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: .6)),
+              )),
+            ]),
+          ),
           const SizedBox(height: 20),
+          Row(children: [
+            _stat('TOTAL FILES', entries.length.toString(), Icons.folder_copy_outlined),
+            const SizedBox(width: 8), _stat('DOWNLOADING', active.toString(), Icons.downloading_rounded),
+            const SizedBox(width: 8), _stat('COMPLETED', done.toString(), Icons.task_alt_rounded),
+          ]),
+          const SizedBox(height: 23),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('YOUR DOWNLOADS', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)),
-            TextButton(onPressed: () => setState(() => selectedTab = 2), child: const Text('View all')),
+            const Text('Recent downloads', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            TextButton(onPressed: () => setState(() => selectedTab = 2), child: const Text('See all')),
           ]),
           SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
             _filterChip('All', DownloadFilter.all), _filterChip('Active', DownloadFilter.active),
@@ -534,12 +565,18 @@ class _DownloadHomeState extends State<DownloadHome> {
           ])),
           const SizedBox(height: 10),
           if (visible.isEmpty)
-            Padding(padding: const EdgeInsets.symmetric(vertical: 30), child: Column(children: [
-              Icon(Icons.cloud_download_outlined, size: 48, color: cs.primary.withValues(alpha: .7)),
-              const SizedBox(height: 10), const Text('No downloads yet', style: TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4), Text('Paste a direct link above or browse the web.', style: Theme.of(context).textTheme.bodySmall),
-            ]))
-          else ...visible.map(_downloadCard),
+            Container(
+              width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 18),
+              decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: cs.outlineVariant.withValues(alpha: .5))),
+              child: Column(children: [
+                Container(width: 68, height: 68, decoration: BoxDecoration(color: cs.primary.withValues(alpha: .10), shape: BoxShape.circle), child: Icon(Icons.download_for_offline_rounded, size: 34, color: cs.primary)),
+                const SizedBox(height: 12),
+                const Text('Ready for your first download?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                const SizedBox(height: 5),
+                Text('Open the browser or paste a direct file link above.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+              ]),
+            )
+          else ...visible.take(5).map(_downloadCard),
         ]),
         BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
         ListView(padding: const EdgeInsets.all(16), children: [
