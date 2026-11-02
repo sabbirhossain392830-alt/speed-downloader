@@ -139,6 +139,8 @@ class _DownloadHomeState extends State<DownloadHome> {
     final data = entries.map((e) => {
       'url': e.task.url,
       'filename': e.task.filename,
+      'post': e.task.post,
+      'httpRequestMethod': e.task.httpRequestMethod,
       'progress': e.progress,
       'expectedFileSize': e.expectedFileSize,
       'status': e.status,
@@ -158,6 +160,8 @@ class _DownloadHomeState extends State<DownloadHome> {
         final task = DownloadTask(
           url: item['url'] as String,
           filename: item['filename'] as String,
+          post: item['post'] as String?,
+          httpRequestMethod: item['httpRequestMethod'] as String?,
           directory: 'DROX',
           baseDirectory: BaseDirectory.applicationSupport,
           updates: Updates.statusAndProgress,
@@ -372,7 +376,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     return (finalUrl, filename);
   }
 
-  Future<void> _add({String? suggestedFilename, int retries = 5, Map<String, String> requestHeaders = const {}}) async {
+  Future<void> _add({String? suggestedFilename, int retries = 5, Map<String, String> requestHeaders = const {}, String? postBody}) async {
     if (adding) return;
     final value = controller.text.trim();
     final uri = Uri.tryParse(value);
@@ -403,6 +407,8 @@ class _DownloadHomeState extends State<DownloadHome> {
       updates: Updates.statusAndProgress,
       allowPause: true,
       retries: retries,
+      post: postBody,
+      httpRequestMethod: postBody == null ? 'GET' : 'POST',
     );
     setState(() {
       entries.insert(0, DownloadEntry(task));
@@ -464,6 +470,8 @@ class _DownloadHomeState extends State<DownloadHome> {
     final task = DownloadTask(
       url: details.$1,
       filename: details.$2,
+      post: entry.task.post,
+      httpRequestMethod: entry.task.httpRequestMethod,
       directory: 'DROX',
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
@@ -588,7 +596,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             )
           else ...visible.map(_downloadCard),
         ]),
-        BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url, filename, wifiOnly, retry, headers) async { if (wifiOnly) await _setWifiOnly(true); controller.text = url; await _add(suggestedFilename: filename, retries: retry ? 5 : 0, requestHeaders: headers); }),
+        BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url, filename, wifiOnly, retry, headers, postBody) async { if (wifiOnly) await _setWifiOnly(true); controller.text = url; await _add(suggestedFilename: filename, retries: retry ? 5 : 0, requestHeaders: headers, postBody: postBody); }),
         ListView(padding: const EdgeInsets.all(16), children: [
           Row(children: [
             const Text('Downloads', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
@@ -845,7 +853,7 @@ class _DownloadHomeState extends State<DownloadHome> {
 
 class BrowserPage extends StatefulWidget {
   const BrowserPage({super.key, required this.onDownload, required this.isDark, required this.onThemeTap, required this.onReturn, required this.onSettings});
-  final Future<void> Function(String url, String filename, bool wifiOnly, bool retry, Map<String, String> headers) onDownload;
+  final Future<void> Function(String url, String filename, bool wifiOnly, bool retry, Map<String, String> headers, String? postBody) onDownload;
   final bool isDark;
   final VoidCallback onThemeTap, onReturn, onSettings;
   @override
@@ -901,6 +909,10 @@ class _BrowserPageState extends State<BrowserPage> {
         _downloadIntentPending = true;
         _downloadIntentTimer?.cancel();
         _downloadIntentTimer = Timer(const Duration(seconds: 20), () => _downloadIntentPending = false);
+      } else if (m.message.startsWith('__DROX_NEW_TAB__:')) {
+        final target = m.message.substring('__DROX_NEW_TAB__:'.length);
+        final parsed = Uri.tryParse(target);
+        if (parsed != null && ['http', 'https'].contains(parsed.scheme) && parsed.host.isNotEmpty) _newTab(target);
       } else {
         try {
           final payload = jsonDecode(m.message);
@@ -909,7 +921,7 @@ class _BrowserPageState extends State<BrowserPage> {
             if (payload['headers'] is Map) {
               (payload['headers'] as Map).forEach((k, v) { if (k is String && v is String && v.isNotEmpty) headers[k] = v; });
             }
-            _downloadPrompt(payload['url'] as String, headers: headers, force: payload['force'] == true);
+            _downloadPrompt(payload['url'] as String, headers: headers, force: payload['force'] == true, postBody: payload['post'] is String ? payload['post'] as String : null);
           } else { _downloadPrompt(m.message); }
         } catch (_) { _downloadPrompt(m.message); }
       }
@@ -937,7 +949,7 @@ class _BrowserPageState extends State<BrowserPage> {
           var mediaTypes=/^(video\/|audio\/|image\/|application\/(octet-stream|pdf|zip|x-rar-compressed|vnd\.rar|x-7z-compressed|vnd\.android\.package-archive|vnd\.apple\.mpegurl|x-mpegurl|dash\+xml|msword|vnd\.openxmlformats-officedocument|vnd\.ms-|vnd\.oasis\.opendocument))/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
           function requestHeaders(){var h={};try{h['User-Agent']=navigator.userAgent||'';h['Referer']=location.href;var ck=document.cookie;if(ck)h['Cookie']=ck}catch(_){}return h}
-          function send(raw,extra,force){var u=valid(raw);if(!u)return;var h=requestHeaders();if(extra)Object.keys(extra).forEach(function(k){if(extra[k])h[k]=extra[k]});var key=u+'|'+(h.Cookie||'')+'|'+(force?'1':'0');if(seen[key])return;seen[key]=1;DroxDownload.postMessage(JSON.stringify({url:u,headers:h,force:!!force}))}
+          function send(raw,extra,force,post){var u=valid(raw);if(!u)return;var h=requestHeaders();if(extra)Object.keys(extra).forEach(function(k){if(extra[k])h[k]=extra[k]});var key=u+'|'+(h.Cookie||'')+'|'+(force?'1':'0')+'|'+(post||'');if(seen[key])return;seen[key]=1;DroxDownload.postMessage(JSON.stringify({url:u,headers:h,force:!!force,post:post||null}))}
           function mediaSources(v){var list=[v.currentSrc,v.src];v.querySelectorAll('source[src]').forEach(function(s){list.push(s.src)});list.forEach(function(u){if(u)send(u)})}
           function scan(){document.querySelectorAll('video,audio').forEach(function(v){
             if(!v.__droxBound){v.__droxBound=true;
@@ -1003,9 +1015,18 @@ class _BrowserPageState extends State<BrowserPage> {
             var f=e.target;if(!f||!f.action)return;
             var submitter=e.submitter;
             var label=((f.innerText||'')+' '+(f.getAttribute('aria-label')||'')+' '+(submitter?(submitter.innerText||submitter.value||''):'')).toLowerCase();
-            if(/download|save file|get file|direct link/i.test(label)&&String(f.method||'get').toLowerCase()==='get')send(f.action,{},true);
+            if(!/download|save file|get file|direct link|continue|generate/i.test(label))return;
+            var method=String((submitter&&submitter.formMethod)||f.method||'get').toLowerCase();
+            if(method==='get'){send(f.action,{},true);return;}
+            if(method==='post'){
+              try{
+                var params=new URLSearchParams();var data=new FormData(f);
+                data.forEach(function(v,k){if(typeof v==='string')params.append(k,v)});
+                send(f.action,{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},true,params.toString());
+              }catch(_){DroxDownload.postMessage('__DROX_DOWNLOAD_INTENT__')}
+            }
           },true);
-          if(window.open){var originalWindowOpen=window.open;window.open=function(u,n,f){if(u)send(u,{},true);return originalWindowOpen.apply(this,arguments)}}
+          if(window.open){window.open=function(u){if(u){try{var target=new URL(u,location.href);if(/^https?:$/.test(target.protocol))DroxDownload.postMessage('__DROX_NEW_TAB__:'+target.href)}catch(_){}}return null}}
           document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download]'):null;if(a)send(a.href,{'Content-Disposition':'attachment; filename="'+(a.download||'')+'"'},true)},true);
         })();''');
         final title = await ctrl.getTitle();
@@ -1049,7 +1070,7 @@ class _BrowserPageState extends State<BrowserPage> {
     return merged;
   }
 
-  Future<void> _downloadPrompt(String url, {Map<String, String> headers = const {}, bool force = false}) async {
+  Future<void> _downloadPrompt(String url, {Map<String, String> headers = const {}, bool force = false, String? postBody}) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !['http', 'https'].contains(uri.scheme)) return;
     if (_promptedDownloadUrls.contains(url)) return;
@@ -1075,7 +1096,7 @@ class _BrowserPageState extends State<BrowserPage> {
       statusNote = 'DASH stream detected. This is a manifest, not the complete video. Full stream download and file packaging are not enabled yet.';
     }
     try {
-      if (!isHlsManifest && !isDashManifest) {
+      if (!isHlsManifest && !isDashManifest && postBody == null) {
       final dio = Dio(BaseOptions(
         followRedirects: true,
         receiveTimeout: const Duration(seconds: 12),
@@ -1113,7 +1134,7 @@ class _BrowserPageState extends State<BrowserPage> {
     }
     // Intermediate landing pages are not downloadable files. Let the browser
     // continue normally; the page detector can inspect the next download action.
-    if (statusNote == 'This link returned a web page, not a direct downloadable file.' && !force) {
+    if (statusNote == 'This link returned a web page, not a direct downloadable file.' && !force && postBody == null) {
       _promptedDownloadUrls.remove(url);
       return;
     }
@@ -1219,7 +1240,7 @@ class _BrowserPageState extends State<BrowserPage> {
     filenameController.dispose();
     _promptedDownloadUrls.remove(url);
     if (result != null && mounted) {
-      await widget.onDownload(finalUrl, result.$1, result.$2, result.$3, requestHeaders);
+      await widget.onDownload(finalUrl, result.$1, result.$2, result.$3, requestHeaders, postBody);
     }
   }
 
