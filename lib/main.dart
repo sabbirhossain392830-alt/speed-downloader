@@ -696,14 +696,14 @@ class _DownloadHomeState extends State<DownloadHome> {
       },
       child: Scaffold(
       appBar: selectedTab == 1 ? null : AppBar(
-        toolbarHeight: 48,
+        toolbarHeight: 54,
         titleSpacing: 16,
         title: const Text(
           'DROX',
           style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2.0, fontSize: 19),
         ),
         actions: [
-          IconButton(tooltip: 'Download statistics', onPressed: _showDownloadStats, icon: const Icon(Icons.insights_rounded)),
+          IconButton(tooltip: 'Add download', onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_rounded, size: 27)),
           PopupMenuButton<String>(
             tooltip: 'Main menu',
             icon: const Icon(Icons.menu_rounded, size: 28),
@@ -777,58 +777,62 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   Widget _homeDashboard(List<DownloadEntry> visible, int active, int done, ColorScheme cs) {
     final failed = entries.where((e) => ['ব্যর্থ','বাতিল','কিউতে যোগ করা যায়নি','যাচাই ব্যর্থ'].contains(e.status)).length;
-    final totalBytes = entries.where((e) => e.status == 'সম্পন্ন').fold<int>(0, (sum, e) => sum + (e.expectedFileSize > 0 ? e.expectedFileSize : 0));
-    return ListView(padding: const EdgeInsets.fromLTRB(15, 10, 15, 20), children: [
-      const SizedBox(height: 4),
-      Container(
-        padding: const EdgeInsets.all(17),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [Color(0xFF0757B8), Color(0xFF087DE0), Color(0xFF11A9D4)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(23),
-          boxShadow: [BoxShadow(color: const Color(0xFF087DE0).withValues(alpha: .22), blurRadius: 20, offset: const Offset(0, 9))],
+    final categories = [
+      ('All', entries.length, DownloadFilter.all, Icons.download_rounded),
+      ('Downloading', active, DownloadFilter.active, Icons.downloading_rounded),
+      ('Finished', done, DownloadFilter.completed, Icons.check_circle_outline_rounded),
+      ('Error', failed, DownloadFilter.failed, Icons.error_outline_rounded),
+    ];
+    return Column(children: [
+      Material(
+        color: cs.surface,
+        child: SizedBox(
+          height: 52,
+          child: Row(
+            children: categories.map((item) => Expanded(
+              child: InkWell(
+                onTap: () => setState(() => filter = item.$3),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(item.$4, size: 16, color: filter == item.$3 ? cs.primary : cs.onSurfaceVariant),
+                      const SizedBox(width: 5),
+                      Text(item.$1, style: TextStyle(fontSize: 12, fontWeight: filter == item.$3 ? FontWeight.w800 : FontWeight.w600, color: filter == item.$3 ? cs.primary : cs.onSurfaceVariant)),
+                      const SizedBox(width: 4),
+                      Text('(${item.$2})', style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+                    ]),
+                    const Spacer(),
+                    Container(height: 3, margin: const EdgeInsets.symmetric(horizontal: 7), decoration: BoxDecoration(color: filter == item.$3 ? cs.primary : Colors.transparent, borderRadius: const BorderRadius.vertical(top: Radius.circular(4)))),
+                  ],
+                ),
+              ),
+            )).toList(),
+          ),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Expanded(child: Text('Your downloads', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700))),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .16), borderRadius: BorderRadius.circular(20)), child: Text('$active ACTIVE', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .8))),
-          ]),
-          const SizedBox(height: 5),
-          Text('$done completed', style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 3),
-          Text('Total saved  •  ${_statsSize(totalBytes)}', style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 15),
-          SizedBox(width: double.infinity, child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: BorderSide(color: Colors.white.withValues(alpha: .55)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13))),
-            onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded, size: 18), label: const Text('Add link'),
-          )),
-        ]),
       ),
-      const SizedBox(height: 18),
-      const Text('DOWNLOADS', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w900)),
-      const SizedBox(height: 9),
-      Row(children: [
-        _homeCategory('All', entries.length, DownloadFilter.all, Icons.apps_rounded),
-        _homeCategory('Downloading', active, DownloadFilter.active, Icons.downloading_rounded),
-        _homeCategory('Finished', done, DownloadFilter.completed, Icons.check_circle_outline_rounded),
-        _homeCategory('Error', failed, DownloadFilter.failed, Icons.error_outline_rounded),
-      ]),
-      const SizedBox(height: 19),
-      Row(children: [
-        const Expanded(child: Text('Downloads', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
-      ]),
-      if (visible.isEmpty)
-        Container(
-          width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 31, horizontal: 18),
-          decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .25), borderRadius: BorderRadius.circular(19), border: Border.all(color: cs.outlineVariant.withValues(alpha: .45))),
-          child: Column(children: [
-            Container(width: 62, height: 62, decoration: BoxDecoration(color: cs.primary.withValues(alpha: .10), shape: BoxShape.circle), child: Icon(Icons.downloading_rounded, size: 31, color: cs.primary)),
-            const SizedBox(height: 12),
-            const Text('Nothing downloading yet', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-            const SizedBox(height: 5),
-            Text('Paste a direct link or browse a website to get started.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
-          ]),
-        )
-      else ...visible.take(4).map(_downloadCard),
+      Divider(height: 1, color: cs.outlineVariant),
+      Expanded(
+        child: visible.isEmpty
+          ? Center(child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.download_for_offline_outlined, size: 58, color: cs.onSurfaceVariant.withValues(alpha: .55)),
+                const SizedBox(height: 12),
+                Text(filter == DownloadFilter.all ? 'No downloads yet' : 'No downloads in this category', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
+                const SizedBox(height: 6),
+                Text('Tap + to add a download link', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                const SizedBox(height: 14),
+                FilledButton.icon(onPressed: _quickDownloadDialog, icon: const Icon(Icons.add), label: const Text('Add download')),
+              ]),
+            ))
+          : ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              itemCount: visible.length,
+              separatorBuilder: (_, __) => Divider(height: 1, indent: 62, color: cs.outlineVariant.withValues(alpha: .65)),
+              itemBuilder: (context, index) => _downloadCard(visible[index]),
+            ),
+      ),
     ]);
   }
 
@@ -836,21 +840,16 @@ class _DownloadHomeState extends State<DownloadHome> {
     final selected = filter == value;
     final cs = Theme.of(context).colorScheme;
     return Expanded(child: InkWell(
-      borderRadius: BorderRadius.circular(12),
       onTap: () => setState(() => filter = value),
       child: Container(
-        margin: const EdgeInsets.only(right: 5),
-        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 3),
-        decoration: BoxDecoration(
-          color: selected ? cs.primaryContainer : cs.surfaceContainerHighest.withValues(alpha: .35),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? cs.primary.withValues(alpha: .45) : cs.outlineVariant.withValues(alpha: .35)),
-        ),
-        child: Column(children: [
-          Icon(icon, size: 19, color: selected ? cs.onPrimaryContainer : cs.onSurfaceVariant),
-          const SizedBox(height: 4),
-          Text('$count', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: selected ? cs.onPrimaryContainer : cs.onSurface)),
-          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: selected ? cs.onPrimaryContainer : cs.onSurfaceVariant)),
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 3),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: selected ? cs.primary : Colors.transparent, width: 3))),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, size: 15, color: selected ? cs.primary : cs.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.w800 : FontWeight.w600, color: selected ? cs.primary : cs.onSurfaceVariant))),
+          const SizedBox(width: 3),
+          Text('$count', style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
         ]),
       ),
     ));
