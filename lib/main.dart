@@ -731,14 +731,14 @@ class _DownloadHomeState extends State<DownloadHome> {
                 }
               },
               itemBuilder: (_) => [
-                PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text(_tr('Settings', 'সেটিংস')))),
+                PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
                 PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text(_tr('App theme', 'অ্যাপ থিম')))),
                 PopupMenuItem(value: 'language', child: ListTile(dense: true, leading: Icon(Icons.language_rounded), title: Text(_tr('Language', 'ভাষা')))),
                 PopupMenuItem(value: 'share', child: ListTile(dense: true, leading: Icon(Icons.share_outlined), title: Text(_tr('Share the app', 'অ্যাপ শেয়ার করুন')))),
                 PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text(_tr('Browser', 'ব্রাউজার')))),
                 PopupMenuItem(value: 'notifications', child: ListTile(dense: true, leading: Icon(Icons.notifications_outlined), title: Text(_tr('Notification settings', 'নোটিফিকেশন সেটিংস')))),
                 PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: Text(_tr('Wi-Fi only', 'শুধু Wi-Fi')), trailing: Icon(wifiOnly ? Icons.check_rounded : Icons.circle_outlined))),
-                PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text(_tr('About', 'পরিচিতি')))),
+                PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text('About'))),
                 PopupMenuItem(value: 'sort', child: ListTile(dense: true, leading: Icon(Icons.sort_by_alpha_rounded), title: Text(_tr('Sort by name', 'নাম অনুযায়ী সাজান')))),
                 const PopupMenuDivider(),
                 PopupMenuItem(value: 'exit', child: ListTile(dense: true, leading: Icon(Icons.exit_to_app_rounded), title: Text(_tr('Exit', 'বন্ধ করুন')))),
@@ -804,7 +804,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
           ListView(padding: const EdgeInsets.all(12), children: [
             Row(children: [
-              Text(_tr('Downloads', 'ডাউনলোড'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+              Text('Downloads', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
               const Spacer(),
               Text('${entries.length} files'),
               IconButton(tooltip: _tr('Quick download', 'দ্রুত ডাউনলোড'), onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded)),
@@ -816,7 +816,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             ...visible.map(_downloadCard),
           ]),
           ListView(padding: const EdgeInsets.all(16), children: [
-            Text(_tr('Settings', 'সেটিংস'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+            Text('Settings', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
             const SizedBox(height: 12),
             Card(child: Column(children: [
               ListTile(leading: const Icon(Icons.palette_outlined), title: Text(_tr('Appearance', 'দেখতে কেমন হবে')), subtitle: Text(widget.isDark ? _tr('Dark theme', 'ডার্ক থিম') : _tr('Light theme', 'লাইট থিম')), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
@@ -1266,10 +1266,10 @@ class _BrowserPageState extends State<BrowserPage> {
           PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
           const PopupMenuDivider(),
           PopupMenuItem(value: 'return', child: ListTile(dense: true, leading: Icon(Icons.home_outlined), title: Text('Return to DROX'))),
-          PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text(_tr('Settings', 'সেটিংস')))),
+          PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
           PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Dark Mode'), trailing: Icon(widget.isDark ? Icons.check : Icons.circle_outlined))),
           PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop Mode'), trailing: Icon(desktopMode ? Icons.check_box : Icons.check_box_outline_blank))),
-          PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text(_tr('About', 'পরিচিতি')))),
+          PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('About'))),
         ]),
       ]))),
       if (t?.loading == true) const LinearProgressIndicator(minHeight: 2),
@@ -1308,7 +1308,7 @@ class _BrowserPageState extends State<BrowserPage> {
                   icon: const Icon(Icons.home_outlined),
                 ),
                 IconButton(
-                  tooltip: _tr('Downloads', 'ডাউনলোড'),
+                  tooltip: 'Downloads',
                   onPressed: widget.onReturn,
                   icon: const Icon(Icons.download_outlined),
                 ),
