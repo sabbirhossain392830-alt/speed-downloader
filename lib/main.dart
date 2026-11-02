@@ -1630,34 +1630,81 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
     final secure = currentUri?.scheme == 'https';
     return SafeArea(top: true, bottom: false, child: Column(children: [
       Container(
-        padding: const EdgeInsets.fromLTRB(8, 1, 4, 2),
-        decoration: BoxDecoration(color: cs.surface, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .06), blurRadius: 10, offset: const Offset(0, 2))]),
+        padding: const EdgeInsets.fromLTRB(8, 3, 5, 5),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .05), blurRadius: 7, offset: const Offset(0, 2))],
+        ),
         child: Column(children: [
           Row(children: [
-            const DroxLogoMark(size: 27),
-            const SizedBox(width: 8),
-            Expanded(child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('DROX', style: TextStyle(fontSize: 15, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: .15)),
-                const SizedBox(height: 2),
-                Text(t?.url.isNotEmpty == true ? t!.url : 'Your browser', maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10, height: 1.05, color: cs.onSurfaceVariant)),
-              ],
-            )),
-            IconButton(visualDensity: VisualDensity.compact, padding: const EdgeInsets.all(4), constraints: const BoxConstraints(minWidth: 34, minHeight: 34), tooltip: 'New tab', onPressed: () => _newTab(), icon: const Icon(Icons.add_rounded, size: 22)),
-            IconButton(visualDensity: VisualDensity.compact, padding: const EdgeInsets.all(3), constraints: const BoxConstraints(minWidth: 36, minHeight: 36), tooltip: 'Open pages', onPressed: _showTabs, icon: Container(
-              width: 30, height: 30, alignment: Alignment.center,
-              decoration: BoxDecoration(border: Border.all(color: cs.onSurfaceVariant, width: 1.7), borderRadius: BorderRadius.circular(7)),
-              child: Text('${tabs.length}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-            )),
+            Expanded(
+              child: Container(
+                height: 43,
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest.withValues(alpha: .72),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: cs.outlineVariant.withValues(alpha: .6)),
+                ),
+                child: Row(children: [
+                  const SizedBox(width: 11),
+                  Icon(secure ? Icons.lock_rounded : Icons.search_rounded, size: 17, color: secure ? Colors.green : cs.onSurfaceVariant),
+                  const SizedBox(width: 7),
+                  Expanded(child: TextField(
+                    controller: address,
+                    onTap: () {
+                      if (address.text.isNotEmpty) {
+                        address.selection = TextSelection(baseOffset: 0, extentOffset: address.text.length);
+                      }
+                    },
+                    onSubmitted: (_) => go(),
+                    textInputAction: TextInputAction.go,
+                    keyboardType: TextInputType.url,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                    decoration: const InputDecoration(
+                      hintText: 'Search or enter website address',
+                      isDense: true,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 13),
+                    ),
+                  )),
+                  if (t?.loading == true)
+                    const Padding(padding: EdgeInsets.symmetric(horizontal: 7), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+                  else
+                    IconButton(
+                      tooltip: 'Go',
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 36),
+                      padding: EdgeInsets.zero,
+                      onPressed: go,
+                      icon: Icon(Icons.arrow_forward_rounded, size: 19, color: cs.primary),
+                    ),
+                  const SizedBox(width: 3),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: _showTabs,
+                    child: Container(
+                      width: 27, height: 27,
+                      alignment: Alignment.center,
+                      margin: const EdgeInsets.only(right: 7),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: cs.onSurfaceVariant.withValues(alpha: .8), width: 1.4),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text('${active + 1}/${tabs.length}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+            const SizedBox(width: 3),
             PopupMenuButton<String>(
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
               tooltip: 'Browser options',
               onSelected: _action,
-              icon: const Icon(Icons.more_vert_rounded, size: 22),
+              icon: const Icon(Icons.more_vert_rounded, size: 25),
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New tab'))),
                 const PopupMenuItem(value: 'private', child: ListTile(dense: true, leading: Icon(Icons.visibility_off_outlined), title: Text('New private tab'))),
@@ -1666,6 +1713,9 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
                 const PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history_rounded), title: Text('History'))),
                 const PopupMenuItem(value: 'bookmark', child: ListTile(dense: true, leading: Icon(Icons.bookmark_add_outlined), title: Text('Save bookmark'))),
                 const PopupMenuItem(value: 'bookmarks', child: ListTile(dense: true, leading: Icon(Icons.bookmarks_outlined), title: Text('Bookmarks'))),
+                const PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: Icon(Icons.copy_rounded), title: Text('Copy page link'))),
+                const PopupMenuItem(value: 'share', child: ListTile(dense: true, leading: Icon(Icons.share_outlined), title: Text('Share page'))),
+                const PopupMenuItem(value: 'find', child: ListTile(dense: true, leading: Icon(Icons.search_rounded), title: Text('Find in page'))),
                 const PopupMenuDivider(),
                 PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop site'), trailing: Icon(desktopMode ? Icons.check_box : Icons.check_box_outline_blank))),
                 PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Switch appearance'))),
@@ -1673,37 +1723,7 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
               ],
             ),
           ]),
-          const SizedBox(height: 2),
-          Container(
-            height: 40,
-            decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .72), borderRadius: BorderRadius.circular(17), border: Border.all(color: cs.outlineVariant.withValues(alpha: .55))),
-            child: Row(children: [
-              const SizedBox(width: 12),
-              Icon(secure ? Icons.lock_rounded : Icons.search_rounded, size: 18, color: secure ? Colors.green : cs.onSurfaceVariant),
-              const SizedBox(width: 8),
-              Expanded(child: TextField(
-                controller: address,
-                onTap: () {
-                  if (address.text.isNotEmpty) {
-                    address.selection = TextSelection(baseOffset: 0, extentOffset: address.text.length);
-                  }
-                },
-                onSubmitted: (_) => go(),
-                textInputAction: TextInputAction.go,
-                keyboardType: TextInputType.url,
-                autocorrect: false,
-                enableSuggestions: false,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                decoration: const InputDecoration(hintText: 'Search or enter website address', isDense: true, border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 13)),
-              )),
-              if (t?.loading == true)
-                const Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
-              else
-                IconButton(tooltip: 'Go', visualDensity: VisualDensity.compact, onPressed: go, icon: Icon(Icons.arrow_forward_rounded, color: cs.primary)),
-            ]),
-          ),
           if (t?.loading == true) const Padding(padding: EdgeInsets.only(top: 3), child: LinearProgressIndicator(minHeight: 1.5)),
-
         ]),
       ),
       Expanded(child: showBookmarks ? Column(children: [
