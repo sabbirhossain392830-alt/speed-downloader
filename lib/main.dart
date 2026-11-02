@@ -932,9 +932,9 @@ class _BrowserPageState extends State<BrowserPage> {
         try {
           final payload = jsonDecode(m.message);
           if (payload is Map && payload['type'] == 'blobStart') {
-            _blobQueue = _blobQueue.then((_) => _sessionChannel.invokeMethod('blobStart', {'id': payload['id'], 'filename': payload['filename'], 'size': payload['size']}));
+            _blobQueue = _blobQueue.then<void>((_) async { await _sessionChannel.invokeMethod('blobStart', {'id': payload['id'], 'filename': payload['filename'], 'size': payload['size']}); });
           } else if (payload is Map && payload['type'] == 'blobChunk') {
-            _blobQueue = _blobQueue.then((_) => _sessionChannel.invokeMethod('blobChunk', {'id': payload['id'], 'data': payload['data']}));
+            _blobQueue = _blobQueue.then<void>((_) async { await _sessionChannel.invokeMethod('blobChunk', {'id': payload['id'], 'data': payload['data']}); });
           } else if (payload is Map && payload['type'] == 'blobEnd') {
             _blobQueue = _blobQueue.then((_) async {
               final saved = await _sessionChannel.invokeMethod<String>('blobEnd', {'id': payload['id']});
