@@ -880,6 +880,9 @@ class _BrowserPageState extends State<BrowserPage> {
   bool showHistory = false, adBlockEnabled = true, desktopMode = false;
   bool _downloadIntentPending = false;
   Timer? _downloadIntentTimer;
+  Future<void> _blobQueue = Future<void>.value();
+  final bookmarks = <Map<String, String>>[];
+  bool showBookmarks = false;
   _DroxTab? get tab => tabs.isEmpty ? null : tabs[active];
   @override
   void initState() { super.initState(); _loadHistory(); _newTab(); }
@@ -888,12 +891,23 @@ class _BrowserPageState extends State<BrowserPage> {
     try {
       final raw = p.getString('drox_browser_history');
       if (raw != null) history.addAll((jsonDecode(raw) as List).cast<Map<String,dynamic>>().map((e) => <String,String>{'title': (e['title'] ?? '').toString(), 'url': (e['url'] ?? '').toString()}));
+      final saved = p.getString('drox_browser_bookmarks');
+      if (saved != null) bookmarks.addAll((jsonDecode(saved) as List).cast<Map<String,dynamic>>().map((e) => <String,String>{'title': (e['title'] ?? '').toString(), 'url': (e['url'] ?? '').toString()}));
       if (mounted) setState(() {});
     } catch (_) {}
   }
   Future<void> _saveHistory() async {
     final p = await SharedPreferences.getInstance();
     await p.setString('drox_browser_history', jsonEncode(history.take(100).toList()));
+    await p.setString('drox_browser_bookmarks', jsonEncode(bookmarks));
+  }
+  Future<void> _bookmarkCurrent() async {
+    final current = tab;
+    if (current == null || !current.url.startsWith('http')) return;
+    bookmarks.removeWhere((item) => item['url'] == current.url);
+    bookmarks.insert(0, {'title': current.title, 'url': current.url});
+    await _saveHistory();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bookmark saved')));
   }
   bool _isKnownAdUrl(String url) {
     final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
@@ -918,12 +932,14 @@ class _BrowserPageState extends State<BrowserPage> {
         try {
           final payload = jsonDecode(m.message);
           if (payload is Map && payload['type'] == 'blobStart') {
-            await _sessionChannel.invokeMethod('blobStart', {'id': payload['id'], 'filename': payload['filename'], 'size': payload['size']});
+            _blobQueue = _blobQueue.then((_) => _sessionChannel.invokeMethod('blobStart', {'id': payload['id'], 'filename': payload['filename'], 'size': payload['size']}));
           } else if (payload is Map && payload['type'] == 'blobChunk') {
-            await _sessionChannel.invokeMethod('blobChunk', {'id': payload['id'], 'data': payload['data']});
+            _blobQueue = _blobQueue.then((_) => _sessionChannel.invokeMethod('blobChunk', {'id': payload['id'], 'data': payload['data']}));
           } else if (payload is Map && payload['type'] == 'blobEnd') {
-            final saved = await _sessionChannel.invokeMethod<String>('blobEnd', {'id': payload['id']});
-            if (mounted && saved != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Blob file saved: $saved')));
+            _blobQueue = _blobQueue.then((_) async {
+              final saved = await _sessionChannel.invokeMethod<String>('blobEnd', {'id': payload['id']});
+              if (mounted && saved != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Blob file saved: $saved')));
+            });
           } else {
             if (payload is Map && payload['url'] is String) {
               final headers = <String, String>{};
@@ -1284,7 +1300,9 @@ class _BrowserPageState extends State<BrowserPage> {
       case 'new': _newTab(); break;
       case 'adblock': setState(() => adBlockEnabled = !adBlockEnabled); break;
       case 'refresh': tab?.controller.reload(); break;
-      case 'history': setState(() => showHistory = true); break;
+      case 'history': setState(() { showHistory = true; showBookmarks = false; }); break;
+      case 'bookmark': await _bookmarkCurrent(); break;
+      case 'bookmarks': setState(() { showBookmarks = true; showHistory = false; }); break;
       case 'return': widget.onReturn(); break;
       case 'settings': widget.onSettings(); break;
       case 'dark': widget.onThemeTap(); break;
@@ -1310,6 +1328,8 @@ class _BrowserPageState extends State<BrowserPage> {
           PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'), trailing: Icon(adBlockEnabled ? Icons.toggle_on : Icons.toggle_off))),
           const PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
           const PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
+          const PopupMenuItem(value: 'bookmark', child: ListTile(dense: true, leading: Icon(Icons.bookmark_add_outlined), title: Text('Bookmark this page'))),
+          const PopupMenuItem(value: 'bookmarks', child: ListTile(dense: true, leading: Icon(Icons.bookmarks_outlined), title: Text('Bookmarks'))),
           const PopupMenuDivider(),
           const PopupMenuItem(value: 'return', child: ListTile(dense: true, leading: Icon(Icons.home_outlined), title: Text('Return to DROX'))),
           const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
@@ -1319,7 +1339,11 @@ class _BrowserPageState extends State<BrowserPage> {
         ]),
       ]))),
       if (t?.loading == true) const LinearProgressIndicator(minHeight: 2),
-      Expanded(child: showHistory ? ListView(children: [
+      Expanded(child: showBookmarks ? ListView(children: [
+        const ListTile(title: Text('BOOKMARKS', style: TextStyle(fontWeight: FontWeight.bold))),
+        if (bookmarks.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No bookmarks yet')),
+        ...bookmarks.map((e) => ListTile(leading: const Icon(Icons.bookmark_outline), title: Text(e['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(e['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { address.text = e['url'] ?? ''; go(); }, trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { bookmarks.remove(e); await _saveHistory(); if (mounted) setState(() {}); }))),
+      ]) : showHistory ? ListView(children: [
         const ListTile(title: Text('BROWSING HISTORY', style: TextStyle(fontWeight: FontWeight.bold))),
         if (history.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No history yet')),
         ...history.map((e) => ListTile(leading: const Icon(Icons.history), title: Text(e['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(e['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { address.text = e['url'] ?? ''; go(); }, trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { history.remove(e); await _saveHistory(); if (mounted) setState(() {}); }))),
