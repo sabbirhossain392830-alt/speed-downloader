@@ -863,9 +863,9 @@ class _DownloadHomeState extends State<DownloadHome> {
                                 Positioned.fill(
                                   child: IgnorePointer(
                                     child: Opacity(
-                                      opacity: .10,
+                                      opacity: .16,
                                       child: ImageFiltered(
-                                        imageFilter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+                                        imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
                                         child: const Center(child: DroxLogoMark(size: 245)),
                                       ),
                                     ),
