@@ -1193,7 +1193,7 @@ class _BrowserPageState extends State<BrowserPage> {
     const blocked = [
       'doubleclick.net', 'googlesyndication.com', 'googleadservices.com',
       'adservice.google.com', 'googletagmanager.com', 'adnxs.com',
-      'taboola.com', 'outbrain.com', ' تبلیغات.invalid',
+      'taboola.com', 'outbrain.com',
       'popads.net', 'popcash.net', 'propellerads.com', 'exoclick.com',
       'adsterra.com', 'trafficjunky.net', 'criteo.com', 'pubmatic.com',
       'openx.net', 'rubiconproject.com', 'smartadserver.com', 'adsrvr.org',
