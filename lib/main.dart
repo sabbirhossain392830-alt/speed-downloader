@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
@@ -8,19 +10,24 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter/services.dart';
-import 'package:app_settings/app_settings.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+
+void _configureDroxNotifications(bool enabled) {
+  FileDownloader().configureNotification(
+    running: enabled ? const TaskNotification('DROX • Downloading', '{filename}') : null,
+    paused: enabled ? const TaskNotification('DROX • Paused', '{filename}') : null,
+    complete: enabled ? const TaskNotification('DROX • Download complete', '{filename}') : null,
+    error: enabled ? const TaskNotification('DROX • Download failed', '{filename}') : null,
+    progressBar: enabled,
+  );
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FileDownloader().start();
-  FileDownloader().configureNotification(
-    running: const TaskNotification('DROX • Downloading', '{filename}'),
-    paused: const TaskNotification('DROX • Paused', '{filename}'),
-    complete: const TaskNotification('DROX • Complete', '{filename}'),
-    error: const TaskNotification('DROX • Failed', '{filename}'),
-    progressBar: true,
-  );
+  final prefs = await SharedPreferences.getInstance();
+  _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? true);
+
   runApp(const DroxApp());
 }
 
@@ -253,9 +260,35 @@ class _DownloadHomeState extends State<DownloadHome> {
   final TextEditingController searchController = TextEditingController();
   bool adding = false;
   bool wifiOnly = false;
+  bool notificationsEnabled = true;
   int selectedTab = 0;
   final GlobalKey<_BrowserPageState> browserKey = GlobalKey<_BrowserPageState>();
   static const _historyKey = 'drox_download_history';
+
+  Future<void> _loadNotificationSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('drox_notifications_enabled') ?? true;
+    if (mounted) setState(() => notificationsEnabled = enabled);
+    _configureDroxNotifications(enabled);
+  }
+
+  Future<void> _setNotificationsEnabled(bool enabled) async {
+    if (enabled) {
+      var status = await FileDownloader().permissions.status(PermissionType.notifications);
+      if (status != PermissionStatus.granted) {
+        status = await FileDownloader().permissions.request(PermissionType.notifications);
+      }
+      if (status != PermissionStatus.granted) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_tr('Allow notifications to receive download alerts', 'ডাউনলোডের নোটিফিকেশন পেতে অনুমতি দিন'))));
+        return;
+      }
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('drox_notifications_enabled', enabled);
+    _configureDroxNotifications(enabled);
+    if (mounted) setState(() => notificationsEnabled = enabled);
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(enabled ? _tr('Download notifications enabled', 'ডাউনলোড নোটিফিকেশন চালু হয়েছে') : _tr('Download notifications disabled', 'ডাউনলোড নোটিফিকেশন বন্ধ হয়েছে'))));
+  }
 
   Future<void> _loadWifiOnly() async {
     final prefs = await SharedPreferences.getInstance();
@@ -323,6 +356,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   void initState() {
     super.initState();
     _loadWifiOnly();
+    _loadNotificationSetting();
     subscription = FileDownloader().updates.listen(_onUpdate);
     _shareSubscription = _shareEvents.receiveBroadcastStream().listen((value) => _acceptSharedText(value?.toString()));
     _shareMethod.invokeMethod<String>('getInitialSharedText').then(_acceptSharedText).catchError((_) {});
@@ -714,7 +748,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                     setState(() => selectedTab = 1);
                     break;
                   case 'notifications':
-                    await AppSettings.openAppSettings(type: AppSettingsType.notification);
+                    setState(() => selectedTab = 3);
                     break;
                   case 'wifi':
                     _setWifiOnly(!wifiOnly);
@@ -825,7 +859,7 @@ class _DownloadHomeState extends State<DownloadHome> {
               const Divider(height: 1),
               ListTile(leading: const Icon(Icons.language_rounded), title: Text(_tr('Language', 'ভাষা')), subtitle: Text(widget.isBangla ? 'বাংলা' : 'English'), onTap: _showLanguageDialog),
               const Divider(height: 1),
-              ListTile(leading: const Icon(Icons.notifications_outlined), title: Text(_tr('Notification settings', 'নোটিফিকেশন সেটিংস')), onTap: () => AppSettings.openAppSettings(type: AppSettingsType.notification)),
+              ListTile(leading: const Icon(Icons.notifications_active_outlined), title: Text(_tr('Download notifications', 'ডাউনলোড নোটিফিকেশন')), subtitle: Text(_tr('Show an alert when a download finishes', 'ডাউনলোড শেষ হলে নোটিফিকেশন বারে দেখাবে')), trailing: Switch(value: notificationsEnabled, onChanged: _setNotificationsEnabled)),
               const Divider(height: 1),
               ListTile(leading: const Icon(Icons.folder_outlined), title: Text(_tr('Download folder', 'ডাউনলোড ফোল্ডার')), subtitle: const Text('Phone storage / Downloads / DROX')),
             ])),
