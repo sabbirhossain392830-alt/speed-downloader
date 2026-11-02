@@ -534,10 +534,11 @@ class _DownloadHomeState extends State<DownloadHome> {
       },
       child: Scaffold(
       appBar: selectedTab == 1 ? null : AppBar(
-        titleSpacing: 20,
+        toolbarHeight: 48,
+        titleSpacing: 16,
         title: const Text(
           'DROX',
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2.4, fontSize: 22),
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2.0, fontSize: 19),
         ),
         actions: [
           IconButton(tooltip: 'Download statistics', onPressed: _showDownloadStats, icon: const Icon(Icons.insights_rounded)),
@@ -564,7 +565,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         ],
       ),
       body: IndexedStack(index: selectedTab, children: [
-        ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
+        ListView(padding: const EdgeInsets.fromLTRB(12, 4, 12, 16), children: [
           const SizedBox(height: 4),
           Row(children: [
             _homeCategory('All', entries.length, DownloadFilter.all, Icons.apps_rounded),
@@ -572,7 +573,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             _homeCategory('Finished', done, DownloadFilter.completed, Icons.check_circle_outline_rounded),
             _homeCategory('Error', entries.where((e) => ['ব্যর্থ','বাতিল','কিউতে যোগ করা যায়নি','যাচাই ব্যর্থ'].contains(e.status)).length, DownloadFilter.failed, Icons.error_outline_rounded),
           ]),
-          const SizedBox(height: 14),
+          const SizedBox(height: 9),
           TextField(controller: controller, keyboardType: TextInputType.url, onSubmitted: (_) => _add(),
             decoration: InputDecoration(
               hintText: 'Paste download link or URL',
@@ -658,7 +659,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       onTap: () => setState(() => filter = value),
       child: Container(
         margin: const EdgeInsets.only(right: 5),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 3),
+        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 3),
         decoration: BoxDecoration(
           color: selected ? cs.primaryContainer : cs.surfaceContainerHighest.withValues(alpha: .35),
           borderRadius: BorderRadius.circular(12),
@@ -781,22 +782,22 @@ class _DownloadHomeState extends State<DownloadHome> {
         side: BorderSide(color: cs.outlineVariant.withValues(alpha: .55)),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+        padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
-              width: 46, height: 46,
+              width: 36, height: 36,
               decoration: BoxDecoration(
                 color: statusColor.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(_fileIcon(entry.task.filename), color: statusColor, size: 26),
+              child: Icon(_fileIcon(entry.task.filename), color: statusColor, size: 21),
             ),
             const SizedBox(width: 11),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(entry.task.filename, maxLines: 2, overflow: TextOverflow.ellipsis,
+              Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-              const SizedBox(height: 5),
+              const SizedBox(height: 2),
               Text('${_fileType(entry.task.filename)}  •  ${_formatBytes(entry.expectedFileSize)}',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
             ])),
@@ -814,27 +815,27 @@ class _DownloadHomeState extends State<DownloadHome> {
               ],
             ),
           ]),
-          const SizedBox(height: 15),
+          const SizedBox(height: 7),
           Row(children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(color: statusColor.withValues(alpha: .12), borderRadius: BorderRadius.circular(20)),
-              child: Text(statusLabel, style: TextStyle(color: statusColor, fontSize: 9, letterSpacing: .8, fontWeight: FontWeight.w900)),
+              child: Text(statusLabel, style: TextStyle(color: statusColor, fontSize: 8, letterSpacing: .5, fontWeight: FontWeight.w900)),
             ),
             const Spacer(),
-            Text('$percent%', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: statusColor)),
+            Text('$percent%', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: statusColor)),
           ]),
-          const SizedBox(height: 9),
+          const SizedBox(height: 5),
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(5),
             child: LinearProgressIndicator(
               value: completed ? 1 : entry.progress,
-              minHeight: 7,
+              minHeight: 3,
               backgroundColor: cs.surfaceContainerHighest,
               color: statusColor,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             entry.expectedFileSize > 0
                 ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} of ${_formatBytes(entry.expectedFileSize)}'
@@ -846,7 +847,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             Text(entry.error ?? entry.status, style: TextStyle(fontSize: 11, color: failed ? cs.error : cs.onSurfaceVariant)),
           ],
           if (running || paused || queued || failed || completed) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             Row(children: [
               if (running)
                 _actionIcon(icon: Icons.pause_rounded, label: 'Pause', onTap: () => _pause(entry), primary: true),
@@ -880,11 +881,11 @@ class _DownloadHomeState extends State<DownloadHome> {
             onTap: onTap,
             customBorder: const CircleBorder(),
             child: SizedBox(
-              width: 42,
-              height: 42,
+              width: 32,
+              height: 32,
               child: Icon(
                 icon,
-                size: 22,
+                size: 18,
                 color: primary ? cs.onPrimaryContainer : cs.onSurfaceVariant,
               ),
             ),
@@ -1595,11 +1596,11 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
     final host = currentUri?.host ?? 'Search the web';
     return SafeArea(top: true, bottom: false, child: Column(children: [
       Container(
-        padding: const EdgeInsets.fromLTRB(9, 3, 5, 4),
+        padding: const EdgeInsets.fromLTRB(8, 1, 4, 2),
         decoration: BoxDecoration(color: cs.surface, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .06), blurRadius: 10, offset: const Offset(0, 2))]),
         child: Column(children: [
           Row(children: [
-            const DroxLogoMark(size: 32),
+            const DroxLogoMark(size: 27),
             const SizedBox(width: 8),
             Expanded(child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1638,9 +1639,9 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
               ],
             ),
           ]),
-          const SizedBox(height: 5),
+          const SizedBox(height: 2),
           Container(
-            height: 46,
+            height: 40,
             decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .72), borderRadius: BorderRadius.circular(17), border: Border.all(color: cs.outlineVariant.withValues(alpha: .55))),
             child: Row(children: [
               const SizedBox(width: 12),
@@ -1667,14 +1668,8 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
                 IconButton(tooltip: 'Go', visualDensity: VisualDensity.compact, onPressed: go, icon: Icon(Icons.arrow_forward_rounded, color: cs.primary)),
             ]),
           ),
-          if (t?.loading == true) const Padding(padding: EdgeInsets.only(top: 8), child: LinearProgressIndicator(minHeight: 2)),
-          if (!showHistory && !showBookmarks)
-            Padding(padding: const EdgeInsets.only(top: 7, left: 3, right: 3), child: Row(children: [
-              Icon(secure ? Icons.verified_user_outlined : Icons.public_rounded, size: 13, color: cs.onSurfaceVariant),
-              const SizedBox(width: 5),
-              Expanded(child: Text(host, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant))),
-              if (adBlockEnabled) const Row(children: [Icon(Icons.shield_outlined, size: 13, color: Colors.green), SizedBox(width: 3), Text('Protection on', style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.w700))]),
-            ])),
+          if (t?.loading == true) const Padding(padding: EdgeInsets.only(top: 3), child: LinearProgressIndicator(minHeight: 1.5)),
+
         ]),
       ),
       Expanded(child: showBookmarks ? Column(children: [
