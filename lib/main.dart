@@ -888,11 +888,6 @@ class _DownloadHomeState extends State<DownloadHome> {
     return value >= 100 || unit == 0 ? '${value.toStringAsFixed(0)} ${units[unit]}' : '${value.toStringAsFixed(1)} ${units[unit]}';
   }
 
-  String _fileType(String name) {
-    final dot = name.lastIndexOf('.');
-    return dot < 0 ? 'FILE' : name.substring(dot + 1).toUpperCase() + ' FILE';
-  }
-
   Widget _downloadCard(DownloadEntry entry) {
     final running = entry.status == 'ডাউনলোড হচ্ছে';
     final paused = entry.status == 'বিরতি';
@@ -956,6 +951,8 @@ class _DownloadHomeState extends State<DownloadHome> {
             _actionIcon(icon: Icons.refresh_rounded, label: 'Retry', onTap: () => _redownload(entry), primary: true)
           else if (completed)
             _actionIcon(icon: Icons.open_in_new_rounded, label: 'Open', onTap: () => _open(entry), primary: true),
+          if (running || paused || queued)
+            _actionIcon(icon: Icons.close_rounded, label: 'Cancel', onTap: () => _cancel(entry)),
         ]),
         PopupMenuButton<String>(
           padding: EdgeInsets.zero,
