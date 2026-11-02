@@ -914,6 +914,24 @@ class _BrowserPageState extends State<BrowserPage> {
         _downloadIntentPending = true;
         _downloadIntentTimer?.cancel();
         _downloadIntentTimer = Timer(const Duration(seconds: 20), () => _downloadIntentPending = false);
+      } else if (m.message.startsWith('{')) {
+        try {
+          final payload = jsonDecode(m.message);
+          if (payload is Map && payload['type'] == 'blobStart') {
+            await _sessionChannel.invokeMethod('blobStart', {'id': payload['id'], 'filename': payload['filename'], 'size': payload['size']});
+          } else if (payload is Map && payload['type'] == 'blobChunk') {
+            await _sessionChannel.invokeMethod('blobChunk', {'id': payload['id'], 'data': payload['data']});
+          } else if (payload is Map && payload['type'] == 'blobEnd') {
+            final saved = await _sessionChannel.invokeMethod<String>('blobEnd', {'id': payload['id']});
+            if (mounted && saved != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Blob file saved: $saved')));
+          } else {
+            if (payload is Map && payload['url'] is String) {
+              final headers = <String, String>{};
+              if (payload['headers'] is Map) (payload['headers'] as Map).forEach((k, v) { if (k is String && v is String && v.isNotEmpty) headers[k] = v; });
+              _downloadPrompt(payload['url'] as String, headers: headers, force: payload['force'] == true, postBody: payload['post'] is String ? payload['post'] as String : null);
+            }
+          }
+        } catch (_) {}
       } else if (m.message.startsWith('__DROX_NEW_TAB__:')) {
         final target = m.message.substring('__DROX_NEW_TAB__:'.length);
         final parsed = Uri.tryParse(target);
@@ -1032,7 +1050,8 @@ class _BrowserPageState extends State<BrowserPage> {
             }
           },true);
           if(window.open){window.open=function(u){if(u){try{var target=new URL(u,location.href);if(/^https?:$/.test(target.protocol))DroxDownload.postMessage('__DROX_NEW_TAB__:'+target.href)}catch(_){}}return null}}
-          document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download]'):null;if(a)send(a.href,{'Content-Disposition':'attachment; filename="'+(a.download||'')+'"'},true)},true);
+          function saveBlobUrl(raw,name){try{fetch(raw).then(function(r){return r.blob()}).then(function(blob){var reader=new FileReader();reader.onload=function(){var data=String(reader.result||'').split(',')[1]||'';var id='blob_'+Date.now()+'_'+Math.random().toString(36).slice(2);DroxDownload.postMessage(JSON.stringify({type:'blobStart',id:id,filename:name||'drox_blob.bin',size:blob.size}));var chunk=128*1024;for(var i=0;i<data.length;i+=chunk)DroxDownload.postMessage(JSON.stringify({type:'blobChunk',id:id,data:data.slice(i,i+chunk)}));DroxDownload.postMessage(JSON.stringify({type:'blobEnd',id:id}))};reader.readAsDataURL(blob)})}catch(_){}}
+          document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download]'):null;if(a){if(/^blob:/i.test(a.href)){e.preventDefault();saveBlobUrl(a.href,a.download||'drox_blob.bin')}else send(a.href,{'Content-Disposition':'attachment; filename="'+(a.download||'')+'"'},true)}},true);
         })();''');
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
