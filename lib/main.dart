@@ -965,7 +965,7 @@ class _BrowserPageState extends State<BrowserPage> {
           }
           function candidate(el){
             if(!el)return null;
-            var attrs=['href','data-href','data-url','data-download-url','data-download','data-file','data-link','data-target','data-src','data-id'];
+            var attrs=['href','data-href','data-url','data-download-url','data-download','data-file','data-link','data-target','data-src'];
             var raw=null;
             for(var i=0;i<attrs.length&&!raw;i++){var v=el.getAttribute(attrs[i]);if(v&&v.trim())raw=v.trim()}
             if(!raw&&el.querySelector){var a=el.querySelector('a[href], [data-url], [data-href], [data-download-url]');if(a){for(var j=0;j<attrs.length&&!raw;j++){var av=a.getAttribute(attrs[j]);if(av&&av.trim())raw=av.trim()}}}
@@ -1001,11 +1001,12 @@ class _BrowserPageState extends State<BrowserPage> {
           document.addEventListener('click',function(){setTimeout(scanResources,350);setTimeout(scanResources,1000);setTimeout(scanResources,2200)},false);
           document.addEventListener('submit',function(e){
             var f=e.target;if(!f||!f.action)return;
-            var label=((f.innerText||'')+' '+(f.getAttribute('aria-label')||'')).toLowerCase();
-            if(/download|save file|get file/i.test(label))send(f.action);
+            var submitter=e.submitter;
+            var label=((f.innerText||'')+' '+(f.getAttribute('aria-label')||'')+' '+(submitter?(submitter.innerText||submitter.value||''):'')).toLowerCase();
+            if(/download|save file|get file|direct link/i.test(label)&&String(f.method||'get').toLowerCase()==='get')send(f.action,{},true);
           },true);
-          if(window.open){var originalWindowOpen=window.open;window.open=function(u,n,f){if(u)send(u);return originalWindowOpen.apply(this,arguments)}}
-          document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download],a[href]'):null;if(a&&a.hasAttribute('download'))send(a.href,{'Content-Disposition':'attachment; filename="'+(a.download||'')+'"'})},true);
+          if(window.open){var originalWindowOpen=window.open;window.open=function(u,n,f){if(u)send(u,{},true);return originalWindowOpen.apply(this,arguments)}}
+          document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download]'):null;if(a)send(a.href,{'Content-Disposition':'attachment; filename="'+(a.download||'')+'"'},true)},true);
         })();''');
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
