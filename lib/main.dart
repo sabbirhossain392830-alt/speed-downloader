@@ -1445,26 +1445,25 @@ button{border:0;border-radius:50%;width:40px;height:40px;background:#a87912;colo
     final host = currentUri?.host ?? 'Search the web';
     return SafeArea(top: true, bottom: false, child: Column(children: [
       Container(
-        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-        decoration: BoxDecoration(color: cs.surface, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .06), blurRadius: 12, offset: const Offset(0, 3))]),
+        padding: const EdgeInsets.fromLTRB(10, 4, 6, 5),
+        decoration: BoxDecoration(color: cs.surface, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .06), blurRadius: 10, offset: const Offset(0, 2))]),
         child: Column(children: [
           Row(children: [
-            const DroxLogoMark(size: 34),
-            const SizedBox(width: 9),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('DROX Browser', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: -.2)),
-              Text(t?.title ?? 'Private and fast browsing', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
-            ])),
-            IconButton(tooltip: 'New tab', onPressed: () => _newTab(), icon: const Icon(Icons.add_rounded)),
-            IconButton(tooltip: 'Open pages', onPressed: _showTabs, icon: Container(
-              width: 34, height: 34, alignment: Alignment.center,
-              decoration: BoxDecoration(border: Border.all(color: cs.onSurfaceVariant, width: 1.8), borderRadius: BorderRadius.circular(7)),
-              child: Text('${tabs.length}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            const DroxLogoMark(size: 29),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('DROX', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: .15))),
+            IconButton(visualDensity: VisualDensity.compact, padding: const EdgeInsets.all(5), constraints: const BoxConstraints(minWidth: 36, minHeight: 36), tooltip: 'New tab', onPressed: () => _newTab(), icon: const Icon(Icons.add_rounded, size: 23)),
+            IconButton(visualDensity: VisualDensity.compact, padding: const EdgeInsets.all(3), constraints: const BoxConstraints(minWidth: 36, minHeight: 36), tooltip: 'Open pages', onPressed: _showTabs, icon: Container(
+              width: 30, height: 30, alignment: Alignment.center,
+              decoration: BoxDecoration(border: Border.all(color: cs.onSurfaceVariant, width: 1.7), borderRadius: BorderRadius.circular(7)),
+              child: Text('${tabs.length}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
             )),
             PopupMenuButton<String>(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
               tooltip: 'Browser options',
               onSelected: _action,
-              icon: const Icon(Icons.more_vert_rounded),
+              icon: const Icon(Icons.more_vert_rounded, size: 22),
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New tab'))),
                 PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: const Icon(Icons.shield_outlined), title: const Text('Ad blocking'), trailing: Icon(adBlockEnabled ? Icons.toggle_on : Icons.toggle_off))),
