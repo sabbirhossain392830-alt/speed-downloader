@@ -1149,18 +1149,24 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
 
     return Container(
-      height: 104,
-      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+      height: 90,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: ink.withValues(alpha: .12))),
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(
+          color: const Color(0xFF8A5636).withValues(alpha: isDark ? .95 : .72),
+          width: 1.15,
+        ),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Stack(
         fit: StackFit.expand,
         children: [
           if (running || paused || queued)
             DroxDownloadProgress(progress: progress, isDark: isDark),
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 12, 4, 9),
+            padding: const EdgeInsets.fromLTRB(9, 7, 3, 7),
             child: Row(
               children: [
                 SizedBox(
@@ -1203,7 +1209,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                           Text(')', style: TextStyle(fontSize: 13, color: ink)),
                         ],
                       ),
-                      const SizedBox(height: 17),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           Expanded(
