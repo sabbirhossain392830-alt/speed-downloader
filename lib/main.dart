@@ -82,7 +82,7 @@ class DownloadEntry {
   String? sharedPath;
 }
 
-enum DownloadFilter { all, active, completed, failed }
+enum DownloadFilter { all, active, paused, completed, failed }
 
 class DownloadHome extends StatefulWidget {
   const DownloadHome({super.key, required this.isDark, required this.onThemeTap});
@@ -709,7 +709,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       Row(children: [
         _downloadCategory('All', entries.length, DownloadFilter.all, Icons.apps_rounded, cs),
         _downloadCategory('Active', active, DownloadFilter.active, Icons.downloading_rounded, cs),
-        _downloadCategory('Paused', paused, DownloadFilter.active, Icons.pause_circle_outline_rounded, cs),
+        _downloadCategory('Paused', paused, DownloadFilter.paused, Icons.pause_circle_outline_rounded, cs),
         _downloadCategory('Done', completed, DownloadFilter.completed, Icons.check_circle_outline_rounded, cs),
         _downloadCategory('Failed', failed, DownloadFilter.failed, Icons.error_outline_rounded, cs),
       ]),
