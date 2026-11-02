@@ -120,6 +120,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   DownloadFilter filter = DownloadFilter.all;
   bool adding = false;
   bool wifiOnly = false;
+  int retryCount = 5;
   int selectedTab = 0;
   final GlobalKey<_BrowserPageState> browserKey = GlobalKey<_BrowserPageState>();
   static const _historyKey = 'drox_download_history';
@@ -127,7 +128,8 @@ class _DownloadHomeState extends State<DownloadHome> {
   Future<void> _loadWifiOnly() async {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool('drox_wifi_only') ?? false;
-    if (mounted) setState(() => wifiOnly = enabled);
+    final retries = prefs.getInt('drox_retry_count') ?? 5;
+    if (mounted) setState(() { wifiOnly = enabled; retryCount = retries.clamp(0, 10); });
     await FileDownloader().requireWiFi(enabled ? RequireWiFi.forAllTasks : RequireWiFi.forNoTasks);
   }
 
@@ -142,6 +144,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   Future<void> _saveHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final data = entries.map((e) => {
+      'taskId': e.task.taskId,
       'url': e.task.url,
       'filename': e.task.filename,
       'post': e.task.post,
@@ -426,7 +429,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     return (finalUrl, filename);
   }
 
-  Future<void> _add({String? suggestedFilename, int retries = 5, Map<String, String> requestHeaders = const {}, String? postBody}) async {
+  Future<void> _add({String? suggestedFilename, int? retries, Map<String, String> requestHeaders = const {}, String? postBody}) async {
     if (adding) return;
     final value = controller.text.trim();
     final uri = Uri.tryParse(value);
@@ -458,7 +461,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
-      retries: retries,
+      retries: retries ?? retryCount,
       post: postBody,
       httpRequestMethod: postBody == null ? 'GET' : 'POST',
     );
@@ -531,7 +534,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
-      retries: 5,
+      retries: retryCount,
     );
     setState(() => entries.insert(0, DownloadEntry(task)));
     _saveHistory();
@@ -642,7 +645,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       ),
       body: IndexedStack(index: selectedTab, children: [
         _homeDashboard(visible, active, done, cs),
-        BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url, filename, wifiOnly, retry, headers, postBody) async { if (wifiOnly) await _setWifiOnly(true); controller.text = url; await _add(suggestedFilename: filename, retries: retry ? 5 : 0, requestHeaders: headers, postBody: postBody); }),
+        BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url, filename, wifiOnly, retry, headers, postBody) async { if (wifiOnly) await _setWifiOnly(true); controller.text = url; await _add(suggestedFilename: filename, retries: retry ? retryCount : 0, requestHeaders: headers, postBody: postBody); }),
         _downloadsDashboard(visible, active, done, cs),
         ListView(padding: const EdgeInsets.all(16), children: [
           const Text('Settings', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
@@ -653,6 +656,9 @@ class _DownloadHomeState extends State<DownloadHome> {
             ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Appearance'), subtitle: Text(widget.isDark ? 'Dark theme' : 'Light theme'), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
             const Divider(height: 1, indent: 56),
             ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi‑Fi Only'), subtitle: const Text('Mobile data দিয়ে download বন্ধ রাখবে'), trailing: Switch(value: wifiOnly, onChanged: _setWifiOnly)),
+            const Divider(height: 1, indent: 56),
+            const Divider(height: 1, indent: 56),
+            ListTile(leading: const Icon(Icons.repeat_rounded), title: const Text('Automatic retries'), subtitle: Text('$retryCount retries after a failed attempt'), trailing: SizedBox(width: 150, child: Slider(value: retryCount.toDouble(), min: 0, max: 10, divisions: 10, label: '$retryCount', onChanged: (v) async { final n = v.round(); setState(() => retryCount = n); final prefs = await SharedPreferences.getInstance(); await prefs.setInt('drox_retry_count', n); }))),
             const Divider(height: 1, indent: 56),
             const ListTile(leading: Icon(Icons.folder_outlined), title: Text('Download folder'), subtitle: Text('Phone storage / Downloads / DROX')),
           ])),
@@ -1740,6 +1746,13 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
       case 'private': _newTab('https://www.google.com', true); break;
       case 'adblock': setState(() => adBlockEnabled = !adBlockEnabled); break;
       case 'refresh': tab?.controller.reload(); break;
+      case 'copy':
+        final current = tab?.url ?? '';
+        if (current.startsWith('http')) {
+          await Clipboard.setData(ClipboardData(text: current));
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Page link copied')));
+        }
+        break;
       case 'history': setState(() { showHistory = true; showBookmarks = false; }); break;
       case 'bookmark': await _bookmarkCurrent(); break;
       case 'bookmarks': setState(() { showBookmarks = true; showHistory = false; }); break;
