@@ -740,7 +740,6 @@ class _DownloadHomeState extends State<DownloadHome> {
             const Divider(height: 1, indent: 56),
             ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi‑Fi Only'), subtitle: const Text('Mobile data দিয়ে download বন্ধ রাখবে'), trailing: Switch(value: wifiOnly, onChanged: _setWifiOnly)),
             const Divider(height: 1, indent: 56),
-            const Divider(height: 1, indent: 56),
             ListTile(leading: const Icon(Icons.folder_open_rounded), title: const Text('File Manager'), subtitle: const Text('Browse, open and delete completed downloads'), trailing: const Icon(Icons.chevron_right_rounded), onTap: _showFileManager),
             const Divider(height: 1, indent: 56),
             ListTile(leading: const Icon(Icons.speed_rounded), title: const Text('Segmented downloads'), subtitle: const Text('Use 4 parts for large files when server supports byte ranges'), trailing: Switch(value: segmentedDownloads, onChanged: (value) async { setState(() => segmentedDownloads = value); final prefs = await SharedPreferences.getInstance(); await prefs.setBool('drox_segmented_downloads', value); })),
@@ -755,6 +754,14 @@ class _DownloadHomeState extends State<DownloadHome> {
           Text('ABOUT', style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1.3, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
           Card(child: const ListTile(leading: Icon(Icons.info_outline), title: Text('About DROX'), subtitle: Text('Browser and download manager'), trailing: Icon(Icons.chevron_right_rounded))),
+          Card(child: const Padding(padding: EdgeInsets.all(15), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Feature notes', style: TextStyle(fontWeight: FontWeight.w800)),
+            SizedBox(height: 8),
+            Text('• Segmented downloads work only when the server supports byte ranges.'),
+            Text('• HLS/DASH links are detected; complete stream packaging is not supported yet.'),
+            Text('• Ad filtering covers known navigation hosts, not every page resource.'),
+            Text('• Per-download speed limiting is not currently available.'),
+          ]))),
         ]),
       ]),
       bottomNavigationBar: selectedTab == 1 ? null : NavigationBar(
