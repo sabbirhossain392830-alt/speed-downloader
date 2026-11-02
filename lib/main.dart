@@ -11,11 +11,10 @@ import 'package:flutter/services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FileDownloader().start();
-  FileDownloader().configure(
+  await FileDownloader().configure(
     androidConfig: [(Config.runInForeground, Config.always)],
   );
-  FileDownloader().configureNotification(
+  await FileDownloader().configureNotification(
     running: const TaskNotification('DROX • Downloading', '{filename} • {progress}'),
     paused: const TaskNotification('DROX • Paused', '{filename}'),
     complete: const TaskNotification('DROX • Download complete', '{filename}'),
@@ -245,8 +244,15 @@ class _DownloadHomeState extends State<DownloadHome> {
     subscription = FileDownloader().updates.listen(_onUpdate);
     _shareSubscription = _shareEvents.receiveBroadcastStream().listen((value) => _acceptSharedText(value?.toString()));
     _shareMethod.invokeMethod<String>('getInitialSharedText').then(_acceptSharedText).catchError((_) {});
-    FileDownloader().resumeFromBackground();
+    _initializeDownloader();
     _loadHistory();
+  }
+
+  Future<void> _initializeDownloader() async {
+    // Register the update listener before start so background task events
+    // can be replayed to the UI after the app is opened again.
+    await FileDownloader().start();
+    await FileDownloader().resumeFromBackground();
   }
 
   void _onUpdate(TaskUpdate update) {
