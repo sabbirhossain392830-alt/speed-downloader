@@ -60,7 +60,7 @@ class _DroxAppState extends State<DroxApp> {
 
   @override
   Widget build(BuildContext context) {
-    const liquidLime = Color(0xFFC7EA59);
+    const liquidBrown = Color(0xFF6B351B);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'DROX',
@@ -68,7 +68,7 @@ class _DroxAppState extends State<DroxApp> {
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFFFFFFF),
-        colorScheme: ColorScheme.fromSeed(seedColor: liquidLime, surface: const Color(0xFFFFFFFF)),
+        colorScheme: ColorScheme.fromSeed(seedColor: liquidBrown, surface: const Color(0xFFFFFFFF)),
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF6B351B), foregroundColor: Color(0xFFFFFFFF), elevation: 0),
       ),
       darkTheme: ThemeData(
@@ -906,7 +906,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(
-              color: selected ? const Color(0xFFFFD45A) : Colors.transparent,
+              color: selected ? const Color(0xFF6B351B) : Colors.transparent,
               width: 3,
             )),
           ),
