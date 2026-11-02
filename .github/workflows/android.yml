@@ -93,10 +93,22 @@ jobs:
               override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
                   super.configureFlutterEngine(flutterEngine)
                   MethodChannel(flutterEngine.dartExecutor.binaryMessenger, methodName).setMethodCallHandler { call, result ->
-                      if (call.method == "getInitialSharedText") {
-                          result.success(pendingText ?: sharedText(intent))
-                          pendingText = null
-                      } else result.notImplemented()
+                      when (call.method) {
+                          "getInitialSharedText" -> {
+                              result.success(pendingText ?: sharedText(intent))
+                              pendingText = null
+                          }
+                          "shareApp" -> {
+                              val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                  type = "text/plain"
+                                  putExtra(Intent.EXTRA_SUBJECT, "DROX — Download Manager")
+                                  putExtra(Intent.EXTRA_TEXT, "Try DROX — a download manager and browser in one app.")
+                              }
+                              startActivity(Intent.createChooser(shareIntent, "Share DROX"))
+                              result.success(null)
+                          }
+                          else -> result.notImplemented()
+                      }
                   }
                   EventChannel(flutterEngine.dartExecutor.binaryMessenger, eventName).setStreamHandler(object : EventChannel.StreamHandler {
                       override fun onListen(arguments: Any?, events: EventChannel.EventSink?) { eventSink = events }
