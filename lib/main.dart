@@ -1085,7 +1085,27 @@ class _BrowserPageState extends State<BrowserPage> {
   bool showHistory = false, adBlockEnabled = true, desktopMode = false;
   _DroxTab? get tab => tabs.isEmpty ? null : tabs[active];
   @override
-  void initState() { super.initState(); _loadHistory(); _newTab(); }
+  void initState() {
+    super.initState();
+    _loadHistory();
+    _loadBrowserSettings();
+    _newTab();
+  }
+
+  Future<void> _loadBrowserSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final savedAdBlock = prefs.getBool('drox_browser_adblock') ?? true;
+    final savedDesktop = prefs.getBool('drox_browser_desktop_mode') ?? false;
+    setState(() {
+      adBlockEnabled = savedAdBlock;
+      desktopMode = savedDesktop;
+    });
+    if (savedDesktop && tab != null) {
+      await tab!.controller.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await tab!.controller.reload();
+    }
+  }
   Future<void> _loadHistory() async {
     final p = await SharedPreferences.getInstance();
     try {
@@ -1298,7 +1318,11 @@ class _BrowserPageState extends State<BrowserPage> {
   Future<void> _action(String v) async {
     switch (v) {
       case 'new': _newTab(); break;
-      case 'adblock': setState(() => adBlockEnabled = !adBlockEnabled); break;
+      case 'adblock':
+        setState(() => adBlockEnabled = !adBlockEnabled);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('drox_browser_adblock', adBlockEnabled);
+        break;
       case 'refresh': tab?.controller.reload(); break;
       case 'history': setState(() => showHistory = true); break;
       case 'return': widget.onReturn(); break;
@@ -1306,6 +1330,8 @@ class _BrowserPageState extends State<BrowserPage> {
       case 'dark': widget.onThemeTap(); break;
       case 'desktop':
         setState(() => desktopMode = !desktopMode);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('drox_browser_desktop_mode', desktopMode);
         await tab?.controller.setUserAgent(desktopMode ? 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' : null);
         tab?.controller.reload(); break;
       case 'about':
