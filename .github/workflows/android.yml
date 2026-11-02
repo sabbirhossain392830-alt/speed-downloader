@@ -25,11 +25,14 @@ jobs:
 
           path = Path("android/app/src/main/AndroidManifest.xml")
           ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
+          ET.register_namespace("tools", "http://schemas.android.com/tools")
           ns = "{http://schemas.android.com/apk/res/android}"
+          tools = "{http://schemas.android.com/tools}"
           tree = ET.parse(path)
           root = tree.getroot()
 
-          for permission in ("android.permission.INTERNET", "android.permission.POST_NOTIFICATIONS"):
+          for permission in ("android.permission.INTERNET", "android.permission.POST_NOTIFICATIONS",
+                             "android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_DATA_SYNC"):
               if not any(node.get(ns + "name") == permission for node in root.findall("uses-permission")):
                   ET.SubElement(root, "uses-permission", {ns + "name": permission})
 
@@ -37,6 +40,13 @@ jobs:
           if app is None:
               raise SystemExit("Android application element not found")
           app.set(ns + "label", "DROX")
+
+          foreground = next((node for node in app.findall("service")
+                             if node.get(ns + "name") == "androidx.work.impl.foreground.SystemForegroundService"), None)
+          if foreground is None:
+              foreground = ET.SubElement(app, "service", {ns + "name": "androidx.work.impl.foreground.SystemForegroundService"})
+          foreground.set(ns + "foregroundServiceType", "dataSync")
+          foreground.set(tools + "node", "merge")
 
           activity = next((node for node in app.findall("activity")
                            if node.get(ns + "name", "").endswith("MainActivity")), None)
