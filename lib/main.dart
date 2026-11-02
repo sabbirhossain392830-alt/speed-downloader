@@ -121,6 +121,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   bool adding = false;
   bool wifiOnly = false;
   int retryCount = 5;
+  bool segmentedDownloads = true;
   int selectedTab = 0;
   final GlobalKey<_BrowserPageState> browserKey = GlobalKey<_BrowserPageState>();
   static const _historyKey = 'drox_download_history';
@@ -129,7 +130,8 @@ class _DownloadHomeState extends State<DownloadHome> {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool('drox_wifi_only') ?? false;
     final retries = prefs.getInt('drox_retry_count') ?? 5;
-    if (mounted) setState(() { wifiOnly = enabled; retryCount = retries.clamp(0, 10); });
+    final segmented = prefs.getBool('drox_segmented_downloads') ?? true;
+    if (mounted) setState(() { wifiOnly = enabled; retryCount = retries.clamp(0, 10); segmentedDownloads = segmented; });
     await FileDownloader().requireWiFi(enabled ? RequireWiFi.forAllTasks : RequireWiFi.forNoTasks);
   }
 
@@ -460,7 +462,20 @@ class _DownloadHomeState extends State<DownloadHome> {
       }
       return;
     }
-    final task = DownloadTask(
+    final canSplit = postBody == null && segmentedDownloads && await _supportsParallel(details.$1, requestHeaders);
+    final task = canSplit
+      ? ParallelDownloadTask(
+      url: details.$1,
+      chunks: 4,
+      headers: requestHeaders,
+      filename: suggestedFilename == null || suggestedFilename.trim().isEmpty ? details.$2 : _safeFileName(suggestedFilename.trim()),
+      directory: 'DROX',
+      baseDirectory: BaseDirectory.applicationSupport,
+      updates: Updates.statusAndProgress,
+      allowPause: true,
+      retries: retries ?? retryCount,
+    )
+      : DownloadTask(
       url: details.$1,
       headers: requestHeaders,
       filename: suggestedFilename == null || suggestedFilename.trim().isEmpty ? details.$2 : _safeFileName(suggestedFilename.trim()),
@@ -483,6 +498,20 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
     _saveHistory();
     if (mounted) setState(() => adding = false);
+  }
+
+  Future<bool> _supportsParallel(String url, Map<String, String> headers) async {
+    try {
+      final response = await Dio(BaseOptions(
+        receiveTimeout: const Duration(seconds: 8),
+        validateStatus: (status) => status != null && status < 500,
+      )).head(url, options: Options(headers: headers));
+      final acceptsRanges = (response.headers.value('accept-ranges') ?? '').toLowerCase().contains('bytes');
+      final size = int.tryParse(response.headers.value('content-length') ?? '') ?? 0;
+      return response.statusCode != null && response.statusCode! >= 200 && response.statusCode! < 300 && acceptsRanges && size >= 8 * 1024 * 1024;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _pause(DownloadEntry entry) async {
@@ -576,12 +605,59 @@ class _DownloadHomeState extends State<DownloadHome> {
     );
   }
 
-  Future<void> _remove(DownloadEntry entry) async {
+  Future<void> _remove(DownloadEntry entry, {bool deleteFiles = false}) async {
     if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(entry.status)) {
       await FileDownloader().cancelTaskWithId(entry.task.taskId);
     }
+    if (deleteFiles) {
+      final paths = <String>{};
+      try { paths.add(await entry.task.filePath()); } catch (_) {}
+      final shared = entry.sharedPath;
+      if (shared != null && shared.startsWith('/')) paths.add(shared);
+      for (final path in paths) {
+        try { final file = File(path); if (await file.exists()) await file.delete(); } catch (_) {}
+      }
+    }
     if (mounted) setState(() => entries.removeWhere((e) => e.task.taskId == entry.task.taskId));
-    _saveHistory();
+    await _saveHistory();
+  }
+
+  Future<void> _showFileManager() async {
+    final completed = entries.where((e) => e.status == 'সম্পন্ন').toList();
+    await showModalBottomSheet<void>(
+      context: context, isScrollControlled: true, showDragHandle: true,
+      builder: (ctx) => SafeArea(child: SizedBox(
+        height: MediaQuery.of(ctx).size.height * .72,
+        child: Column(children: [
+          const Padding(padding: EdgeInsets.fromLTRB(18, 4, 18, 12), child: Row(children: [Icon(Icons.folder_rounded), SizedBox(width: 10), Text('DROX File Manager', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900))])),
+          Expanded(child: completed.isEmpty
+            ? const Center(child: Text('এখনো কোনো সম্পন্ন ফাইল নেই'))
+            : ListView.builder(itemCount: completed.length, itemBuilder: (context, index) {
+              final entry = completed[index];
+              return ListTile(
+                leading: const Icon(Icons.insert_drive_file_outlined),
+                title: Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(_formatBytes(entry.expectedFileSize)),
+                onTap: () { Navigator.pop(ctx); _open(entry); },
+                trailing: PopupMenuButton<String>(onSelected: (v) async {
+                  Navigator.pop(ctx);
+                  if (v == 'open') await _open(entry);
+                  if (v == 'info') await _showDownloadProperties(entry);
+                  if (v == 'delete') {
+                    final confirm = await showDialog<bool>(context: context, builder: (d) => AlertDialog(
+                      title: const Text('ফাইল ডিলিট করবেন?'),
+                      content: Text('${entry.task.filename} ফোনের DROX কপিসহ ডিলিট করা হবে।'),
+                      actions: [TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('না')), FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('ডিলিট'))],
+                    ));
+                    if (confirm == true) await _remove(entry, deleteFiles: true);
+                  }
+                }, itemBuilder: (_) => const [PopupMenuItem(value: 'open', child: Text('Open')), PopupMenuItem(value: 'info', child: Text('Properties')), PopupMenuItem(value: 'delete', child: Text('Delete file'))]),
+              );
+            }),
+          ),
+        ]),
+      )),
+    );
   }
 
   bool _matches(DownloadEntry e) {
@@ -664,6 +740,10 @@ class _DownloadHomeState extends State<DownloadHome> {
             const Divider(height: 1, indent: 56),
             ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi‑Fi Only'), subtitle: const Text('Mobile data দিয়ে download বন্ধ রাখবে'), trailing: Switch(value: wifiOnly, onChanged: _setWifiOnly)),
             const Divider(height: 1, indent: 56),
+            const Divider(height: 1, indent: 56),
+            ListTile(leading: const Icon(Icons.folder_open_rounded), title: const Text('File Manager'), subtitle: const Text('Browse, open and delete completed downloads'), trailing: const Icon(Icons.chevron_right_rounded), onTap: _showFileManager),
+            const Divider(height: 1, indent: 56),
+            ListTile(leading: const Icon(Icons.speed_rounded), title: const Text('Segmented downloads'), subtitle: const Text('Use 4 parts for large files when server supports byte ranges'), trailing: Switch(value: segmentedDownloads, onChanged: (value) async { setState(() => segmentedDownloads = value); final prefs = await SharedPreferences.getInstance(); await prefs.setBool('drox_segmented_downloads', value); })),
             const Divider(height: 1, indent: 56),
             ListTile(leading: const Icon(Icons.repeat_rounded), title: const Text('Automatic retries'), subtitle: Text('$retryCount retries after a failed attempt'), trailing: SizedBox(width: 150, child: Slider(value: retryCount.toDouble(), min: 0, max: 10, divisions: 10, label: '$retryCount', onChanged: (v) async { final n = v.round(); setState(() => retryCount = n); final prefs = await SharedPreferences.getInstance(); await prefs.setInt('drox_retry_count', n); }))),
             const Divider(height: 1, indent: 56),
