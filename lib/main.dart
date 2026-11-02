@@ -262,27 +262,37 @@ class _DroxDownloadStripePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final base = Paint()
-      ..color = stripeColor.withValues(alpha: isDark ? .035 : .025);
-    canvas.drawRect(Offset.zero & size, base);
+    // The unfilled area stays almost clear; only the downloaded portion fills.
+    final track = Paint()
+      ..color = stripeColor.withValues(alpha: isDark ? .025 : .018);
+    canvas.drawRect(Offset.zero & size, track);
 
-    // The reference uses tall, thin moving stripes across the complete row.
+    final filledWidth = size.width * progress;
+    if (filledWidth <= 0) return;
+
+    // Clip the animated pinstripes to the current download progress.
+    // As bytes arrive, this filled striped panel grows from left to right.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, filledWidth, size.height));
+
+    final fill = Paint()
+      ..color = stripeColor.withValues(alpha: isDark ? .10 : .065);
+    canvas.drawRect(Rect.fromLTWH(0, 0, filledWidth, size.height), fill);
+
     final stripe = Paint()
       ..color = stripeColor.withValues(alpha: isDark ? .72 : .78);
     const stripeWidth = 2.0;
     const spacing = 34.0;
     final shift = phase * spacing;
-    for (double x = -spacing + shift; x < size.width + spacing; x += spacing) {
+    for (double x = -spacing + shift; x < filledWidth + spacing; x += spacing) {
       canvas.drawRect(Rect.fromLTWH(x, 0, stripeWidth, size.height), stripe);
     }
 
-    // A slim progress edge at the top makes the downloaded portion readable.
-    final progressPaint = Paint()
-      ..color = stripeColor.withValues(alpha: isDark ? .90 : .82);
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width * progress, 2.5),
-      progressPaint,
-    );
+    // Clear, narrow leading edge marks the current downloaded boundary.
+    final edge = Paint()
+      ..color = stripeColor.withValues(alpha: isDark ? .95 : .90);
+    canvas.drawRect(Rect.fromLTWH(filledWidth - 1.5, 0, 1.5, size.height), edge);
+    canvas.restore();
   }
 
   @override
