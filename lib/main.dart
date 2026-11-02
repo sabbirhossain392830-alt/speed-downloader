@@ -726,7 +726,8 @@ class _DownloadHomeState extends State<DownloadHome> {
               icon: const Icon(Icons.public_rounded),
             ),
             PopupMenuButton<String>(
-              tooltip: _tr('More options', 'আরও অপশন'),
+              tooltip: _tr('Menu', 'মেনু'),
+              icon: const Icon(Icons.menu_rounded),
               onSelected: (v) async {
                 switch (v) {
                   case 'settings':
@@ -739,10 +740,13 @@ class _DownloadHomeState extends State<DownloadHome> {
                     await _showLanguageDialog();
                     break;
                   case 'share':
-                    await Clipboard.setData(const ClipboardData(text: 'DROX — Download Manager'));
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('DROX নাম কপি হয়েছে')),
-                    );
+                    try {
+                      await _shareMethod.invokeMethod<void>('shareApp');
+                    } on PlatformException {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(_tr('Could not open share options', 'শেয়ার অপশন খোলা যায়নি'))),
+                      );
+                    }
                     break;
                   case 'browser':
                     setState(() => selectedTab = 1);
@@ -816,16 +820,64 @@ class _DownloadHomeState extends State<DownloadHome> {
             Expanded(
               child: visible.isEmpty
                   ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(28),
-                        child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.download_for_offline_outlined, size: 46, color: cs.onSurfaceVariant),
-                          const SizedBox(height: 10),
-                          Text(searching && searchController.text.isNotEmpty ? _tr('No matching files', 'কোনো মিল পাওয়া যায়নি') : _tr('No downloads yet', 'এখনো কোনো ডাউনলোড নেই'),
-                              style: const TextStyle(fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 5),
-                          Text(_tr('Tap + to add a download link', '+ চাপ দিয়ে ডাউনলোড লিংক যোগ করুন'), style: Theme.of(context).textTheme.bodySmall),
-                        ]),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 28, 24, 100),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 360),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.fromLTRB(22, 28, 22, 24),
+                            decoration: BoxDecoration(
+                              color: cs.surfaceContainerLow,
+                              borderRadius: BorderRadius.circular(26),
+                              border: Border.all(color: cs.outlineVariant.withValues(alpha: .45)),
+                            ),
+                            child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              Container(
+                                width: 88, height: 88,
+                                decoration: BoxDecoration(
+                                  color: cs.primaryContainer.withValues(alpha: .72),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  searching && searchController.text.isNotEmpty
+                                      ? Icons.search_off_rounded
+                                      : Icons.downloading_rounded,
+                                  size: 43, color: cs.onPrimaryContainer,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                searching && searchController.text.isNotEmpty
+                                    ? _tr('No matching files', 'কোনো মিল পাওয়া যায়নি')
+                                    : _tr('Your downloads, organised', 'আপনার সব ডাউনলোড এক জায়গায়'),
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 9),
+                              Text(
+                                searching && searchController.text.isNotEmpty
+                                    ? _tr('Try another file name or URL.', 'অন্য ফাইলের নাম বা লিংক দিয়ে খুঁজুন।')
+                                    : _tr('Start by adding a file link. DROX will keep your downloads and progress together.', 'একটি ফাইলের লিংক যোগ করে শুরু করুন। DROX আপনার ডাউনলোড ও অগ্রগতি একসঙ্গে সাজিয়ে রাখবে।'),
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant, height: 1.5),
+                              ),
+                              if (!(searching && searchController.text.isNotEmpty)) ...[
+                                const SizedBox(height: 22),
+                                FilledButton.icon(
+                                  onPressed: _quickDownloadDialog,
+                                  icon: const Icon(Icons.add_link_rounded),
+                                  label: Text(_tr('Add your first download', 'প্রথম ডাউনলোড যোগ করুন')),
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size(0, 48),
+                                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                  ),
+                                ),
+                              ],
+                            ]),
+                          ),
+                        ),
                       ),
                     )
                   : ListView.builder(
