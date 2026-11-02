@@ -7,6 +7,7 @@ import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:flutter/services.dart';
 
 void main() async {
@@ -1017,6 +1018,24 @@ class _BrowserPageState extends State<BrowserPage> {
       },
       onWebResourceError: (_) { t.loading = false; if (mounted) setState(() {}); },
     ));
+    // Android's native DownloadListener catches attachment responses that
+    // the page's DOM/JavaScript detector cannot see.
+    if (ctrl.platform is AndroidWebViewController) {
+      final androidController = ctrl.platform as AndroidWebViewController;
+      await androidController.setDownloadListener(
+        DownloadListener(
+          onDownloadStart: (downloadUrl, userAgent, contentDisposition, mimeType, contentLength) {
+            final headers = <String, String>{
+              if (userAgent.isNotEmpty) 'User-Agent': userAgent,
+              if (t.url.isNotEmpty) 'Referer': t.url,
+              if (contentDisposition.isNotEmpty) 'Content-Disposition': contentDisposition,
+              if (mimeType.isNotEmpty) 'Content-Type': mimeType,
+            };
+            _downloadPrompt(downloadUrl, headers: headers, force: true);
+          },
+        ),
+      );
+    }
     if (mounted) setState(() {});
     await ctrl.loadRequest(Uri.parse(url));
   }
