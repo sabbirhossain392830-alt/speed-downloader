@@ -102,7 +102,7 @@ jobs:
                               val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                   type = "text/plain"
                                   putExtra(Intent.EXTRA_SUBJECT, "DROX — Download Manager")
-                                  putExtra(Intent.EXTRA_TEXT, "Try DROX — a download manager and browser in one app.")
+                                  putExtra(Intent.EXTRA_TEXT, "Try DROX — a download manager and browser in one app.\nhttps://github.com/sabbirhossain392830-alt/speed-downloader")
                               }
                               startActivity(Intent.createChooser(shareIntent, "Share DROX"))
                               result.success(null)
