@@ -540,6 +540,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2.4, fontSize: 22),
         ),
         actions: [
+          IconButton(tooltip: 'Download statistics', onPressed: _showDownloadStats, icon: const Icon(Icons.insights_rounded)),
           PopupMenuButton<String>(
             tooltip: 'Main menu',
             icon: const Icon(Icons.menu_rounded, size: 28),
@@ -671,6 +672,46 @@ class _DownloadHomeState extends State<DownloadHome> {
         ]),
       ),
     ));
+  }
+
+  String _statsSize(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var value = bytes.toDouble(); var unit = 0;
+    while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
+    return '${value.toStringAsFixed(value >= 100 || unit == 0 ? 0 : 1)} ${units[unit]}';
+  }
+
+  Future<void> _showDownloadStats() async {
+    final completed = entries.where((e) => e.status == 'সম্পন্ন').toList();
+    final active = entries.where((e) => ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(e.status)).length;
+    final failed = entries.where((e) => ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি', 'যাচাই ব্যর্থ'].contains(e.status)).length;
+    final bytes = completed.fold<int>(0, (sum, e) => sum + (e.expectedFileSize > 0 ? e.expectedFileSize : 0));
+    final cs = Theme.of(context).colorScheme;
+    await showModalBottomSheet<void>(context: context, showDragHandle: true, builder: (ctx) => SafeArea(child: Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Download statistics', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 5), Text('Your DROX activity at a glance', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+        const SizedBox(height: 18),
+        Row(children: [
+          _statTile(ctx, 'Total', entries.length.toString(), Icons.download_rounded),
+          _statTile(ctx, 'Active', active.toString(), Icons.downloading_rounded),
+          _statTile(ctx, 'Done', completed.length.toString(), Icons.check_circle_outline_rounded),
+          _statTile(ctx, 'Failed', failed.toString(), Icons.error_outline_rounded),
+        ]),
+        const SizedBox(height: 16),
+        Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: cs.primaryContainer.withValues(alpha: .35), borderRadius: BorderRadius.circular(16)),
+          child: Row(children: [Icon(Icons.storage_rounded, color: cs.primary), const SizedBox(width: 12), const Expanded(child: Text('Completed file size')), Text(_statsSize(bytes), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900))])),
+      ]),
+    )));
+  }
+
+  Widget _statTile(BuildContext context, String label, String value, IconData icon) {
+    final cs = Theme.of(context).colorScheme;
+    return Expanded(child: Container(margin: const EdgeInsets.only(right: 6), padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 5), decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .55), borderRadius: BorderRadius.circular(13)), child: Column(children: [
+      Icon(icon, size: 19, color: cs.primary), const SizedBox(height: 7), Text(value, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(label, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+    ])));
   }
 
   Future<void> _quickDownloadDialog() async {
