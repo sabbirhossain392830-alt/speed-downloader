@@ -909,7 +909,7 @@ class _BrowserPageState extends State<BrowserPage> {
     tabs.add(t); active = tabs.length - 1; showHistory = false;
     final ctrl = t.controller;
     await ctrl.setJavaScriptMode(JavaScriptMode.unrestricted);
-    await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) {
+    await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) async {
       if (m.message == '__DROX_DOWNLOAD_INTENT__') {
         _downloadIntentPending = true;
         _downloadIntentTimer?.cancel();
@@ -936,17 +936,6 @@ class _BrowserPageState extends State<BrowserPage> {
         final target = m.message.substring('__DROX_NEW_TAB__:'.length);
         final parsed = Uri.tryParse(target);
         if (parsed != null && ['http', 'https'].contains(parsed.scheme) && parsed.host.isNotEmpty) _newTab(target);
-      } else {
-        try {
-          final payload = jsonDecode(m.message);
-          if (payload is Map && payload['url'] is String) {
-            final headers = <String, String>{};
-            if (payload['headers'] is Map) {
-              (payload['headers'] as Map).forEach((k, v) { if (k is String && v is String && v.isNotEmpty) headers[k] = v; });
-            }
-            _downloadPrompt(payload['url'] as String, headers: headers, force: payload['force'] == true, postBody: payload['post'] is String ? payload['post'] as String : null);
-          } else { _downloadPrompt(m.message); }
-        } catch (_) { _downloadPrompt(m.message); }
       }
     });
     await ctrl.setNavigationDelegate(NavigationDelegate(
