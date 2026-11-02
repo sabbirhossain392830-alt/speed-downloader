@@ -12,12 +12,12 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-void _configureDroxNotifications(bool enabled) {
+void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
   FileDownloader().configureNotification(
-    running: enabled ? const TaskNotification('DROX • Downloading', '{filename}') : null,
-    paused: enabled ? const TaskNotification('DROX • Paused', '{filename}') : null,
-    complete: enabled ? const TaskNotification('DROX • Download complete', '{filename}') : null,
-    error: enabled ? const TaskNotification('DROX • Download failed', '{filename}') : null,
+    running: enabled ? TaskNotification(bangla ? 'DROX • ডাউনলোড হচ্ছে' : 'DROX • Downloading', '{filename}') : null,
+    paused: enabled ? TaskNotification(bangla ? 'DROX • বিরতি' : 'DROX • Paused', '{filename}') : null,
+    complete: enabled ? TaskNotification(bangla ? 'DROX • ডাউনলোড সম্পন্ন' : 'DROX • Download complete', '{filename}') : null,
+    error: enabled ? TaskNotification(bangla ? 'DROX • ডাউনলোড ব্যর্থ' : 'DROX • Download failed', '{filename}') : null,
     progressBar: enabled,
   );
 }
@@ -26,7 +26,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FileDownloader().start();
   final prefs = await SharedPreferences.getInstance();
-  _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? true);
+  _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? true, bangla: prefs.getBool('drox_language_bangla_v2') ?? false);
 
   runApp(const DroxApp());
 }
@@ -67,6 +67,8 @@ class _DroxAppState extends State<DroxApp> {
     setState(() => isBangla = value);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('drox_language_bangla_v2', value);
+    final notifications = prefs.getBool('drox_notifications_enabled') ?? true;
+    _configureDroxNotifications(notifications, bangla: value);
   }
 
   @override
@@ -326,6 +328,24 @@ class _DownloadHomeState extends State<DownloadHome> {
     return pair == null ? value : pair[widget.isBangla ? 1 : 0];
   }
 
+  String _localizedError(String value) {
+    if (widget.isBangla) return value;
+    const translations = {
+      'ডাউনলোড ব্যর্থ': 'Download failed',
+      'ডাউনলোড করা ফাইল পাওয়া যায়নি': 'Downloaded file not found',
+      'ফাইলটি খালি—ডাউনলোড সম্পূর্ণ হয়নি': 'The file is empty; the download is incomplete',
+      'ফাইলের সাইজ অসম্পূর্ণ': 'The downloaded file is incomplete',
+      'সার্ভার তথ্য যাচাই করতে দেয়নি': 'The server did not allow information verification',
+      'সার্ভার থেকে ফাইলের তথ্য পাওয়া যায়নি': 'Could not retrieve file information from the server',
+      'সঠিক HTTP/HTTPS direct link দিন': 'Enter a valid HTTP/HTTPS direct link',
+      'সার্ভার ভিডিওর বদলে HTML/Cloudflare পেজ পাঠিয়েছে': 'The server returned an HTML/Cloudflare page instead of a video',
+      'সার্ভার ডাউনলোড লিংক অনুমোদন করেনি': 'The server did not authorize the download link',
+      'সার্ভার লিংকটি অনুমোদন করেনি': 'The server did not authorize this link',
+      'এটি সরাসরি মিডিয়া ফাইল নয়—সার্ভার HTML/Cloudflare পেজ পাঠাচ্ছে': 'This is not a direct media file; the server returned an HTML/Cloudflare page',
+    };
+    return translations[value] ?? value;
+  }
+
   Future<void> _showLanguageDialog() async {
     await showDialog<void>(
       context: context,
@@ -394,7 +414,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     final shared = (match?.group(0) ?? '').replaceAll(RegExp(r'[),.;]+$'), '');
     if (shared.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('শেয়ার করা লেখায় কোনো HTTP/HTTPS লিংক পাওয়া যায়নি')),
+        SnackBar(content: Text(_tr('No HTTP/HTTPS link found in the shared text', 'শেয়ার করা লেখায় কোনো HTTP/HTTPS লিংক পাওয়া যায়নি'))),
       );
       return;
     }
@@ -455,7 +475,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('drox_wifi_only', enabled);
     await FileDownloader().requireWiFi(enabled ? RequireWiFi.forAllTasks : RequireWiFi.forNoTasks);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(enabled ? 'শুধু Wi‑Fi দিয়ে ডাউনলোড হবে' : 'মোবাইল ডেটাতেও ডাউনলোড হবে')));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(enabled ? _tr('Downloads will use Wi-Fi only', 'শুধু Wi‑Fi দিয়ে ডাউনলোড হবে') : _tr('Downloads can use mobile data', 'মোবাইল ডেটাতেও ডাউনলোড হবে'))));
   }
 
   Future<void> _saveHistory() async {
@@ -802,7 +822,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   Future<void> _pause(DownloadEntry entry) async {
     final ok = await FileDownloader().pause(entry.task);
     if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('এই সার্ভার Pause/Resume সমর্থন নাও করতে পারে')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_tr('This server may not support Pause/Resume', 'এই সার্ভার Pause/Resume সমর্থন নাও করতে পারে'))));
     }
   }
 
@@ -854,13 +874,13 @@ class _DownloadHomeState extends State<DownloadHome> {
       final path = await FileDownloader().moveToSharedStorage(entry.task, SharedStorage.downloads, directory: 'DROX');
       if (path != null) { entry.sharedPath = path; await _saveHistory(); if (mounted) setState(() {}); }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ফোনের Downloads ফোল্ডারে কপি করা যায়নি')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_tr('Could not copy the file to the phone Downloads folder', 'ফোনের Downloads ফোল্ডারে কপি করা যায়নি'))));
     }
   }
 
   Future<void> _open(DownloadEntry entry) async {
     if (entry.status != 'সম্পন্ন') {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ডাউনলোড সম্পন্ন হলে ফাইল Open করা যাবে')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_tr('The file can be opened after the download completes', 'ডাউনলোড সম্পন্ন হলে ফাইল Open করা যাবে'))));
       return;
     }
     if (entry.sharedPath == null) await _publishToPhone(entry);
@@ -868,7 +888,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         ? await FileDownloader().openFile(filePath: entry.sharedPath!)
         : await FileDownloader().openFile(task: entry.task);
     if (!result && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ফাইলটি খোলা যায়নি')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_tr('Could not open the file', 'ফাইলটি খোলা যায়নি'))));
     }
   }
 
@@ -1180,7 +1200,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   String _formatBytes(int bytes) {
-    if (bytes <= 0) return 'Size অজানা';
+    if (bytes <= 0) return _tr('Size unknown', 'সাইজ অজানা');
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     double value = bytes.toDouble();
     int unit = 0;
@@ -1313,7 +1333,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                       if (failed && entry.error != null) ...[
                         const SizedBox(height: 3),
                         Text(
-                          entry.error!,
+                          _localizedError(entry.error!),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 10, color: ink),
@@ -1326,28 +1346,28 @@ class _DownloadHomeState extends State<DownloadHome> {
                 if (running)
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    tooltip: 'Pause',
+                    tooltip: _tr('Pause', 'বিরতি'),
                     onPressed: () => _pause(entry),
                     icon: Icon(Icons.pause_circle_outline_rounded, size: 32, color: ink),
                   )
                 else if (paused || queued)
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    tooltip: 'Resume',
+                    tooltip: _tr('Resume', 'রিজিউম'),
                     onPressed: () => _resume(entry),
                     icon: Icon(Icons.play_circle_outline_rounded, size: 32, color: ink),
                   )
                 else if (failed)
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    tooltip: 'Retry',
+                    tooltip: _tr('Retry', 'আবার চেষ্টা'),
                     onPressed: () => _redownload(entry),
                     icon: Icon(Icons.refresh_rounded, size: 30, color: ink),
                   )
                 else if (completed)
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    tooltip: 'Open folder',
+                    tooltip: _tr('Open folder', 'ফোল্ডার খুলুন'),
                     onPressed: () => _open(entry),
                     icon: Icon(Icons.folder_open_rounded, size: 28, color: ink),
                   ),
@@ -1503,7 +1523,7 @@ class _BrowserPageState extends State<BrowserPage> {
   }
   final Set<String> _promptedDownloadUrls = <String>{};
   String _formatFileSize(int? bytes) {
-    if (bytes == null || bytes <= 0) return 'অজানা';
+    if (bytes == null || bytes <= 0) return _tr('Unknown', 'অজানা');
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     var value = bytes.toDouble();
     var unit = 0;
