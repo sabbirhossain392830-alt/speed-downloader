@@ -39,7 +39,7 @@ class DroxApp extends StatefulWidget {
 
 class _DroxAppState extends State<DroxApp> {
   ThemeMode mode = ThemeMode.dark;
-  bool isBangla = true;
+  bool isBangla = false;
 
   @override
   void initState() {
@@ -49,7 +49,7 @@ class _DroxAppState extends State<DroxApp> {
 
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    if (mounted) setState(() => isBangla = prefs.getBool('drox_language_bangla') ?? true);
+    if (mounted) setState(() => isBangla = prefs.getBool('drox_language_bangla') ?? false);
   }
 
   Future<void> _setLanguage(bool value) async {
