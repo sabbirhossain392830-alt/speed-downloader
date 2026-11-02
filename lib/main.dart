@@ -577,7 +577,8 @@ class _DownloadHomeState extends State<DownloadHome> {
   bool _matches(DownloadEntry e) {
     switch (filter) {
       case DownloadFilter.all: return true;
-      case DownloadFilter.active: return ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(e.status);
+      case DownloadFilter.active: return ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(e.status);
+      case DownloadFilter.paused: return e.status == 'বিরতি';
       case DownloadFilter.completed: return e.status == 'সম্পন্ন';
       case DownloadFilter.failed: return ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি'].contains(e.status);
     }
@@ -929,11 +930,6 @@ class _DownloadHomeState extends State<DownloadHome> {
     });
     if (value != null && value.isNotEmpty && mounted) { controller.text = value; _add(); }
   }
-
-  Widget _filterChip(String label, DownloadFilter value) => Padding(
-    padding: const EdgeInsets.only(right: 8),
-    child: ChoiceChip(label: Text(label), selected: filter == value, onSelected: (_) => setState(() => filter = value)),
-  );
 
   IconData _fileIcon(String name) {
     final n = name.toLowerCase();
