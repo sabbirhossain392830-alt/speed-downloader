@@ -2,7 +2,8 @@
 
 import 'dart:io';
 import 'dart:async';
-import 'dart:convert';\nimport 'dart:ui' show ImageFilter;
+import 'dart:convert';
+import 'dart:ui' show ImageFilter;
 
 import 'package:dio/dio.dart';
 import 'package:background_downloader/background_downloader.dart';
