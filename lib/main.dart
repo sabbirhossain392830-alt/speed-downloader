@@ -115,7 +115,7 @@ class _DroxWingPainter extends CustomPainter {
       ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xFFD5C7C5), Color(0xFFE66A18), Color(0xFF9E3515)],
+        colors: [Color(0xFF9DA5AA), Color(0xFFD0D2D1), Color(0xFFC47A50), Color(0xFF858D93)],
       ).createShader(const Rect.fromLTWH(0, 0, 44, 44))
       ..style = PaintingStyle.fill;
     final upper = Path()
