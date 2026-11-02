@@ -204,42 +204,21 @@ class _DroxWingPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class DroxDownloadProgress extends StatefulWidget {
+class DroxDownloadProgress extends StatelessWidget {
   const DroxDownloadProgress({super.key, required this.progress, required this.isDark});
   final double progress;
   final bool isDark;
 
   @override
-  State<DroxDownloadProgress> createState() => _DroxDownloadProgressState();
-}
-
-class _DroxDownloadProgressState extends State<DroxDownloadProgress>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1200),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final ink = widget.isDark ? Colors.white : Colors.black;
+    final ink = isDark ? Colors.white : Colors.black;
     return ClipRect(
       child: SizedBox.expand(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) => CustomPaint(
-            painter: _DroxDownloadStripePainter(
-              progress: widget.progress.clamp(0.0, 1.0),
-              phase: _controller.value,
-              stripeColor: ink,
-              isDark: widget.isDark,
-            ),
+        child: CustomPaint(
+          painter: _DroxDownloadStripePainter(
+            progress: progress.clamp(0.0, 1.0),
+            stripeColor: ink,
+            isDark: isDark,
           ),
         ),
       ),
@@ -250,19 +229,17 @@ class _DroxDownloadProgressState extends State<DroxDownloadProgress>
 class _DroxDownloadStripePainter extends CustomPainter {
   const _DroxDownloadStripePainter({
     required this.progress,
-    required this.phase,
     required this.stripeColor,
     required this.isDark,
   });
 
   final double progress;
-  final double phase;
   final Color stripeColor;
   final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
-    // The unfilled area stays almost clear; only the downloaded portion fills.
+    // A very subtle track keeps the row clean without looking like a thick bar.
     final track = Paint()
       ..color = stripeColor.withValues(alpha: isDark ? .025 : .018);
     canvas.drawRect(Offset.zero & size, track);
@@ -270,35 +247,34 @@ class _DroxDownloadStripePainter extends CustomPainter {
     final filledWidth = size.width * progress;
     if (filledWidth <= 0) return;
 
-    // Clip the animated pinstripes to the current download progress.
-    // As bytes arrive, this filled striped panel grows from left to right.
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(0, 0, filledWidth, size.height));
 
     final fill = Paint()
-      ..color = stripeColor.withValues(alpha: isDark ? .10 : .065);
+      ..color = stripeColor.withValues(alpha: isDark ? .055 : .035);
     canvas.drawRect(Rect.fromLTWH(0, 0, filledWidth, size.height), fill);
 
+    // Static, fine pinstripes: only the progress boundary moves as bytes download.
     final stripe = Paint()
-      ..color = stripeColor.withValues(alpha: isDark ? .72 : .78);
-    const stripeWidth = 2.0;
-    const spacing = 34.0;
-    final shift = phase * spacing;
-    for (double x = -spacing + shift; x < filledWidth + spacing; x += spacing) {
+      ..color = stripeColor.withValues(alpha: isDark ? .48 : .42);
+    const stripeWidth = 1.0;
+    const spacing = 38.0;
+    for (double x = 0; x < filledWidth; x += spacing) {
       canvas.drawRect(Rect.fromLTWH(x, 0, stripeWidth, size.height), stripe);
     }
 
-    // Clear, narrow leading edge marks the current downloaded boundary.
     final edge = Paint()
-      ..color = stripeColor.withValues(alpha: isDark ? .95 : .90);
-    canvas.drawRect(Rect.fromLTWH(filledWidth - 1.5, 0, 1.5, size.height), edge);
+      ..color = stripeColor.withValues(alpha: isDark ? .72 : .62);
+    canvas.drawRect(
+      Rect.fromLTWH((filledWidth - 1).clamp(0.0, size.width), 0, 1, size.height),
+      edge,
+    );
     canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant _DroxDownloadStripePainter oldDelegate) =>
       oldDelegate.progress != progress ||
-      oldDelegate.phase != phase ||
       oldDelegate.stripeColor != stripeColor ||
       oldDelegate.isDark != isDark;
 }
