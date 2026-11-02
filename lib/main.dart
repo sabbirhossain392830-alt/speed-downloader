@@ -50,13 +50,13 @@ class _DroxAppState extends State<DroxApp> {
 
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    if (mounted) setState(() => isBangla = prefs.getBool('drox_language_bangla') ?? false);
+    if (mounted) setState(() => isBangla = prefs.getBool('drox_language_bangla_v2') ?? false);
   }
 
   Future<void> _setLanguage(bool value) async {
     setState(() => isBangla = value);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('drox_language_bangla', value);
+    await prefs.setBool('drox_language_bangla_v2', value);
   }
 
   @override
@@ -174,6 +174,25 @@ class DownloadHome extends StatefulWidget {
 
 class _DownloadHomeState extends State<DownloadHome> {
   String _tr(String english, String bangla) => widget.isBangla ? bangla : english;
+
+  String _localizedStatus(String value) {
+    const labels = {
+      'কিউতে আছে': ['Queued', 'কিউতে আছে'],
+      'ডাউনলোড হচ্ছে': ['Downloading', 'ডাউনলোড হচ্ছে'],
+      'আবার চেষ্টা করছে': ['Retrying', 'আবার চেষ্টা করছে'],
+      'সম্পন্ন': ['Completed', 'সম্পন্ন'],
+      'বিরতি': ['Paused', 'বিরতি'],
+      'বাতিল': ['Cancelled', 'বাতিল'],
+      'ব্যর্থ': ['Failed', 'ব্যর্থ'],
+      'ফাইল পাওয়া যায়নি': ['File not found', 'ফাইল পাওয়া যায়নি'],
+      'কিউতে যোগ করা যায়নি': ['Could not queue', 'কিউতে যোগ করা যায়নি'],
+      'যাচাই হচ্ছে': ['Verifying', 'যাচাই হচ্ছে'],
+      'যাচাই ব্যর্থ': ['Verification failed', 'যাচাই ব্যর্থ'],
+      'নির্ধারিত': ['Scheduled', 'নির্ধারিত'],
+    };
+    final pair = labels[value];
+    return pair == null ? value : pair[widget.isBangla ? 1 : 0];
+  }
 
   Future<void> _showLanguageDialog() async {
     await showDialog<void>(
@@ -1069,7 +1088,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             ),
           ],
           const SizedBox(height: 3),
-          Text(entry.error == null ? entry.status : '${entry.status}: ${entry.error}',
+          Text(entry.error == null ? _localizedStatus(entry.status) : '${_localizedStatus(entry.status)}: ${entry.error}',
               maxLines: 1, overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.w600)),
         ])),
