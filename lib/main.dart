@@ -204,6 +204,102 @@ class _DroxWingPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+class DroxDownloadProgress extends StatefulWidget {
+  const DroxDownloadProgress({super.key, required this.progress, required this.isDark});
+  final double progress;
+  final bool isDark;
+
+  @override
+  State<DroxDownloadProgress> createState() => _DroxDownloadProgressState();
+}
+
+class _DroxDownloadProgressState extends State<DroxDownloadProgress>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stripeColor = widget.isDark ? Colors.white : Colors.black;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(5),
+      child: SizedBox(
+        height: 8,
+        width: double.infinity,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) => CustomPaint(
+            painter: _DroxDownloadStripePainter(
+              progress: widget.progress.clamp(0.0, 1.0),
+              phase: _controller.value,
+              stripeColor: stripeColor,
+              isDark: widget.isDark,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DroxDownloadStripePainter extends CustomPainter {
+  const _DroxDownloadStripePainter({
+    required this.progress,
+    required this.phase,
+    required this.stripeColor,
+    required this.isDark,
+  });
+
+  final double progress;
+  final double phase;
+  final Color stripeColor;
+  final bool isDark;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final track = Paint()
+      ..color = isDark ? Colors.white.withValues(alpha: .10) : Colors.black.withValues(alpha: .08);
+    canvas.drawRect(Offset.zero & size, track);
+
+    final filledWidth = size.width * progress;
+    if (filledWidth <= 0) return;
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, filledWidth, size.height));
+
+    final fill = Paint()
+      ..color = stripeColor.withValues(alpha: isDark ? .16 : .12);
+    canvas.drawRect(Rect.fromLTWH(0, 0, filledWidth, size.height), fill);
+
+    final stripe = Paint()
+      ..color = stripeColor.withValues(alpha: isDark ? .48 : .42);
+    const stripeWidth = 3.0;
+    const spacing = 9.0;
+    final shift = phase * spacing;
+    for (double x = -spacing + shift; x < filledWidth + spacing; x += spacing) {
+      canvas.drawRect(Rect.fromLTWH(x, 0, stripeWidth, size.height), stripe);
+    }
+
+    final edge = Paint()..color = stripeColor.withValues(alpha: .75);
+    canvas.drawRect(Rect.fromLTWH(filledWidth - 1.5, 0, 1.5, size.height), edge);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _DroxDownloadStripePainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.phase != phase ||
+      oldDelegate.stripeColor != stripeColor ||
+      oldDelegate.isDark != isDark;
+}
+
 class DownloadEntry {
   DownloadEntry(this.task);
   final DownloadTask task;
@@ -1081,12 +1177,9 @@ class _DownloadHomeState extends State<DownloadHome> {
           ),
           if (!completed && !failed) ...[
             const SizedBox(height: 5),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                height: 6,
-                child: LinearProgressIndicator(value: entry.progress, minHeight: 6, backgroundColor: const Color(0x337A6257), color: const Color(0xFF9A6548), borderRadius: BorderRadius.circular(8)),
-              ),
+            DroxDownloadProgress(
+              progress: entry.progress,
+              isDark: Theme.of(context).brightness == Brightness.dark,
             ),
           ],
           const SizedBox(height: 3),
