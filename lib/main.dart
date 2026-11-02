@@ -885,6 +885,8 @@ class _DownloadHomeState extends State<DownloadHome> {
         floatingActionButton: selectedTab == 0
             ? FloatingActionButton(
                 tooltip: 'Add download',
+                backgroundColor: const Color(0xFF6B351B),
+                foregroundColor: Colors.white,
                 onPressed: _quickDownloadDialog,
                 child: const Icon(Icons.add_rounded, size: 30),
               )
