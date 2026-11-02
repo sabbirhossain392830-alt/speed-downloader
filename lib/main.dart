@@ -1526,7 +1526,7 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
               const SizedBox(height: 4), Text(item.isPrivate ? 'Private tab' : (Uri.tryParse(item.url)?.host ?? item.url), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
             ])));
       })),
-    ]))));
+    ])))));
   }
   Future<void> _action(String v) async {
     switch (v) {
