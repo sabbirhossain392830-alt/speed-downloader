@@ -74,7 +74,7 @@ class _DroxAppState extends State<DroxApp> {
       darkTheme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFF000000),
-        colorScheme: ColorScheme.fromSeed(seedColor: liquidLime, brightness: Brightness.dark, surface: const Color(0xFF000000)),
+        colorScheme: ColorScheme.fromSeed(seedColor: liquidBrown, brightness: Brightness.dark, surface: const Color(0xFF000000)),
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF000000), foregroundColor: Color(0xFFF1F1F1), elevation: 0),
       ),
       home: DownloadHome(
