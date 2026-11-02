@@ -44,12 +44,23 @@ class _DroxAppState extends State<DroxApp> {
   @override
   void initState() {
     super.initState();
-    _loadLanguage();
+    _loadPreferences();
   }
 
-  Future<void> _loadLanguage() async {
+  Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    if (mounted) setState(() => isBangla = prefs.getBool('drox_language_bangla_v2') ?? false);
+    if (!mounted) return;
+    setState(() {
+      isBangla = prefs.getBool('drox_language_bangla_v2') ?? false;
+      mode = (prefs.getBool('drox_dark_mode') ?? false) ? ThemeMode.dark : ThemeMode.light;
+    });
+  }
+
+  Future<void> _toggleTheme() async {
+    final nextMode = mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    setState(() => mode = nextMode);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('drox_dark_mode', nextMode == ThemeMode.dark);
   }
 
   Future<void> _setLanguage(bool value) async {
@@ -81,7 +92,7 @@ class _DroxAppState extends State<DroxApp> {
         isDark: mode == ThemeMode.dark,
         isBangla: isBangla,
         onLanguageChanged: _setLanguage,
-        onThemeTap: () => setState(() => mode = mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark),
+        onThemeTap: _toggleTheme,
       ),
     );
   }
