@@ -918,6 +918,33 @@ class _BrowserPageState extends State<BrowserPage> {
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
     return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|m4v|mkv|mov|avi|webm|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|jpg|jpeg|png|gif|webp|bmp|tif|tiff|docx?|xlsx?|pptx?)$').hasMatch(path);
   }
+  static const String _homePageHtml = r'''<!doctype html>
+<html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101010;color:#f5f5f5;font-family:Arial,sans-serif;min-height:100vh}
+main{padding:54px 22px 30px;display:flex;flex-direction:column;align-items:center}
+.logo{font-size:clamp(62px,17vw,88px);font-weight:600;letter-spacing:-5px;margin:28px 0 54px}
+.b{color:#4285f4}.r{color:#ea4335}.y{color:#fbbc05}.g{color:#34a853}
+form{width:100%;max-width:650px;height:58px;border:1px solid #454545;border-radius:32px;display:flex;align-items:center;padding:0 10px 0 18px;background:#171717}
+form:focus-within{background:#202020;border-color:#777}
+input{min-width:0;flex:1;background:transparent;border:0;outline:0;color:white;font-size:17px;padding:10px}
+input::placeholder{color:#aaa}
+button{border:0;border-radius:50%;width:46px;height:46px;background:#a87912;color:white;font-size:26px}
+.shortcuts{display:flex;gap:14px;margin-top:42px;flex-wrap:wrap;justify-content:center}
+.shortcut{width:142px;min-height:126px;border-radius:22px;background:#202020;color:#eee;text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;font-size:14px;font-weight:600;text-align:center;padding:12px}
+.shortcut span{font-size:27px;color:#c5a04b}.hint{color:#888;font-size:12px;margin-top:25px}
+</style></head><body><main>
+<div class="logo"><span class="b">G</span><span class="r">o</span><span class="y">o</span><span class="b">g</span><span class="g">l</span><span class="r">e</span></div>
+<form onsubmit="event.preventDefault();var q=document.getElementById('q').value.trim();if(q)location.href='https://www.google.com/search?q='+encodeURIComponent(q)">
+<input id="q" type="search" placeholder="Search" autocomplete="off" aria-label="Search Google"><button type="submit" aria-label="Search">→</button>
+</form>
+<div class="shortcuts">
+<a class="shortcut" href="https://www.youtube.com/"><span>▶</span>YouTube</a>
+<a class="shortcut" href="https://www.facebook.com/"><span>f</span>Facebook</a>
+<a class="shortcut" href="https://www.google.com/"><span>＋</span>Add shortcut</a>
+</div><div class="hint">Search the web or enter a website address above</div>
+</main></body></html>''';
+
   Future<void> _newTab([String url = 'https://www.google.com']) async {
     final t = _DroxTab(WebViewController(), url);
     tabs.add(t); active = tabs.length - 1; showHistory = false;
@@ -1068,7 +1095,11 @@ class _BrowserPageState extends State<BrowserPage> {
       onWebResourceError: (_) { t.loading = false; if (mounted) setState(() {}); },
     ));
     if (mounted) setState(() {});
-    await ctrl.loadRequest(Uri.parse(url));
+    if (url == 'https://www.google.com' || url == 'https://www.google.com/') {
+      await ctrl.loadHtmlString(_homePageHtml, baseUrl: 'https://www.google.com/');
+    } else {
+      await ctrl.loadRequest(Uri.parse(url));
+    }
   }
   final Set<String> _promptedDownloadUrls = <String>{};
   String _formatFileSize(int? bytes) {
@@ -1372,7 +1403,11 @@ class _BrowserPageState extends State<BrowserPage> {
               Text(t?.title ?? 'Private and fast browsing', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
             ])),
             IconButton(tooltip: 'New tab', onPressed: () => _newTab(), icon: const Icon(Icons.add_rounded)),
-            IconButton(tooltip: 'Tabs', onPressed: _showTabs, icon: Badge(label: Text('${tabs.length}'), child: const Icon(Icons.tab_rounded))),
+            IconButton(tooltip: 'Open pages', onPressed: _showTabs, icon: Container(
+              width: 34, height: 34, alignment: Alignment.center,
+              decoration: BoxDecoration(border: Border.all(color: cs.onSurfaceVariant, width: 1.8), borderRadius: BorderRadius.circular(7)),
+              child: Text('${tabs.length}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            )),
             PopupMenuButton<String>(
               tooltip: 'Browser options',
               onSelected: _action,
@@ -1401,6 +1436,11 @@ class _BrowserPageState extends State<BrowserPage> {
               const SizedBox(width: 8),
               Expanded(child: TextField(
                 controller: address,
+                onTap: () {
+                  if (address.text.isNotEmpty) {
+                    address.selection = TextSelection(baseOffset: 0, extentOffset: address.text.length);
+                  }
+                },
                 onSubmitted: (_) => go(),
                 textInputAction: TextInputAction.go,
                 keyboardType: TextInputType.url,
@@ -1446,7 +1486,16 @@ class _BrowserPageState extends State<BrowserPage> {
       Container(
         decoration: BoxDecoration(color: cs.surface, border: Border(top: BorderSide(color: cs.outlineVariant.withValues(alpha: .5))), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .04), blurRadius: 10, offset: const Offset(0, -3))]),
         child: SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(7, 5, 7, 4), child: Row(children: [
-          _browserAction(Icons.arrow_back_rounded, 'Back', t?.back == true ? () async { await t!.controller.goBack(); } : null),
+          _browserAction(Icons.arrow_back_rounded, 'Back', t == null ? null : () async {
+            if (await t.controller.canGoBack()) {
+              await t.controller.goBack();
+              t.back = await t.controller.canGoBack();
+              t.forward = await t.controller.canGoForward();
+              if (mounted) setState(() {});
+            } else {
+              _showTabs();
+            }
+          }),
           _browserAction(Icons.arrow_forward_rounded, 'Forward', t?.forward == true ? () async { await t!.controller.goForward(); } : null),
           _browserAction(Icons.home_rounded, 'Home', () { address.text = 'https://www.google.com'; tab?.controller.loadRequest(Uri.parse('https://www.google.com')); }),
           _browserAction(Icons.bookmark_outline_rounded, 'Saved', () => setState(() { showBookmarks = true; showHistory = false; }), selected: showBookmarks),
