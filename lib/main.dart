@@ -115,6 +115,8 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   final controller = TextEditingController();
+  final searchController = TextEditingController();
+  bool searchOpen = false;
   final List<DownloadEntry> entries = [];
   StreamSubscription<TaskUpdate>? subscription;
   DownloadFilter filter = DownloadFilter.all;
@@ -673,6 +675,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   @override
   void dispose() {
     controller.dispose();
+    searchController.dispose();
     subscription?.cancel();
     _shareSubscription?.cancel();
     super.dispose();
@@ -682,7 +685,8 @@ class _DownloadHomeState extends State<DownloadHome> {
   Widget build(BuildContext context) {
     final active = entries.where((e) => ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(e.status)).length;
     final done = entries.where((e) => e.status == 'সম্পন্ন').length;
-    final visible = entries.where(_matches).toList();
+    final query = searchController.text.trim().toLowerCase();
+    final visible = entries.where(_matches).where((e) => query.isEmpty || e.task.filename.toLowerCase().contains(query) || e.task.url.toLowerCase().contains(query)).toList();
     final cs = Theme.of(context).colorScheme;
     return PopScope(
       canPop: selectedTab == 0,
@@ -698,11 +702,21 @@ class _DownloadHomeState extends State<DownloadHome> {
       appBar: selectedTab == 1 ? null : AppBar(
         toolbarHeight: 54,
         titleSpacing: 16,
-        title: const Text(
-          'DROX',
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2.0, fontSize: 19),
-        ),
+        title: searchOpen
+            ? TextField(
+                controller: searchController,
+                autofocus: true,
+                onChanged: (_) => setState(() {}),
+                textInputAction: TextInputAction.search,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                decoration: const InputDecoration(hintText: 'Search downloads…', border: InputBorder.none, isDense: true),
+              )
+            : const Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2.0, fontSize: 19)),
         actions: [
+          if (searchOpen)
+            IconButton(tooltip: 'Close search', onPressed: () => setState(() { searchOpen = false; searchController.clear(); }), icon: const Icon(Icons.close_rounded))
+          else
+            IconButton(tooltip: 'Search downloads', onPressed: () => setState(() => searchOpen = true), icon: const Icon(Icons.search_rounded, size: 24)),
           IconButton(tooltip: 'Add download', onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_rounded, size: 27)),
           PopupMenuButton<String>(
             tooltip: 'Main menu',
@@ -778,32 +792,33 @@ class _DownloadHomeState extends State<DownloadHome> {
   Widget _homeDashboard(List<DownloadEntry> visible, int active, int done, ColorScheme cs) {
     final failed = entries.where((e) => ['ব্যর্থ','বাতিল','কিউতে যোগ করা যায়নি','যাচাই ব্যর্থ'].contains(e.status)).length;
     final categories = [
-      ('All', entries.length, DownloadFilter.all, Icons.download_rounded),
-      ('Downloading', active, DownloadFilter.active, Icons.downloading_rounded),
-      ('Finished', done, DownloadFilter.completed, Icons.check_circle_outline_rounded),
-      ('Error', failed, DownloadFilter.failed, Icons.error_outline_rounded),
+      ('ALL', entries.length, DownloadFilter.all),
+      ('DOWNLOADING', active, DownloadFilter.active),
+      ('FINISHED', done, DownloadFilter.completed),
+      ('ERROR', failed, DownloadFilter.failed),
     ];
     return Column(children: [
       Material(
         color: cs.surface,
         child: SizedBox(
-          height: 52,
+          height: 62,
           child: Row(
             children: categories.map((item) => Expanded(
               child: InkWell(
                 onTap: () => setState(() => filter = item.$3),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(item.$4, size: 16, color: filter == item.$3 ? cs.primary : cs.onSurfaceVariant),
-                      const SizedBox(width: 5),
-                      Text(item.$1, style: TextStyle(fontSize: 12, fontWeight: filter == item.$3 ? FontWeight.w800 : FontWeight.w600, color: filter == item.$3 ? cs.primary : cs.onSurfaceVariant)),
-                      const SizedBox(width: 4),
-                      Text('(${item.$2})', style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
-                    ]),
+                    Text(item.$1, maxLines: 1, overflow: TextOverflow.clip,
+                      style: TextStyle(fontSize: 12.5, letterSpacing: .15, fontWeight: FontWeight.w900,
+                        color: filter == item.$3 ? cs.primary : cs.onSurfaceVariant)),
+                    const SizedBox(height: 3),
+                    Text('${item.$2}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                      color: filter == item.$3 ? cs.primary : cs.onSurfaceVariant)),
                     const Spacer(),
-                    Container(height: 3, margin: const EdgeInsets.symmetric(horizontal: 7), decoration: BoxDecoration(color: filter == item.$3 ? cs.primary : Colors.transparent, borderRadius: const BorderRadius.vertical(top: Radius.circular(4)))),
+                    Container(height: 2.5, margin: const EdgeInsets.symmetric(horizontal: 5),
+                      decoration: BoxDecoration(color: filter == item.$3 ? cs.primary : Colors.transparent,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(3)))),
                   ],
                 ),
               ),
@@ -887,110 +902,89 @@ class _DownloadHomeState extends State<DownloadHome> {
     final cs = Theme.of(context).colorScheme;
     final statusColor = completed ? Colors.green : failed ? cs.error : cs.primary;
     final percent = (entry.progress * 100).clamp(0, 100).toStringAsFixed(0);
-    final statusLabel = completed ? 'COMPLETED' : running ? 'DOWNLOADING' : paused ? 'PAUSED' : failed ? 'FAILED' : queued ? 'QUEUED' : 'WAITING';
+    final statusLabel = completed ? 'Completed' : running ? 'Downloading' : paused ? 'Paused' : failed ? 'Failed' : queued ? 'Queued' : 'Waiting';
 
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 12),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: cs.outlineVariant.withValues(alpha: .55)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(_fileIcon(entry.task.filename), color: statusColor, size: 21),
-            ),
-            const SizedBox(width: 11),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-              const SizedBox(height: 2),
-              Text('${_fileType(entry.task.filename)}  •  ${_formatBytes(entry.expectedFileSize)}',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
-            ])),
-            PopupMenuButton<String>(
-              tooltip: 'More options',
-              onSelected: (value) {
-                if (value == 'open') _open(entry);
-                if (value == 'redownload') _redownload(entry);
-                if (value == 'remove') _remove(entry);
-                if (value == 'copy') Clipboard.setData(ClipboardData(text: entry.task.url));
-                if (value == 'properties') _showDownloadProperties(entry);
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(value: 'open', enabled: completed, child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
-                const PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: Icon(Icons.link_rounded), title: Text('Copy download link'))),
-                const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Download again'))),
-                const PopupMenuItem(value: 'properties', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('Properties'))),
-                const PopupMenuDivider(),
-                const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove from list'))),
-              ],
-            ),
-          ]),
-          const SizedBox(height: 7),
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-              decoration: BoxDecoration(color: statusColor.withValues(alpha: .12), borderRadius: BorderRadius.circular(20)),
-              child: Text(statusLabel, style: TextStyle(color: statusColor, fontSize: 8, letterSpacing: .5, fontWeight: FontWeight.w900)),
-            ),
-            const Spacer(),
-            Text('$percent%', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: statusColor)),
-          ]),
-          const SizedBox(height: 5),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(5),
-            child: TweenAnimationBuilder<double>(
-              tween: Tween<double>(begin: 0, end: completed ? 1 : entry.progress),
-              duration: const Duration(milliseconds: 650),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, _) => LinearProgressIndicator(
-                value: value,
-                minHeight: 4,
-                backgroundColor: cs.surfaceContainerHighest,
-                color: statusColor,
-              ),
-            ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(13, 9, 10, 9),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 38, height: 38,
+            decoration: BoxDecoration(color: statusColor.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)),
+            child: Icon(_fileIcon(entry.task.filename), color: statusColor, size: 22),
           ),
-          const SizedBox(height: 4),
-          Text(
-            entry.expectedFileSize > 0
-                ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} of ${_formatBytes(entry.expectedFileSize)}'
-                : (entry.progress > 0 ? '${percent}% downloaded • Total size unavailable' : 'Waiting for download information…'),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+            const SizedBox(height: 3),
+            Text('${_fileType(entry.task.filename)}  •  ${_formatBytes(entry.expectedFileSize)}  •  $statusLabel',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 10.5, color: cs.onSurfaceVariant)),
+          ])),
+          const SizedBox(width: 7),
+          Text('$percent%', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: statusColor)),
+          PopupMenuButton<String>(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            iconSize: 20,
+            tooltip: 'More options',
+            onSelected: (value) {
+              if (value == 'open') _open(entry);
+              if (value == 'redownload') _redownload(entry);
+              if (value == 'remove') _remove(entry);
+              if (value == 'copy') Clipboard.setData(ClipboardData(text: entry.task.url));
+              if (value == 'properties') _showDownloadProperties(entry);
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(value: 'open', enabled: completed, child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
+              const PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: Icon(Icons.link_rounded), title: Text('Copy download link'))),
+              const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Download again'))),
+              const PopupMenuItem(value: 'properties', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('Properties'))),
+              const PopupMenuDivider(),
+              const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove from list'))),
+            ],
           ),
-          if (entry.error != null || (!completed && !running && !paused && !queued)) ...[
-            const SizedBox(height: 7),
-            Text(entry.error ?? entry.status, style: TextStyle(fontSize: 11, color: failed ? cs.error : cs.onSurfaceVariant)),
-          ],
-          if (running || paused || queued || failed || completed) ...[
-            const SizedBox(height: 6),
-            Row(children: [
-              if (running)
-                _actionIcon(icon: Icons.pause_rounded, label: 'Pause', onTap: () => _pause(entry), primary: true),
-              if (paused || queued)
-                _actionIcon(icon: Icons.play_arrow_rounded, label: 'Resume', onTap: () => _resume(entry), primary: true),
-              if (failed)
-                _actionIcon(icon: Icons.refresh_rounded, label: 'Retry', onTap: () => _redownload(entry), primary: true),
-              if (completed)
-                _actionIcon(icon: Icons.open_in_new_rounded, label: 'Open', onTap: () => _open(entry), primary: true),
-              if (running || paused || queued)
-                _actionIcon(icon: Icons.close_rounded, label: 'Cancel', onTap: () => _cancel(entry)),
-              const Spacer(),
-              if (completed) Icon(Icons.check_circle_rounded, color: statusColor, size: 20),
-            ]),
-          ],
         ]),
-      ),
+        const SizedBox(height: 7),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: completed ? 1 : entry.progress),
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, _) => LinearProgressIndicator(
+              value: value,
+              minHeight: 2.5,
+              backgroundColor: cs.surfaceContainerHighest,
+              color: statusColor,
+            ),
+          ),
+        ),
+        const SizedBox(height: 5),
+        Row(children: [
+          Expanded(child: Text(
+            entry.expectedFileSize > 0
+              ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} / ${_formatBytes(entry.expectedFileSize)}'
+              : (entry.progress > 0 ? '$percent% downloaded • Size unavailable' : 'Waiting for download information…'),
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 10.5, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500),
+          )),
+          if (running)
+            _actionIcon(icon: Icons.pause_rounded, label: 'Pause', onTap: () => _pause(entry), primary: true),
+          if (paused || queued)
+            _actionIcon(icon: Icons.play_arrow_rounded, label: 'Resume', onTap: () => _resume(entry), primary: true),
+          if (failed)
+            _actionIcon(icon: Icons.refresh_rounded, label: 'Retry', onTap: () => _redownload(entry), primary: true),
+          if (completed)
+            _actionIcon(icon: Icons.open_in_new_rounded, label: 'Open', onTap: () => _open(entry), primary: true),
+          if (running || paused || queued)
+            _actionIcon(icon: Icons.close_rounded, label: 'Cancel', onTap: () => _cancel(entry)),
+        ]),
+        if (entry.error != null)
+          Padding(padding: const EdgeInsets.only(top: 4), child: Text(entry.error!,
+            maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, color: cs.error))),
+      ]),
     );
   }
 
