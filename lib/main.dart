@@ -217,7 +217,7 @@ class _DroxDownloadProgressState extends State<DroxDownloadProgress>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: const Duration(milliseconds: 1200),
   )..repeat();
 
   @override
@@ -228,19 +228,16 @@ class _DroxDownloadProgressState extends State<DroxDownloadProgress>
 
   @override
   Widget build(BuildContext context) {
-    final stripeColor = widget.isDark ? Colors.white : Colors.black;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(5),
-      child: SizedBox(
-        height: 8,
-        width: double.infinity,
+    final ink = widget.isDark ? Colors.white : Colors.black;
+    return ClipRect(
+      child: SizedBox.expand(
         child: AnimatedBuilder(
           animation: _controller,
           builder: (context, _) => CustomPaint(
             painter: _DroxDownloadStripePainter(
               progress: widget.progress.clamp(0.0, 1.0),
               phase: _controller.value,
-              stripeColor: stripeColor,
+              stripeColor: ink,
               isDark: widget.isDark,
             ),
           ),
@@ -265,31 +262,27 @@ class _DroxDownloadStripePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final track = Paint()
-      ..color = isDark ? Colors.white.withValues(alpha: .10) : Colors.black.withValues(alpha: .08);
-    canvas.drawRect(Offset.zero & size, track);
+    final base = Paint()
+      ..color = stripeColor.withValues(alpha: isDark ? .035 : .025);
+    canvas.drawRect(Offset.zero & size, base);
 
-    final filledWidth = size.width * progress;
-    if (filledWidth <= 0) return;
-    canvas.save();
-    canvas.clipRect(Rect.fromLTWH(0, 0, filledWidth, size.height));
-
-    final fill = Paint()
-      ..color = stripeColor.withValues(alpha: isDark ? .16 : .12);
-    canvas.drawRect(Rect.fromLTWH(0, 0, filledWidth, size.height), fill);
-
+    // The reference uses tall, thin moving stripes across the complete row.
     final stripe = Paint()
-      ..color = stripeColor.withValues(alpha: isDark ? .48 : .42);
-    const stripeWidth = 3.0;
-    const spacing = 9.0;
+      ..color = stripeColor.withValues(alpha: isDark ? .72 : .78);
+    const stripeWidth = 2.0;
+    const spacing = 34.0;
     final shift = phase * spacing;
-    for (double x = -spacing + shift; x < filledWidth + spacing; x += spacing) {
+    for (double x = -spacing + shift; x < size.width + spacing; x += spacing) {
       canvas.drawRect(Rect.fromLTWH(x, 0, stripeWidth, size.height), stripe);
     }
 
-    final edge = Paint()..color = stripeColor.withValues(alpha: .75);
-    canvas.drawRect(Rect.fromLTWH(filledWidth - 1.5, 0, 1.5, size.height), edge);
-    canvas.restore();
+    // A slim progress edge at the top makes the downloaded portion readable.
+    final progressPaint = Paint()
+      ..color = stripeColor.withValues(alpha: isDark ? .90 : .82);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width * progress, 2.5),
+      progressPaint,
+    );
   }
 
   @override
@@ -1149,75 +1142,175 @@ class _DownloadHomeState extends State<DownloadHome> {
     final queued = ['কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status);
     final failed = ['ব্যর্থ', 'যাচাই ব্যর্থ', 'কিউতে যোগ করা যায়নি'].contains(entry.status);
     final completed = entry.status == 'সম্পন্ন';
-    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ink = isDark ? Colors.white : Colors.black;
+    final progress = entry.progress.clamp(0.0, 1.0);
+    final downloaded = entry.expectedFileSize > 0
+        ? _formatBytes((progress * entry.expectedFileSize).round())
+        : _formatBytes(0);
+    final percent = (progress * 100).toStringAsFixed(0);
+    final isVideo = RegExp(r'\.(mp4|mkv|avi|mov|webm|m4v|3gp)$', caseSensitive: false)
+        .hasMatch(entry.task.filename);
+    final speed = entry.speedBytesPerSecond;
+    final etaSeconds = speed > 0 && entry.expectedFileSize > 0
+        ? ((entry.expectedFileSize * (1 - progress)) / speed).round()
+        : 0;
+    String timeLabel(int seconds) {
+      if (seconds <= 0) return '—';
+      final minutes = seconds ~/ 60;
+      final secs = seconds % 60;
+      return minutes > 0 ? '${minutes}m${secs}s' : '${secs}s';
+    }
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 9, 4, 9),
+      height: 104,
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: .35))),
+        border: Border(bottom: BorderSide(color: ink.withValues(alpha: .12))),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        SizedBox(
-          width: 42,
-          height: 46,
-          child: Icon(_fileIcon(entry.task.filename), size: 30,
-              color: Colors.white),
-        ),
-        const SizedBox(width: 7),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-          const SizedBox(height: 3),
-          Text(
-            entry.expectedFileSize > 0
-                ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} / ${_formatBytes(entry.expectedFileSize)}'
-                : completed ? '100% • ${_formatBytes(entry.expectedFileSize)}' : '${(entry.progress * 100).toStringAsFixed(0)}% downloaded',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, color: Colors.white),
-          ),
-          if (!completed && !failed) ...[
-            const SizedBox(height: 5),
-            DroxDownloadProgress(
-              progress: entry.progress,
-              isDark: Theme.of(context).brightness == Brightness.dark,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (running || paused || queued)
+            DroxDownloadProgress(progress: progress, isDark: isDark),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 12, 4, 9),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 48,
+                  child: Icon(
+                    isVideo ? Icons.video_file_rounded : _fileIcon(entry.task.filename),
+                    size: 39,
+                    color: ink,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              entry.task.filename,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: ink,
+                              ),
+                            ),
+                          ),
+                          Text(' (Resume: ', style: TextStyle(fontSize: 13, color: ink)),
+                          Text(
+                            'Yes',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF72B52D),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(')', style: TextStyle(fontSize: 13, color: ink)),
+                        ],
+                      ),
+                      const SizedBox(height: 17),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '$percent% | $downloaded',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 13, color: ink),
+                            ),
+                          ),
+                          if (running) ...[
+                            Text(
+                              '${_formatSpeed(speed)}  ${timeLabel(etaSeconds)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: ink,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ] else if (completed)
+                            Text('100% | $downloaded', style: TextStyle(fontSize: 12, color: ink))
+                          else
+                            Text(
+                              _localizedStatus(entry.status),
+                              style: TextStyle(fontSize: 12, color: ink),
+                            ),
+                        ],
+                      ),
+                      if (failed && entry.error != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          entry.error!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 10, color: ink),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 5),
+                if (running)
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Pause',
+                    onPressed: () => _pause(entry),
+                    icon: Icon(Icons.pause_circle_outline_rounded, size: 38, color: ink),
+                  )
+                else if (paused || queued)
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Resume',
+                    onPressed: () => _resume(entry),
+                    icon: Icon(Icons.play_circle_outline_rounded, size: 38, color: ink),
+                  )
+                else if (failed)
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Retry',
+                    onPressed: () => _redownload(entry),
+                    icon: Icon(Icons.refresh_rounded, size: 30, color: ink),
+                  )
+                else if (completed)
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Open folder',
+                    onPressed: () => _open(entry),
+                    icon: Icon(Icons.folder_open_rounded, size: 28, color: ink),
+                  ),
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  iconSize: 21,
+                  iconColor: ink,
+                  tooltip: _tr('More options', 'আরও অপশন'),
+                  onSelected: (value) {
+                    if (value == 'open') _open(entry);
+                    if (value == 'redownload') _redownload(entry);
+                    if (value == 'remove') _remove(entry);
+                    if (value == 'cancel') _cancel(entry);
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: 'open', enabled: completed, child: ListTile(dense: true, leading: const Icon(Icons.open_in_new), title: const Text('Open'))),
+                    PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: const Icon(Icons.refresh), title: const Text('Redownload'))),
+                    if (running || paused || queued)
+                      PopupMenuItem(value: 'cancel', child: ListTile(dense: true, leading: const Icon(Icons.close), title: const Text('Cancel'))),
+                    PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: const Icon(Icons.delete_outline), title: const Text('Remove'))),
+                  ],
+                ),
+              ],
             ),
-          ],
-          const SizedBox(height: 3),
-          Text(entry.error == null ? _localizedStatus(entry.status) : '${_localizedStatus(entry.status)}: ${entry.error}',
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
-        ])),
-        const SizedBox(width: 4),
-        if (running)
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(_formatSpeed(entry.speedBytesPerSecond), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
-            IconButton(visualDensity: VisualDensity.compact, tooltip: 'Pause', onPressed: () => _pause(entry), icon: const Icon(Icons.pause_circle_filled_rounded, color: Colors.white)),
-          ])
-        else if (paused || queued)
-          IconButton(visualDensity: VisualDensity.compact, tooltip: 'Resume', onPressed: () => _resume(entry), icon: const Icon(Icons.play_circle_fill_rounded))
-        else if (failed)
-          IconButton(visualDensity: VisualDensity.compact, tooltip: 'Retry', onPressed: () => _redownload(entry), icon: const Icon(Icons.refresh_rounded))
-        else if (completed)
-          IconButton(visualDensity: VisualDensity.compact, tooltip: 'Open folder', onPressed: () => _open(entry), icon: const Icon(Icons.folder_open_rounded)),
-        PopupMenuButton<String>(
-          padding: EdgeInsets.zero,
-          iconSize: 21,
-          tooltip: _tr('More options', 'আরও অপশন'),
-          onSelected: (value) {
-            if (value == 'open') _open(entry);
-            if (value == 'redownload') _redownload(entry);
-            if (value == 'remove') _remove(entry);
-            if (value == 'cancel') _cancel(entry);
-          },
-          itemBuilder: (_) => [
-            PopupMenuItem(value: 'open', enabled: completed, child: ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
-            PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Redownload'))),
-            if (running || paused || queued)
-              PopupMenuItem(value: 'cancel', child: ListTile(dense: true, leading: Icon(Icons.close), title: Text('Cancel'))),
-            PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove'))),
-          ],
-        ),
-      ]),
+          ),
+        ],
+      ),
     );
   }
 
