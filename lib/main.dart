@@ -212,6 +212,9 @@ class DownloadEntry {
   String status = 'কিউতে আছে';
   String? error;
   String? sharedPath;
+  int lastDownloadedBytes = 0;
+  DateTime? lastSpeedSampleAt;
+  double speedBytesPerSecond = 0;
 }
 
 enum DownloadFilter { all, active, completed, failed, scheduled }
@@ -447,6 +450,22 @@ class _DownloadHomeState extends State<DownloadHome> {
       if (update is TaskProgressUpdate) {
         entry.progress = update.progress.clamp(0.0, 1.0);
         if (update.hasExpectedFileSize) entry.expectedFileSize = update.expectedFileSize;
+        if (entry.expectedFileSize > 0) {
+          final now = DateTime.now();
+          final downloaded = (entry.progress * entry.expectedFileSize).round();
+          final previousAt = entry.lastSpeedSampleAt;
+          if (previousAt != null) {
+            final elapsed = now.difference(previousAt).inMilliseconds / 1000;
+            if (elapsed >= 0.5) {
+              entry.speedBytesPerSecond = ((downloaded - entry.lastDownloadedBytes) / elapsed).clamp(0, double.infinity);
+              entry.lastDownloadedBytes = downloaded;
+              entry.lastSpeedSampleAt = now;
+            }
+          } else {
+            entry.lastDownloadedBytes = downloaded;
+            entry.lastSpeedSampleAt = now;
+          }
+        }
       } else if (update is TaskStatusUpdate) {
         if (update.status == TaskStatus.complete) {
           entry.status = 'ফাইল যাচাই হচ্ছে';
@@ -455,6 +474,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           _verifyCompletedFile(entry);
         } else {
           entry.status = _statusText(update.status);
+          if (update.status != TaskStatus.running) entry.speedBytesPerSecond = 0;
           if (update.status == TaskStatus.failed) {
             entry.error = update.exception?.description ?? 'ডাউনলোড ব্যর্থ';
           }
@@ -972,7 +992,7 @@ class _DownloadHomeState extends State<DownloadHome> {
               fontSize: 15,
               letterSpacing: .1,
               fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-              color: widget.isDark ? (selected ? cs.onSurface : cs.onSurfaceVariant) : Colors.white,
+              color: Colors.white,
             ),
           ),
         ),
@@ -1022,6 +1042,12 @@ class _DownloadHomeState extends State<DownloadHome> {
     return value >= 100 || unit == 0 ? '${value.toStringAsFixed(0)} ${units[unit]}' : '${value.toStringAsFixed(1)} ${units[unit]}';
   }
 
+  String _formatSpeed(double bytesPerSecond) {
+    if (bytesPerSecond <= 0) return '0 KB/s';
+    if (bytesPerSecond >= 1024 * 1024) return '${(bytesPerSecond / (1024 * 1024)).toStringAsFixed(1)} MB/s';
+    return '${(bytesPerSecond / 1024).toStringAsFixed(0)} KB/s';
+  }
+
   Widget _downloadCard(DownloadEntry entry) {
     final running = entry.status == 'ডাউনলোড হচ্ছে';
     final paused = entry.status == 'বিরতি';
@@ -1040,12 +1066,12 @@ class _DownloadHomeState extends State<DownloadHome> {
           width: 42,
           height: 46,
           child: Icon(_fileIcon(entry.task.filename), size: 30,
-              color: completed ? Colors.green : failed ? cs.error : cs.primary),
+              color: Colors.white),
         ),
         const SizedBox(width: 7),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
           const SizedBox(height: 3),
           Text(
             entry.expectedFileSize > 0
@@ -1053,26 +1079,29 @@ class _DownloadHomeState extends State<DownloadHome> {
                 : completed ? '100% • ${_formatBytes(entry.expectedFileSize)}' : '${(entry.progress * 100).toStringAsFixed(0)}% downloaded',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+            style: const TextStyle(fontSize: 11, color: Colors.white),
           ),
           if (!completed && !failed) ...[
             const SizedBox(height: 5),
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: SizedBox(
-                height: 3,
-                child: LinearProgressIndicator(value: entry.progress, minHeight: 3),
+                height: 6,
+                child: LinearProgressIndicator(value: entry.progress, minHeight: 6, backgroundColor: const Color(0x337A6257), color: const Color(0xFF9A6548), borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ],
           const SizedBox(height: 3),
           Text(entry.error == null ? _localizedStatus(entry.status) : '${_localizedStatus(entry.status)}: ${entry.error}',
               maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.w600)),
+              style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
         ])),
         const SizedBox(width: 4),
         if (running)
-          IconButton(visualDensity: VisualDensity.compact, tooltip: 'Pause', onPressed: () => _pause(entry), icon: const Icon(Icons.pause_circle_filled_rounded))
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(_formatSpeed(entry.speedBytesPerSecond), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+            IconButton(visualDensity: VisualDensity.compact, tooltip: 'Pause', onPressed: () => _pause(entry), icon: const Icon(Icons.pause_circle_filled_rounded, color: Colors.white)),
+          ])
         else if (paused || queued)
           IconButton(visualDensity: VisualDensity.compact, tooltip: 'Resume', onPressed: () => _resume(entry), icon: const Icon(Icons.play_circle_fill_rounded))
         else if (failed)
