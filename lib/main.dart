@@ -909,7 +909,7 @@ class _BrowserPageState extends State<BrowserPage> {
             if (payload['headers'] is Map) {
               (payload['headers'] as Map).forEach((k, v) { if (k is String && v is String && v.isNotEmpty) headers[k] = v; });
             }
-            _downloadPrompt(payload['url'] as String, headers: headers);
+            _downloadPrompt(payload['url'] as String, headers: headers, force: payload['force'] == true);
           } else { _downloadPrompt(m.message); }
         } catch (_) { _downloadPrompt(m.message); }
       }
@@ -937,7 +937,7 @@ class _BrowserPageState extends State<BrowserPage> {
           var mediaTypes=/^(video\/|audio\/|image\/|application\/(octet-stream|pdf|zip|x-rar-compressed|vnd\.rar|x-7z-compressed|vnd\.android\.package-archive|vnd\.apple\.mpegurl|x-mpegurl|dash\+xml|msword|vnd\.openxmlformats-officedocument|vnd\.ms-|vnd\.oasis\.opendocument))/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
           function requestHeaders(){var h={};try{h['User-Agent']=navigator.userAgent||'';h['Referer']=location.href;var ck=document.cookie;if(ck)h['Cookie']=ck}catch(_){}return h}
-          function send(raw,extra){var u=valid(raw);if(!u)return;var h=requestHeaders();if(extra)Object.keys(extra).forEach(function(k){if(extra[k])h[k]=extra[k]});var key=u+'|'+(h.Cookie||'');if(seen[key])return;seen[key]=1;DroxDownload.postMessage(JSON.stringify({url:u,headers:h}))}
+          function send(raw,extra,force){var u=valid(raw);if(!u)return;var h=requestHeaders();if(extra)Object.keys(extra).forEach(function(k){if(extra[k])h[k]=extra[k]});var key=u+'|'+(h.Cookie||'')+'|'+(force?'1':'0');if(seen[key])return;seen[key]=1;DroxDownload.postMessage(JSON.stringify({url:u,headers:h,force:!!force}))}
           function mediaSources(v){var list=[v.currentSrc,v.src];v.querySelectorAll('source[src]').forEach(function(s){list.push(s.src)});list.forEach(function(u){if(u)send(u)})}
           function scan(){document.querySelectorAll('video,audio').forEach(function(v){
             if(!v.__droxBound){v.__droxBound=true;
@@ -978,6 +978,13 @@ class _BrowserPageState extends State<BrowserPage> {
             var path=e.composedPath?e.composedPath():[];
             var nodes=path.length?path:(function(){var a=[],n=e.target;while(n){a.push(n);n=n.parentElement}return a})();
             if(nodes.length){var n=nodes[nodes.length-1];while(n&&n.parentElement&&nodes.length<24){n=n.parentElement;nodes.push(n)}}
+            var actionable=null;
+            for(var ai=0;ai<nodes.length;ai++){var candidateNode=nodes[ai];if(candidateNode&&candidateNode.nodeType===1&&(candidateNode.matches('a,button,[role="button"],input[type="submit"],input[type="button"]'))){actionable=candidateNode;break}}
+            if(actionable&&downloadIntent(actionable)){
+              var direct=candidate(actionable);
+              if(direct){send(direct,{'Content-Disposition':'attachment'},true)}
+              else {DroxDownload.postMessage('__DROX_DOWNLOAD_INTENT__')}
+            }
             for(var i=0;i<nodes.length&&i<24;i++){
               var el=nodes[i];if(!el||el.nodeType!==1)continue;
               if(!downloadIntent(el))continue;
@@ -1041,7 +1048,7 @@ class _BrowserPageState extends State<BrowserPage> {
     return merged;
   }
 
-  Future<void> _downloadPrompt(String url, {Map<String, String> headers = const {}}) async {
+  Future<void> _downloadPrompt(String url, {Map<String, String> headers = const {}, bool force = false}) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !['http', 'https'].contains(uri.scheme)) return;
     if (_promptedDownloadUrls.contains(url)) return;
@@ -1081,7 +1088,9 @@ class _BrowserPageState extends State<BrowserPage> {
         // still allowing GET; keep the original URL and allow a download try.
         statusNote = 'Metadata check blocked (HTTP ${response.statusCode}). You can still try START; the file server will decide whether GET is allowed.';
       } else if (responseType.contains('text/html')) {
-        statusNote = 'This link returned a web page, not a direct downloadable file.';
+        statusNote = force
+            ? 'The clicked website action returned an HTML page. START will try this URL, but it may be a landing page rather than the file.'
+            : 'This link returned a web page, not a direct downloadable file.';
       } else {
         if (response.realUri.toString().startsWith('http')) finalUrl = response.realUri.toString();
         sizeBytes = int.tryParse(response.headers.value('content-length') ?? '') ?? -1;
@@ -1103,7 +1112,7 @@ class _BrowserPageState extends State<BrowserPage> {
     }
     // Intermediate landing pages are not downloadable files. Let the browser
     // continue normally; the page detector can inspect the next download action.
-    if (statusNote == 'This link returned a web page, not a direct downloadable file.') {
+    if (statusNote == 'This link returned a web page, not a direct downloadable file.' && !force) {
       _promptedDownloadUrls.remove(url);
       return;
     }
@@ -1191,12 +1200,12 @@ class _BrowserPageState extends State<BrowserPage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 10),
                 child: Row(children: [
-                  TextButton(onPressed: (statusNote.isEmpty || statusNote.startsWith('Metadata check blocked') || statusNote.startsWith('Metadata unavailable')) && filenameController.text.trim().isNotEmpty
+                  TextButton(onPressed: (force || statusNote.isEmpty || statusNote.startsWith('Metadata check blocked') || statusNote.startsWith('Metadata unavailable')) && filenameController.text.trim().isNotEmpty
                     ? () => Navigator.pop(ctx, (filenameController.text.trim(), wifiOnly, retry)) : null, child: const Text('ADD')),
                   const Spacer(),
                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
                   const SizedBox(width: 4),
-                  FilledButton(onPressed: (statusNote.isEmpty || statusNote.startsWith('Metadata check blocked')) && filenameController.text.trim().isNotEmpty
+                  FilledButton(onPressed: (force || statusNote.isEmpty || statusNote.startsWith('Metadata check blocked')) && filenameController.text.trim().isNotEmpty
                     ? () => Navigator.pop(ctx, (filenameController.text.trim(), wifiOnly, retry)) : null,
                     child: const Text('START')),
                 ]),
