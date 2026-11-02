@@ -136,8 +136,8 @@ jobs:
                   continue
               found = True
               gradle_text = gradle_path.read_text()
-              updated, count1 = re.subn(r"(?m)(\bcompileSdk\s*=\s*)[^\n]+", r"\\g<1>36", gradle_text)
-              updated, count2 = re.subn(r"(?m)(\bcompileSdkVersion\s+)[^\s]+", r"\\g<1>36", updated)
+          updated, count1 = re.subn(r"(?m)(\bcompileSdk\s*=\s*)[^\n]+", lambda m: m.group(1) + "36", gradle_text)
+          updated, count2 = re.subn(r"(?m)(\bcompileSdkVersion\s+)[^\s]+", lambda m: m.group(1) + "36", updated)
               if count1 + count2 == 0:
                   raise SystemExit(f"Could not locate compileSdk declaration in {gradle_path}")
               gradle_path.write_text(updated)
