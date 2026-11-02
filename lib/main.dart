@@ -69,7 +69,7 @@ class _DroxAppState extends State<DroxApp> {
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFFFFFFF),
         colorScheme: ColorScheme.fromSeed(seedColor: liquidLime, surface: const Color(0xFFFFFFFF)),
-        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFFFFFFFF), foregroundColor: Color(0xFF202020), elevation: 0),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF6B351B), foregroundColor: Color(0xFFFFFFFF), elevation: 0),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
@@ -790,17 +790,19 @@ class _DownloadHomeState extends State<DownloadHome> {
                 }
               },
               itemBuilder: (_) => [
-                PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
+                PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: const Icon(Icons.settings_outlined), title: Text(_tr('Settings', 'সেটিংস')))),
                 PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: Text(widget.isDark ? _tr('Light mode', 'লাইট মোড') : _tr('Dark mode', 'ডার্ক মোড')))),
-                PopupMenuItem(value: 'language', child: ListTile(dense: true, leading: Icon(Icons.language_rounded), title: Text(_tr('Language', 'ভাষা')))),
-                PopupMenuItem(value: 'share', child: ListTile(dense: true, leading: Icon(Icons.share_outlined), title: Text(_tr('Share the app', 'অ্যাপ শেয়ার করুন')))),
-                PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text(_tr('Browser', 'ব্রাউজার')))),
-                PopupMenuItem(value: 'notifications', child: ListTile(dense: true, leading: Icon(Icons.notifications_outlined), title: Text(_tr('Notification settings', 'নোটিফিকেশন সেটিংস')))),
-                PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: Text(_tr('Wi-Fi only', 'শুধু Wi-Fi')), trailing: Icon(wifiOnly ? Icons.check_rounded : Icons.circle_outlined))),
-                PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text('About'))),
-                PopupMenuItem(value: 'sort', child: ListTile(dense: true, leading: Icon(Icons.sort_by_alpha_rounded), title: Text(_tr('Sort by name', 'নাম অনুযায়ী সাজান')))),
+                PopupMenuItem(value: 'language', child: ListTile(dense: true, leading: const Icon(Icons.language_rounded), title: Text(_tr('Language', 'ভাষা')))),
                 const PopupMenuDivider(),
-                PopupMenuItem(value: 'exit', child: ListTile(dense: true, leading: Icon(Icons.exit_to_app_rounded), title: Text(_tr('Exit', 'বন্ধ করুন')))),
+                PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: const Icon(Icons.public_rounded), title: Text(_tr('Browser', 'ব্রাউজার')))),
+                PopupMenuItem(value: 'share', child: ListTile(dense: true, leading: const Icon(Icons.share_outlined), title: Text(_tr('Share the app', 'অ্যাপ শেয়ার করুন')))),
+                PopupMenuItem(value: 'notifications', child: ListTile(dense: true, leading: const Icon(Icons.notifications_outlined), title: Text(_tr('Notification settings', 'নোটিফিকেশন সেটিংস')))),
+                const PopupMenuDivider(),
+                PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: Text(_tr('Wi-Fi only', 'শুধু Wi-Fi')), trailing: Icon(wifiOnly ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded))),
+                PopupMenuItem(value: 'sort', child: ListTile(dense: true, leading: const Icon(Icons.sort_by_alpha_rounded), title: Text(_tr('Sort by name', 'নাম অনুযায়ী সাজান')))),
+                PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: const Icon(Icons.info_outline_rounded), title: Text(_tr('About', 'পরিচিতি')))),
+                const PopupMenuDivider(),
+                PopupMenuItem(value: 'exit', child: ListTile(dense: true, leading: const Icon(Icons.exit_to_app_rounded), title: Text(_tr('Exit', 'বন্ধ করুন')))),
               ],
             ),
             const SizedBox(width: 4),
@@ -809,7 +811,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         body: IndexedStack(index: selectedTab, children: [
           Column(children: [
             Material(
-              color: cs.surface,
+              color: widget.isDark ? cs.surface : const Color(0xFF6B351B),
               child: Row(children: [
                 _homeCategory(_tr('ALL', 'সব'), entries.length, DownloadFilter.all, Icons.all_inbox_rounded),
                 _homeCategory(_tr('DOWNLOADING', 'চলমান'), active, DownloadFilter.active, Icons.downloading_rounded),
@@ -914,7 +916,7 @@ class _DownloadHomeState extends State<DownloadHome> {
               fontSize: 15,
               letterSpacing: .1,
               fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-              color: selected ? cs.onSurface : cs.onSurfaceVariant,
+              color: widget.isDark ? (selected ? cs.onSurface : cs.onSurfaceVariant) : Colors.white,
             ),
           ),
         ),
