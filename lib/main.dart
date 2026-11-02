@@ -461,6 +461,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   Future<void> _saveHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final data = entries.map((e) => {
+      'taskId': e.task.taskId,
       'url': e.task.url,
       'filename': e.task.filename,
       'progress': e.progress,
@@ -475,33 +476,73 @@ class _DownloadHomeState extends State<DownloadHome> {
   Future<void> _loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_historyKey);
-    if (raw == null) return;
+    final restored = <DownloadEntry>[];
+    final restoredIds = <String>{};
+
+    // Reconnect to the downloader's native persistent records. Recreating a
+    // DownloadTask from only its URL gives it a new task ID and breaks Resume.
     try {
-      final data = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
-      final restored = data.map((item) {
-        final task = DownloadTask(
-          url: item['url'] as String,
-          filename: item['filename'] as String,
-          directory: 'DROX',
-          baseDirectory: BaseDirectory.applicationSupport,
-          updates: Updates.statusAndProgress,
-          allowPause: true,
-          retries: 3,
-        );
+      final records = await FileDownloader().database.allRecords();
+      for (final record in records) {
+        if (record.task is! DownloadTask) continue;
+        final task = record.task as DownloadTask;
         final entry = DownloadEntry(task)
-          ..progress = (item['progress'] as num?)?.toDouble() ?? 0
-          ..expectedFileSize = (item['expectedFileSize'] as num?)?.toInt() ?? -1
-          ..status = (item['status'] as String?) ?? 'ইতিহাসে সংরক্ষিত'
-          ..error = item['error'] as String?
-          ..sharedPath = item['sharedPath'] as String?;
-        if (entry.status == 'ডাউনলোড হচ্ছে' || entry.status == 'কিউতে আছে' || entry.status == 'আবার চেষ্টা করছে') {
-          entry.status = 'অ্যাপ পুনরায় খুলুন—ডাউনলোডের অবস্থা যাচাই করুন';
+          ..progress = record.progress.clamp(0.0, 1.0)
+          ..expectedFileSize = record.expectedFileSize
+          ..status = _statusText(record.status);
+        if (record.status == TaskStatus.complete) {
+          entry.progress = 1;
+          entry.status = 'সম্পন্ন';
         }
-        return entry;
-      }).toList();
-      if (mounted) setState(() => entries.addAll(restored));
+        restored.add(entry);
+        restoredIds.add(task.taskId);
+      }
     } catch (_) {
-      await prefs.remove(_historyKey);
+      // Keep the locally saved list available if the native task database
+      // cannot be read on this device.
+    }
+
+    // Merge older history entries that predate native task-record restoration.
+    if (raw != null) {
+      try {
+        final data = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+        for (final item in data) {
+          final id = item['taskId'] as String?;
+          if (id != null && restoredIds.contains(id)) continue;
+          final task = DownloadTask(
+            url: item['url'] as String,
+            filename: item['filename'] as String,
+            directory: 'DROX',
+            baseDirectory: BaseDirectory.applicationSupport,
+            updates: Updates.statusAndProgress,
+            allowPause: true,
+            retries: 3,
+            taskId: id,
+          );
+          final entry = DownloadEntry(task)
+            ..progress = (item['progress'] as num?)?.toDouble() ?? 0
+            ..expectedFileSize = (item['expectedFileSize'] as num?)?.toInt() ?? -1
+            ..status = (item['status'] as String?) ?? 'ইতিহাসে সংরক্ষিত'
+            ..error = item['error'] as String?
+            ..sharedPath = item['sharedPath'] as String?;
+          // If a native record is missing, do not falsely claim the old
+          // worker is still active. The Resume action can safely retry it.
+          if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status)) {
+            entry.status = 'বিরতি';
+          }
+          restored.add(entry);
+        }
+      } catch (_) {
+        // Do not delete the history on a transient parse/database issue.
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        entries
+          ..clear()
+          ..addAll(restored);
+      });
     }
   }
 
@@ -766,10 +807,41 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   Future<void> _resume(DownloadEntry entry) async {
-    final ok = await FileDownloader().resume(entry.task);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ডাউনলোডটি Resume করা যায়নি')));
+    var ok = false;
+    try {
+      // First resume the exact persisted native task so its partial file and
+      // HTTP Range state are retained.
+      ok = await FileDownloader().resume(entry.task);
+    } catch (_) {
+      ok = false;
     }
+    if (!ok) {
+      // If the OS removed the partial worker record, enqueue a fresh task
+      // rather than leaving a dead Resume button on screen.
+      final retryTask = DownloadTask(
+        url: entry.task.url,
+        filename: entry.task.filename,
+        directory: 'DROX',
+        baseDirectory: BaseDirectory.applicationSupport,
+        updates: Updates.statusAndProgress,
+        allowPause: true,
+        retries: 5,
+      );
+      final replacement = DownloadEntry(retryTask);
+      final index = entries.indexWhere((e) => e.task.taskId == entry.task.taskId);
+      if (index >= 0 && mounted) {
+        setState(() => entries[index] = replacement);
+        await _saveHistory();
+      }
+      ok = await FileDownloader().enqueue(retryTask);
+      if (!ok && mounted) {
+        setState(() => replacement.status = 'ব্যর্থ');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('Could not restart this download. Check the link and try again.', 'ডাউনলোডটি আবার চালু করা যায়নি। লিংক যাচাই করে চেষ্টা করুন।'))),
+        );
+      }
+    }
+    await _saveHistory();
   }
 
   Future<void> _cancel(DownloadEntry entry) async {
@@ -1197,16 +1269,16 @@ class _DownloadHomeState extends State<DownloadHome> {
                               ),
                             ),
                           ),
-                          Text(' (Resume: ', style: TextStyle(fontSize: 13, color: ink)),
+                          Text(' (Resume: ', style: TextStyle(fontSize: 11, color: ink)),
                           Text(
                             'Yes',
                             style: const TextStyle(
-                              fontSize: 13,
+                              fontSize: 11,
                               color: Color(0xFF72B52D),
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          Text(')', style: TextStyle(fontSize: 13, color: ink)),
+                          Text(')', style: TextStyle(fontSize: 11, color: ink)),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -1256,14 +1328,14 @@ class _DownloadHomeState extends State<DownloadHome> {
                     visualDensity: VisualDensity.compact,
                     tooltip: 'Pause',
                     onPressed: () => _pause(entry),
-                    icon: Icon(Icons.pause_circle_outline_rounded, size: 38, color: ink),
+                    icon: Icon(Icons.pause_circle_outline_rounded, size: 32, color: ink),
                   )
                 else if (paused || queued)
                   IconButton(
                     visualDensity: VisualDensity.compact,
                     tooltip: 'Resume',
                     onPressed: () => _resume(entry),
-                    icon: Icon(Icons.play_circle_outline_rounded, size: 38, color: ink),
+                    icon: Icon(Icons.play_circle_outline_rounded, size: 32, color: ink),
                   )
                 else if (failed)
                   IconButton(
