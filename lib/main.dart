@@ -1317,80 +1317,141 @@ class _BrowserPageState extends State<BrowserPage> {
   }
   @override
   void dispose() { _downloadIntentTimer?.cancel(); address.dispose(); super.dispose(); }
+  Widget _browserAction(IconData icon, String label, VoidCallback? onTap, {bool selected = false}) {
+    final cs = Theme.of(context).colorScheme;
+    return Expanded(child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 21, color: selected ? cs.primary : cs.onSurfaceVariant),
+          const SizedBox(height: 3),
+          Text(label, maxLines: 1, style: TextStyle(fontSize: 10, fontWeight: selected ? FontWeight.w800 : FontWeight.w600, color: selected ? cs.primary : cs.onSurfaceVariant)),
+        ]),
+      ),
+    ));
+  }
+
+  Widget _browserListTile(Map<String, String> item, {required bool bookmark}) {
+    final cs = Theme.of(context).colorScheme;
+    final url = item['url'] ?? '';
+    final title = item['title']?.isNotEmpty == true ? item['title']! : (Uri.tryParse(url)?.host ?? 'Website');
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: cs.outlineVariant.withValues(alpha: .45))),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        leading: Container(width: 42, height: 42, decoration: BoxDecoration(color: cs.primaryContainer.withValues(alpha: .65), borderRadius: BorderRadius.circular(13)), child: Icon(bookmark ? Icons.bookmark_rounded : Icons.history_rounded, color: cs.primary)),
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+        subtitle: Padding(padding: const EdgeInsets.only(top: 4), child: Text(url, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant))),
+        onTap: () { address.text = url; go(); },
+        trailing: IconButton(tooltip: bookmark ? 'Remove bookmark' : 'Remove history', icon: const Icon(Icons.close_rounded, size: 19), onPressed: () async { (bookmark ? bookmarks : history).remove(item); await _saveHistory(); if (mounted) setState(() {}); }),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme; final t = tab;
+    final cs = Theme.of(context).colorScheme;
+    final t = tab;
+    final currentUri = Uri.tryParse(t?.url ?? '');
+    final secure = currentUri?.scheme == 'https';
+    final host = currentUri?.host ?? 'Search the web';
     return SafeArea(top: true, bottom: false, child: Column(children: [
-      Material(color: cs.surface, elevation: 1, child: Padding(padding: const EdgeInsets.fromLTRB(12, 8, 6, 8), child: Row(children: [
-        Expanded(child: Container(height: 46, decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(14), border: Border.all(color: cs.outlineVariant.withValues(alpha: .45))), child: TextField(controller: address, onSubmitted: (_) => go(), textInputAction: TextInputAction.go, keyboardType: TextInputType.url, decoration: InputDecoration(hintText: 'Search or enter URL', prefixIcon: const Icon(Icons.search_rounded, size: 20), suffixIcon: IconButton(onPressed: go, icon: const Icon(Icons.arrow_forward_rounded, size: 20)), isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 11), border: InputBorder.none)))),
-        PopupMenuButton<String>(tooltip: 'Browser menu', icon: const Icon(Icons.more_vert), onSelected: _action, itemBuilder: (_) => [
-          const PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New Tab'))),
-          PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'), trailing: Icon(adBlockEnabled ? Icons.toggle_on : Icons.toggle_off))),
-          const PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
-          const PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
-          const PopupMenuItem(value: 'bookmark', child: ListTile(dense: true, leading: Icon(Icons.bookmark_add_outlined), title: Text('Bookmark this page'))),
-          const PopupMenuItem(value: 'bookmarks', child: ListTile(dense: true, leading: Icon(Icons.bookmarks_outlined), title: Text('Bookmarks'))),
-          const PopupMenuDivider(),
-          const PopupMenuItem(value: 'return', child: ListTile(dense: true, leading: Icon(Icons.home_outlined), title: Text('Return to DROX'))),
-          const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
-          PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Dark Mode'), trailing: Icon(widget.isDark ? Icons.check : Icons.circle_outlined))),
-          PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop Mode'), trailing: Icon(desktopMode ? Icons.check_box : Icons.check_box_outline_blank))),
-          const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('About'))),
-        ]),
-      ]))),
-      if (t?.loading == true) const LinearProgressIndicator(minHeight: 2),
-      Expanded(child: showBookmarks ? ListView(children: [
-        const ListTile(title: Text('BOOKMARKS', style: TextStyle(fontWeight: FontWeight.bold))),
-        if (bookmarks.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No bookmarks yet')),
-        ...bookmarks.map((e) => ListTile(leading: const Icon(Icons.bookmark_outline), title: Text(e['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(e['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { address.text = e['url'] ?? ''; go(); }, trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { bookmarks.remove(e); await _saveHistory(); if (mounted) setState(() {}); }))),
-      ]) : showHistory ? ListView(children: [
-        const ListTile(title: Text('BROWSING HISTORY', style: TextStyle(fontWeight: FontWeight.bold))),
-        if (history.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No history yet')),
-        ...history.map((e) => ListTile(leading: const Icon(Icons.history), title: Text(e['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(e['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { address.text = e['url'] ?? ''; go(); }, trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { history.remove(e); await _saveHistory(); if (mounted) setState(() {}); }))),
-        if (history.isNotEmpty) Padding(padding: const EdgeInsets.all(16), child: OutlinedButton.icon(onPressed: () async { final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Clear history?'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear all'))])); if (ok == true) { history.clear(); await _saveHistory(); if (mounted) setState(() {}); } }, icon: const Icon(Icons.delete_sweep_outlined), label: const Text('Clear all history'))),
-      ]) : IndexedStack(index: active, children: tabs.map((e) => WebViewWidget(controller: e.controller)).toList())),
-      Material(
-        color: cs.surface,
-        elevation: 3,
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                IconButton(
-                  tooltip: 'Back',
-                  onPressed: t?.back == true ? () async { await t!.controller.goBack(); } : null,
-                  icon: const Icon(Icons.arrow_back_rounded),
-                ),
-                IconButton(
-                  tooltip: 'Forward',
-                  onPressed: t?.forward == true ? () async { await t!.controller.goForward(); } : null,
-                  icon: const Icon(Icons.arrow_forward_rounded),
-                ),
-                IconButton(
-                  tooltip: 'Home',
-                  onPressed: () {
-                    address.text = 'https://www.google.com';
-                    tab?.controller.loadRequest(Uri.parse('https://www.google.com'));
-                  },
-                  icon: const Icon(Icons.home_outlined),
-                ),
-                IconButton(
-                  tooltip: 'Downloads',
-                  onPressed: widget.onReturn,
-                  icon: const Icon(Icons.download_outlined),
-                ),
-                IconButton(
-                  tooltip: 'Tabs',
-                  onPressed: _showTabs,
-                  icon: const Icon(Icons.tab_outlined),
-                ),
+      Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+        decoration: BoxDecoration(color: cs.surface, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .06), blurRadius: 12, offset: const Offset(0, 3))]),
+        child: Column(children: [
+          Row(children: [
+            const DroxLogoMark(size: 34),
+            const SizedBox(width: 9),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('DROX Browser', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: -.2)),
+              Text(t?.title ?? 'Private and fast browsing', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+            ])),
+            IconButton(tooltip: 'New tab', onPressed: () => _newTab(), icon: const Icon(Icons.add_rounded)),
+            IconButton(tooltip: 'Tabs', onPressed: _showTabs, icon: Badge(label: Text('${tabs.length}'), child: const Icon(Icons.tab_rounded))),
+            PopupMenuButton<String>(
+              tooltip: 'Browser options',
+              onSelected: _action,
+              icon: const Icon(Icons.more_vert_rounded),
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New tab'))),
+                PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: const Icon(Icons.shield_outlined), title: const Text('Ad blocking'), trailing: Icon(adBlockEnabled ? Icons.toggle_on : Icons.toggle_off))),
+                const PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh_rounded), title: Text('Reload page'))),
+                const PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history_rounded), title: Text('History'))),
+                const PopupMenuItem(value: 'bookmark', child: ListTile(dense: true, leading: Icon(Icons.bookmark_add_outlined), title: Text('Save bookmark'))),
+                const PopupMenuItem(value: 'bookmarks', child: ListTile(dense: true, leading: Icon(Icons.bookmarks_outlined), title: Text('Bookmarks'))),
+                const PopupMenuDivider(),
+                PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop site'), trailing: Icon(desktopMode ? Icons.check_box : Icons.check_box_outline_blank))),
+                PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Switch appearance'))),
+                const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
               ],
             ),
+          ]),
+          const SizedBox(height: 8),
+          Container(
+            height: 49,
+            decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .72), borderRadius: BorderRadius.circular(17), border: Border.all(color: cs.outlineVariant.withValues(alpha: .55))),
+            child: Row(children: [
+              const SizedBox(width: 12),
+              Icon(secure ? Icons.lock_rounded : Icons.search_rounded, size: 18, color: secure ? Colors.green : cs.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Expanded(child: TextField(
+                controller: address,
+                onSubmitted: (_) => go(),
+                textInputAction: TextInputAction.go,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                enableSuggestions: false,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                decoration: const InputDecoration(hintText: 'Search or enter website address', isDense: true, border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 13)),
+              )),
+              if (t?.loading == true)
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+              else
+                IconButton(tooltip: 'Go', visualDensity: VisualDensity.compact, onPressed: go, icon: Icon(Icons.arrow_forward_rounded, color: cs.primary)),
+            ]),
           ),
-        ),
+          if (t?.loading == true) const Padding(padding: EdgeInsets.only(top: 8), child: LinearProgressIndicator(minHeight: 2)),
+          if (!showHistory && !showBookmarks)
+            Padding(padding: const EdgeInsets.only(top: 7, left: 3, right: 3), child: Row(children: [
+              Icon(secure ? Icons.verified_user_outlined : Icons.public_rounded, size: 13, color: cs.onSurfaceVariant),
+              const SizedBox(width: 5),
+              Expanded(child: Text(host, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant))),
+              if (adBlockEnabled) const Row(children: [Icon(Icons.shield_outlined, size: 13, color: Colors.green), SizedBox(width: 3), Text('Protection on', style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.w700))]),
+            ])),
+        ]),
+      ),
+      Expanded(child: showBookmarks ? Column(children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 15, 16, 8), child: Row(children: [
+          const Expanded(child: Text('Saved bookmarks', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900))),
+          Text('${bookmarks.length}', style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w700)),
+        ])),
+        Expanded(child: bookmarks.isEmpty
+          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.bookmarks_outlined, size: 48, color: cs.onSurfaceVariant.withValues(alpha: .55)), const SizedBox(height: 10), const Text('No bookmarks saved', style: TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 4), Text('Save your favourite websites from the menu.', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12))]))
+          : ListView(children: bookmarks.map((e) => _browserListTile(e, bookmark: true)).toList())),
+      ]) : showHistory ? Column(children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 15, 16, 8), child: Row(children: [
+          const Expanded(child: Text('Browsing history', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900))),
+          Text('${history.length}', style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w700)),
+          if (history.isNotEmpty) IconButton(tooltip: 'Clear history', onPressed: () async { final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Clear browsing history?'), content: const Text('This removes saved browsing history from this device.'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear'))])); if (ok == true) { history.clear(); await _saveHistory(); if (mounted) setState(() {}); } }, icon: const Icon(Icons.delete_sweep_outlined)),
+        ])),
+        Expanded(child: history.isEmpty
+          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.history_rounded, size: 48, color: cs.onSurfaceVariant.withValues(alpha: .55)), const SizedBox(height: 10), const Text('No browsing history', style: TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 4), Text('Websites you visit will appear here.', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12))]))
+          : ListView(children: history.map((e) => _browserListTile(e, bookmark: false)).toList())),
+      ]) : IndexedStack(index: active, children: tabs.map((e) => WebViewWidget(controller: e.controller)).toList())),
+      Container(
+        decoration: BoxDecoration(color: cs.surface, border: Border(top: BorderSide(color: cs.outlineVariant.withValues(alpha: .5))), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .04), blurRadius: 10, offset: const Offset(0, -3))]),
+        child: SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(7, 5, 7, 4), child: Row(children: [
+          _browserAction(Icons.arrow_back_rounded, 'Back', t?.back == true ? () async { await t!.controller.goBack(); } : null),
+          _browserAction(Icons.arrow_forward_rounded, 'Forward', t?.forward == true ? () async { await t!.controller.goForward(); } : null),
+          _browserAction(Icons.home_rounded, 'Home', () { address.text = 'https://www.google.com'; tab?.controller.loadRequest(Uri.parse('https://www.google.com')); }),
+          _browserAction(Icons.bookmark_outline_rounded, 'Saved', () => setState(() { showBookmarks = true; showHistory = false; }), selected: showBookmarks),
+          _browserAction(Icons.download_rounded, 'Downloads', widget.onReturn),
+        ]))),
       ),
     ]));
   }
