@@ -863,6 +863,8 @@ class _BrowserPageState extends State<BrowserPage> {
   final history = <Map<String,String>>[];
   int active = 0;
   bool showHistory = false, adBlockEnabled = true, desktopMode = false;
+  bool _downloadIntentPending = false;
+  Timer? _downloadIntentTimer;
   _DroxTab? get tab => tabs.isEmpty ? null : tabs[active];
   @override
   void initState() { super.initState(); _loadHistory(); _newTab(); }
@@ -892,10 +894,25 @@ class _BrowserPageState extends State<BrowserPage> {
     tabs.add(t); active = tabs.length - 1; showHistory = false;
     final ctrl = t.controller;
     await ctrl.setJavaScriptMode(JavaScriptMode.unrestricted);
-    await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) => _downloadPrompt(m.message));
+    await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) {
+      if (m.message == '__DROX_DOWNLOAD_INTENT__') {
+        _downloadIntentPending = true;
+        _downloadIntentTimer?.cancel();
+        _downloadIntentTimer = Timer(const Duration(seconds: 20), () => _downloadIntentPending = false);
+      } else {
+        _downloadPrompt(m.message);
+      }
+    });
     await ctrl.setNavigationDelegate(NavigationDelegate(
       onNavigationRequest: (r) {
         if (_downloadable(r.url)) { _downloadPrompt(r.url); return NavigationDecision.prevent; }
+        final navUri = Uri.tryParse(r.url);
+        if (_downloadIntentPending && navUri != null && ['http', 'https'].contains(navUri.scheme) && r.url != t.url) {
+          _downloadIntentPending = false;
+          _downloadIntentTimer?.cancel();
+          _downloadPrompt(r.url);
+          return NavigationDecision.prevent;
+        }
         if (adBlockEnabled && _isKnownAdUrl(r.url)) return NavigationDecision.prevent;
         return NavigationDecision.navigate;
       },
@@ -951,6 +968,7 @@ class _BrowserPageState extends State<BrowserPage> {
             for(var i=0;i<nodes.length&&i<8;i++){
               var el=nodes[i];if(!el||el.nodeType!==1)continue;
               if(!downloadIntent(el))continue;
+              DroxDownload.postMessage('__DROX_DOWNLOAD_INTENT__');
               var u=candidate(el);
               if(u)send(u);
               setTimeout(scanResources,150);
@@ -1202,7 +1220,7 @@ class _BrowserPageState extends State<BrowserPage> {
     }
   }
   @override
-  void dispose() { address.dispose(); super.dispose(); }
+  void dispose() { _downloadIntentTimer?.cancel(); address.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme; final t = tab;
