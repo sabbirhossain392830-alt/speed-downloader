@@ -98,6 +98,50 @@ class _DroxAppState extends State<DroxApp> {
   }
 }
 
+class DroxAnimatedSwitch extends StatelessWidget {
+  const DroxAnimatedSwitch({super.key, required this.value, required this.onChanged});
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final brown = const Color(0xFF6B351B);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Semantics(
+      toggled: value,
+      button: true,
+      child: GestureDetector(
+        onTap: () => onChanged(!value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          width: 54,
+          height: 32,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: value ? brown : (dark ? const Color(0xFF555555) : const Color(0xFFD8D8D8)),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: AnimatedAlign(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: value ? Colors.white : (dark ? const Color(0xFFBDBDBD) : Colors.white),
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .20), blurRadius: 3, offset: const Offset(0, 1))],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class DroxLogoMark extends StatelessWidget {
   const DroxLogoMark({super.key, this.size = 44});
   final double size;
@@ -879,13 +923,13 @@ class _DownloadHomeState extends State<DownloadHome> {
             Text('Settings', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
             const SizedBox(height: 12),
             Card(child: Column(children: [
-              ListTile(leading: const Icon(Icons.palette_outlined), title: Text(_tr('Appearance', 'দেখতে কেমন হবে')), subtitle: Text(widget.isDark ? _tr('Dark theme', 'ডার্ক থিম') : _tr('Light theme', 'লাইট থিম')), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
+              ListTile(leading: const Icon(Icons.palette_outlined), title: Text(_tr('Appearance', 'দেখতে কেমন হবে')), subtitle: Text(widget.isDark ? _tr('Dark theme', 'ডার্ক থিম') : _tr('Light theme', 'লাইট থিম')), trailing: DroxAnimatedSwitch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
               const Divider(height: 1),
-              ListTile(leading: const Icon(Icons.wifi_rounded), title: Text(_tr('Wi-Fi only', 'শুধু Wi-Fi')), subtitle: Text(_tr('Prevent downloads on mobile data', 'মোবাইল ডেটায় ডাউনলোড বন্ধ রাখুন')), trailing: Switch(value: wifiOnly, onChanged: _setWifiOnly)),
+              ListTile(leading: const Icon(Icons.wifi_rounded), title: Text(_tr('Wi-Fi only', 'শুধু Wi-Fi')), subtitle: Text(_tr('Prevent downloads on mobile data', 'মোবাইল ডেটায় ডাউনলোড বন্ধ রাখুন')), trailing: DroxAnimatedSwitch(value: wifiOnly, onChanged: _setWifiOnly)),
               const Divider(height: 1),
               ListTile(leading: const Icon(Icons.language_rounded), title: Text(_tr('Language', 'ভাষা')), subtitle: Text(widget.isBangla ? 'বাংলা' : 'English'), onTap: _showLanguageDialog),
               const Divider(height: 1),
-              ListTile(leading: const Icon(Icons.notifications_active_outlined), title: Text(_tr('Download notifications', 'ডাউনলোড নোটিফিকেশন')), subtitle: Text(_tr('Show an alert when a download finishes', 'ডাউনলোড শেষ হলে নোটিফিকেশন বারে দেখাবে')), trailing: Switch(value: notificationsEnabled, onChanged: _setNotificationsEnabled)),
+              ListTile(leading: const Icon(Icons.notifications_active_outlined), title: Text(_tr('Download notifications', 'ডাউনলোড নোটিফিকেশন')), subtitle: Text(_tr('Show an alert when a download finishes', 'ডাউনলোড শেষ হলে নোটিফিকেশন বারে দেখাবে')), trailing: DroxAnimatedSwitch(value: notificationsEnabled, onChanged: _setNotificationsEnabled)),
               const Divider(height: 1),
               ListTile(leading: const Icon(Icons.folder_outlined), title: Text(_tr('Download folder', 'ডাউনলোড ফোল্ডার')), subtitle: const Text('Phone storage / Downloads / DROX')),
             ])),
@@ -1367,14 +1411,14 @@ class _BrowserPageState extends State<BrowserPage> {
         ),
         PopupMenuButton<String>(tooltip: 'Browser menu', icon: const Icon(Icons.more_vert), onSelected: _action, itemBuilder: (_) => [
           PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New Tab'))),
-          PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'), trailing: Icon(adBlockEnabled ? Icons.toggle_on : Icons.toggle_off))),
+          PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'), trailing: DroxAnimatedSwitch(value: adBlockEnabled, onChanged: (_) => Navigator.pop(context, 'adblock')))),
           PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
           PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
           const PopupMenuDivider(),
           PopupMenuItem(value: 'return', child: ListTile(dense: true, leading: Icon(Icons.home_outlined), title: Text('Return to DROX'))),
           PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
           PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Dark Mode'), trailing: Icon(widget.isDark ? Icons.check : Icons.circle_outlined))),
-          PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop Mode'), trailing: Icon(desktopMode ? Icons.check_box : Icons.check_box_outline_blank))),
+          PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop Mode'), trailing: DroxAnimatedSwitch(value: desktopMode, onChanged: (_) => Navigator.pop(context, 'desktop')))),
           PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('About'))),
         ]),
       ]))),
