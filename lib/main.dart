@@ -882,6 +882,7 @@ class _BrowserPageState extends State<BrowserPage> {
   Timer? _downloadIntentTimer;
   Future<void> _blobQueue = Future<void>.value();
   final bookmarks = <Map<String, String>>[];
+  final shortcuts = <Map<String, String>>[];
   bool showBookmarks = false;
   _DroxTab? get tab => tabs.isEmpty ? null : tabs[active];
   @override
@@ -893,6 +894,8 @@ class _BrowserPageState extends State<BrowserPage> {
       if (raw != null) history.addAll((jsonDecode(raw) as List).cast<Map<String,dynamic>>().map((e) => <String,String>{'title': (e['title'] ?? '').toString(), 'url': (e['url'] ?? '').toString()}));
       final saved = p.getString('drox_browser_bookmarks');
       if (saved != null) bookmarks.addAll((jsonDecode(saved) as List).cast<Map<String,dynamic>>().map((e) => <String,String>{'title': (e['title'] ?? '').toString(), 'url': (e['url'] ?? '').toString()}));
+      final savedShortcuts = p.getString('drox_browser_shortcuts');
+      if (savedShortcuts != null) shortcuts.addAll((jsonDecode(savedShortcuts) as List).cast<Map<String,dynamic>>().map((e) => <String,String>{'title': (e['title'] ?? '').toString(), 'url': (e['url'] ?? '').toString()}));
       if (mounted) setState(() {});
     } catch (_) {}
   }
@@ -900,6 +903,7 @@ class _BrowserPageState extends State<BrowserPage> {
     final p = await SharedPreferences.getInstance();
     await p.setString('drox_browser_history', jsonEncode(history.take(100).toList()));
     await p.setString('drox_browser_bookmarks', jsonEncode(bookmarks));
+    await p.setString('drox_browser_shortcuts', jsonEncode(shortcuts));
   }
   Future<void> _bookmarkCurrent() async {
     final current = tab;
@@ -918,32 +922,41 @@ class _BrowserPageState extends State<BrowserPage> {
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
     return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|m4v|mkv|mov|avi|webm|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|jpg|jpeg|png|gif|webp|bmp|tif|tiff|docx?|xlsx?|pptx?)$').hasMatch(path);
   }
-  static const String _homePageHtml = r'''<!doctype html>
+  String get _homePageHtml {
+    final custom = shortcuts.map((item) {
+      final title = const HtmlEscape().convert(item['title'] ?? 'Website');
+      final url = const HtmlEscape().convert(item['url'] ?? '');
+      return '<a class="shortcut" href="$url"><span>↗</span>$title</a>';
+    }).join();
+    return r'''<!doctype html>
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <style>
 *{box-sizing:border-box}body{margin:0;background:#101010;color:#f5f5f5;font-family:Arial,sans-serif;min-height:100vh}
-main{padding:54px 22px 30px;display:flex;flex-direction:column;align-items:center}
-.logo{font-size:clamp(62px,17vw,88px);font-weight:600;letter-spacing:-5px;margin:28px 0 54px}
+main{padding:16px 18px 20px;display:flex;flex-direction:column;align-items:center}
+.brand{font-size:clamp(48px,13vw,64px);font-weight:650;letter-spacing:-4px;margin:8px 0 22px;line-height:1.12}
 .b{color:#4285f4}.r{color:#ea4335}.y{color:#fbbc05}.g{color:#34a853}
-form{width:100%;max-width:650px;height:58px;border:1px solid #454545;border-radius:32px;display:flex;align-items:center;padding:0 10px 0 18px;background:#171717}
+form{width:100%;max-width:560px;height:51px;border:1px solid #454545;border-radius:28px;display:flex;align-items:center;padding:0 7px 0 16px;background:#171717}
 form:focus-within{background:#202020;border-color:#777}
-input{min-width:0;flex:1;background:transparent;border:0;outline:0;color:white;font-size:17px;padding:10px}
+input{min-width:0;flex:1;background:transparent;border:0;outline:0;color:white;font-size:16px;padding:9px}
 input::placeholder{color:#aaa}
-button{border:0;border-radius:50%;width:46px;height:46px;background:#a87912;color:white;font-size:26px}
-.shortcuts{display:flex;gap:14px;margin-top:42px;flex-wrap:wrap;justify-content:center}
-.shortcut{width:142px;min-height:126px;border-radius:22px;background:#202020;color:#eee;text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;font-size:14px;font-weight:600;text-align:center;padding:12px}
-.shortcut span{font-size:27px;color:#c5a04b}.hint{color:#888;font-size:12px;margin-top:25px}
+button{border:0;border-radius:50%;width:40px;height:40px;background:#a87912;color:white;font-size:23px}
+.shortcuts{width:100%;max-width:560px;display:flex;gap:11px;margin-top:24px;flex-wrap:wrap;justify-content:center}
+.shortcut{width:116px;min-height:98px;border-radius:18px;background:#202020;color:#eee;text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;font-size:13px;font-weight:650;text-align:center;padding:10px;overflow-wrap:anywhere}
+.shortcut span{font-size:23px;color:#c5a04b}
+.add{border:1px dashed #555;background:#191919;cursor:pointer}
+.hint{color:#777;font-size:11px;margin-top:19px;text-align:center}
 </style></head><body><main>
-<div class="logo"><span class="b">G</span><span class="r">o</span><span class="y">o</span><span class="b">g</span><span class="g">l</span><span class="r">e</span></div>
+<div class="brand"><span class="b">G</span><span class="r">o</span><span class="y">o</span><span class="b">g</span><span class="g">l</span><span class="r">e</span></div>
 <form onsubmit="event.preventDefault();var q=document.getElementById('q').value.trim();if(q)location.href='https://www.google.com/search?q='+encodeURIComponent(q)">
-<input id="q" type="search" placeholder="Search" autocomplete="off" aria-label="Search Google"><button type="submit" aria-label="Search">→</button>
+<input id="q" type="search" placeholder="Search Google or type a URL" autocomplete="off" aria-label="Search Google"><button type="submit" aria-label="Search">→</button>
 </form>
-<div class="shortcuts">
+<div class="shortcuts">__CUSTOM_SHORTCUTS__
 <a class="shortcut" href="https://www.youtube.com/"><span>▶</span>YouTube</a>
 <a class="shortcut" href="https://www.facebook.com/"><span>f</span>Facebook</a>
-<a class="shortcut" href="https://www.google.com/"><span>＋</span>Add shortcut</a>
-</div><div class="hint">Search the web or enter a website address above</div>
-</main></body></html>''';
+<a class="shortcut add" href="#" onclick="event.preventDefault();DroxDownload.postMessage('ADD_SHORTCUT')"><span>＋</span>Add shortcut</a>
+</div><div class="hint">Your favourite sites, one tap away</div>
+</main></body></html>'''.replace('__CUSTOM_SHORTCUTS__', custom);
+  }
 
   Future<void> _newTab([String url = 'https://www.google.com']) async {
     final t = _DroxTab(WebViewController(), url);
@@ -975,6 +988,8 @@ button{border:0;border-radius:50%;width:46px;height:46px;background:#a87912;colo
             }
           }
         } catch (_) {}
+      } else if (m.message == 'ADD_SHORTCUT') {
+        _addHomeShortcut();
       } else if (m.message.startsWith('__DROX_NEW_TAB__:')) {
         final target = m.message.substring('__DROX_NEW_TAB__:'.length);
         final parsed = Uri.tryParse(target);
@@ -1301,6 +1316,44 @@ button{border:0;border-radius:50%;width:46px;height:46px;background:#a87912;colo
     _promptedDownloadUrls.remove(url);
     if (result != null && mounted) {
       await widget.onDownload(finalUrl, result.$1, result.$2, result.$3, requestHeaders, postBody);
+    }
+  }
+
+  Future<void> _addHomeShortcut() async {
+    final nameController = TextEditingController();
+    final urlController = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add shortcut'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: nameController, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Website name', hintText: 'e.g. My favourite site')),
+          const SizedBox(height: 10),
+          TextField(controller: urlController, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Website URL', hintText: 'https://example.com')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () {
+            var raw = urlController.text.trim();
+            if (raw.isNotEmpty && !raw.contains('://')) raw = 'https://$raw';
+            final uri = Uri.tryParse(raw);
+            if (nameController.text.trim().isNotEmpty && uri != null && ['http', 'https'].contains(uri.scheme) && uri.host.isNotEmpty) {
+              Navigator.pop(ctx, {'title': nameController.text.trim(), 'url': uri.toString()});
+            }
+          }, child: const Text('Save')),
+        ],
+      ),
+    );
+    nameController.dispose();
+    urlController.dispose();
+    if (result == null) return;
+    shortcuts.removeWhere((e) => e['url'] == result['url']);
+    shortcuts.insert(0, result);
+    if (shortcuts.length > 8) shortcuts.removeLast();
+    await _saveHistory();
+    if (mounted) {
+      await tab?.controller.loadHtmlString(_homePageHtml, baseUrl: 'https://www.google.com/');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Shortcut saved to your DROX home')));
     }
   }
 
