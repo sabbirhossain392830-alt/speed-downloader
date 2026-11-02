@@ -844,82 +844,41 @@ class _DownloadHomeState extends State<DownloadHome> {
               ),
             Expanded(
               child: visible.isEmpty
-                  ? Center(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(24, 28, 24, 100),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 360),
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.fromLTRB(22, 28, 22, 24),
-                            decoration: BoxDecoration(
-                              color: cs.surfaceContainerLow,
-                              borderRadius: BorderRadius.circular(26),
-                              border: Border.all(color: cs.outlineVariant.withValues(alpha: .45)),
-                            ),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Positioned.fill(
-                                  child: IgnorePointer(
-                                    child: Opacity(
-                                      opacity: .16,
-                                      child: ImageFiltered(
-                                        imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-                                        child: const Center(child: DroxLogoMark(size: 245)),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                Column(mainAxisSize: MainAxisSize.min, children: [
-                              Container(
-                                width: 88, height: 88,
-                                decoration: BoxDecoration(
-                                  color: cs.primaryContainer.withValues(alpha: .72),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  searching && searchController.text.isNotEmpty
-                                      ? Icons.search_off_rounded
-                                      : Icons.downloading_rounded,
-                                  size: 43, color: cs.onPrimaryContainer,
-                                ),
+                  ? Stack(
+                      children: [
+                        Center(
+                          child: IgnorePointer(
+                            child: Opacity(
+                              opacity: .12,
+                              child: ImageFiltered(
+                                imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                                child: const DroxLogoMark(size: 250),
                               ),
-                              const SizedBox(height: 20),
-                              Text(
-                                searching && searchController.text.isNotEmpty
-                                    ? _tr('No matching files', 'কোনো মিল পাওয়া যায়নি')
-                                    : _tr('Your downloads, organised', 'আপনার সব ডাউনলোড এক জায়গায়'),
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-                              ),
-                              const SizedBox(height: 9),
-                              Text(
-                                searching && searchController.text.isNotEmpty
-                                    ? _tr('Try another file name or URL.', 'অন্য ফাইলের নাম বা লিংক দিয়ে খুঁজুন।')
-                                    : _tr('Start by adding a file link. DROX will keep your downloads and progress together.', 'একটি ফাইলের লিংক যোগ করে শুরু করুন। DROX আপনার ডাউনলোড ও অগ্রগতি একসঙ্গে সাজিয়ে রাখবে।'),
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant, height: 1.5),
-                              ),
-                              if (!(searching && searchController.text.isNotEmpty)) ...[
-                                const SizedBox(height: 22),
-                                FilledButton.icon(
-                                  onPressed: _quickDownloadDialog,
-                                  icon: const Icon(Icons.add_link_rounded),
-                                  label: Text(_tr('Add your first download', 'প্রথম ডাউনলোড যোগ করুন')),
-                                  style: FilledButton.styleFrom(
-                                    minimumSize: const Size(0, 48),
-                                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                                  ),
-                                ),
-                              ],
-                                ]),
-                              ],
                             ),
                           ),
                         ),
-                      ),
+                        if (!(searching && searchController.text.isNotEmpty))
+                          Align(
+                            alignment: const Alignment(0, .48),
+                            child: FilledButton.icon(
+                              onPressed: _quickDownloadDialog,
+                              icon: const Icon(Icons.add_link_rounded),
+                              label: Text(_tr('Add your first download', 'প্রথম ডাউনলোড যোগ করুন')),
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(0, 52),
+                                padding: const EdgeInsets.symmetric(horizontal: 22),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                            ),
+                          )
+                        else
+                          Center(
+                            child: Text(
+                              _tr('No matching files', 'কোনো মিল পাওয়া যায়নি'),
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                      ],
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(8, 4, 8, 100),
@@ -991,8 +950,8 @@ class _DownloadHomeState extends State<DownloadHome> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 10,
-              letterSpacing: .1,
+              fontSize: 13,
+              letterSpacing: .15,
               fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
               color: selected ? cs.primary : cs.onSurfaceVariant,
             ),
