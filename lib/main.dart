@@ -1091,7 +1091,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                     ),
             ),
           ]),
-          BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
+          BrowserPage(key: browserKey, isDark: widget.isDark, isBangla: widget.isBangla, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
           ListView(padding: const EdgeInsets.all(12), children: [
             Row(children: [
               Text('Downloads', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
@@ -1403,9 +1403,9 @@ class _DownloadHomeState extends State<DownloadHome> {
 
 
 class BrowserPage extends StatefulWidget {
-  const BrowserPage({super.key, required this.onDownload, required this.isDark, required this.onThemeTap, required this.onReturn, required this.onSettings});
+  const BrowserPage({super.key, required this.onDownload, required this.isDark, required this.isBangla, required this.onThemeTap, required this.onReturn, required this.onSettings});
   final ValueChanged<String> onDownload;
-  final bool isDark;
+  final bool isDark, isBangla;
   final VoidCallback onThemeTap, onReturn, onSettings;
   @override
   State<BrowserPage> createState() => _BrowserPageState();
@@ -1523,7 +1523,7 @@ class _BrowserPageState extends State<BrowserPage> {
   }
   final Set<String> _promptedDownloadUrls = <String>{};
   String _formatFileSize(int? bytes) {
-    if (bytes == null || bytes <= 0) return _tr('Unknown', 'অজানা');
+    if (bytes == null || bytes <= 0) return widget.isBangla ? 'অজানা' : 'Unknown';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     var value = bytes.toDouble();
     var unit = 0;
