@@ -973,6 +973,12 @@ class _BrowserPageState extends State<BrowserPage> {
       final letter = const HtmlEscape().convert(rawTitle.trim().isEmpty ? 'W' : rawTitle.trim()[0].toUpperCase());
       return '<a class="shortcut" href="$url"><span class="app-icon custom-icon">$letter</span><small>$title</small></a>';
     }).join();
+    final recent = history.where((item) => (item['url'] ?? '').startsWith('http')).take(4).map((item) {
+      final title = const HtmlEscape().convert(item['title'] ?? 'Website');
+      final url = const HtmlEscape().convert(item['url'] ?? '');
+      final host = const HtmlEscape().convert(Uri.tryParse(item['url'] ?? '')?.host ?? '');
+      return '<a class="recent-item" href="$url"><span>↗</span><div><b>$title</b><small>$host</small></div></a>';
+    }).join();
     return r'''<!doctype html>
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <style>
@@ -992,7 +998,7 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
 .shortcut small{font-size:10px;line-height:1.15;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .add{border:1px dashed #65718a;background:#171e2b;cursor:pointer}
 .add .app-icon{background:linear-gradient(145deg,#348cff,#1754ba);font-size:25px}
-.hint{color:#777;font-size:10px;margin-top:14px;text-align:center}
+.recent{width:100%;max-width:560px;margin-top:25px}.recent-title{font-size:12px;font-weight:700;color:#aaa;margin:0 0 8px 3px}.recent-item{display:flex;align-items:center;gap:11px;padding:10px 12px;margin:6px 0;border-radius:13px;background:#1a1a1a;color:#eee;text-decoration:none;border:1px solid #292929}.recent-item>span{width:30px;height:30px;border-radius:10px;background:#26354d;color:#9cc4ff;display:flex;align-items:center;justify-content:center}.recent-item div{min-width:0;display:flex;flex-direction:column;gap:3px}.recent-item b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.recent-item small{font-size:10px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hint{color:#777;font-size:10px;margin-top:14px;text-align:center}
 </style></head><body><main>
 <div class="brand"><span class="b">G</span><span class="r">o</span><span class="y">o</span><span class="b">g</span><span class="g">l</span><span class="r">e</span></div>
 <form onsubmit="event.preventDefault();var q=document.getElementById('q').value.trim();if(q)location.href='https://www.google.com/search?q='+encodeURIComponent(q)">
@@ -1002,8 +1008,8 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
 <a class="shortcut" href="https://www.youtube.com/"><span class="app-icon" style="background:#e62117">▶</span><small>YouTube</small></a>
 <a class="shortcut" href="https://www.facebook.com/"><span class="app-icon" style="background:#1877f2">f</span><small>Facebook</small></a>
 <a class="shortcut add" href="#" onclick="event.preventDefault();DroxDownload.postMessage('ADD_SHORTCUT')"><span class="app-icon">＋</span><small>Add</small></a>
-</div><div class="hint">Your favourite sites, one tap away</div>
-</main></body></html>'''.replaceAll('__CUSTOM_SHORTCUTS__', custom);
+</div><section class="recent"><div class="recent-title">RECENTLY VISITED</div>__RECENT_SITES__</section><div class="hint">Your favourite sites, one tap away</div>
+</main></body></html>'''.replaceAll('__CUSTOM_SHORTCUTS__', custom).replaceAll('__RECENT_SITES__', recent.isEmpty ? '<div class="hint">Your visited sites will appear here</div>' : recent);
   }
 
   Future<void> _newTab([String url = 'https://www.google.com', bool? private]) async {
