@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter/services.dart';
+import 'package:app_settings/app_settings.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +32,24 @@ class DroxApp extends StatefulWidget {
 
 class _DroxAppState extends State<DroxApp> {
   ThemeMode mode = ThemeMode.dark;
+  bool isBangla = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLanguage();
+  }
+
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) setState(() => isBangla = prefs.getBool('drox_language_bangla') ?? true);
+  }
+
+  Future<void> _setLanguage(bool value) async {
+    setState(() => isBangla = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('drox_language_bangla', value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +72,8 @@ class _DroxAppState extends State<DroxApp> {
       ),
       home: DownloadHome(
         isDark: mode == ThemeMode.dark,
+        isBangla: isBangla,
+        onLanguageChanged: _setLanguage,
         onThemeTap: () => setState(() => mode = mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark),
       ),
     );
@@ -63,18 +85,60 @@ class DroxLogoMark extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) => Container(
-    width: size, height: size,
+    width: size,
+    height: size,
     decoration: BoxDecoration(
-      gradient: const LinearGradient(colors: [Color(0xFF16D9FF), Color(0xFF0878F9), Color(0xFF071B43)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-      borderRadius: BorderRadius.circular(size * .29),
-      border: Border.all(color: Colors.white.withValues(alpha: .22)),
-      boxShadow: [BoxShadow(color: const Color(0xFF078BFF).withValues(alpha: .28), blurRadius: size * .28, offset: const Offset(0, 4))],
+      gradient: const LinearGradient(
+        colors: [Color(0xFF454B55), Color(0xFF171B22)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.circular(size * .30),
+      border: Border.all(color: Colors.white.withValues(alpha: .18)),
+      boxShadow: [
+        BoxShadow(color: Colors.black.withValues(alpha: .22), blurRadius: size * .22, offset: const Offset(0, 3)),
+      ],
     ),
-    child: Stack(alignment: Alignment.center, children: [
-      Icon(Icons.bolt_rounded, color: Colors.white, size: size * .72),
-      Positioned(right: size * .12, bottom: size * .08, child: Icon(Icons.download_rounded, color: const Color(0xFFB8F6FF), size: size * .30)),
-    ]),
+    child: CustomPaint(
+      painter: _DroxWingPainter(),
+      size: Size(size, size),
+    ),
   );
+}
+
+class _DroxWingPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 44, size.height / 44);
+    final white = Paint()..color = const Color(0xFFF4F6F8);
+    final silver = Paint()..color = const Color(0xFF9DAAB9);
+    final line = Paint()
+      ..color = const Color(0xFFB8C7D8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round;
+    final mainWing = Path()
+      ..moveTo(6, 32)
+      ..cubicTo(14, 27, 20, 15, 36, 7)
+      ..cubicTo(33, 18, 25, 28, 6, 32)
+      ..close();
+    canvas.drawPath(mainWing, white);
+    final feathers = <Path>[
+      Path()..moveTo(10, 30)..cubicTo(17, 25, 23, 19, 32, 12)..cubicTo(27, 22, 20, 28, 10, 30)..close(),
+      Path()..moveTo(13, 33)..cubicTo(21, 28, 28, 24, 36, 18)..cubicTo(31, 28, 23, 32, 13, 33)..close(),
+      Path()..moveTo(18, 36)..cubicTo(26, 32, 32, 29, 38, 24)..cubicTo(34, 33, 27, 36, 18, 36)..close(),
+    ];
+    for (var i = 0; i < feathers.length; i++) {
+      canvas.drawPath(feathers[i], i == 0 ? silver : white);
+      canvas.drawPath(feathers[i], line);
+    }
+    canvas.drawPath(mainWing, line);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class DownloadEntry {
@@ -90,14 +154,76 @@ class DownloadEntry {
 enum DownloadFilter { all, active, completed, failed, scheduled }
 
 class DownloadHome extends StatefulWidget {
-  const DownloadHome({super.key, required this.isDark, required this.onThemeTap});
+  const DownloadHome({super.key, required this.isDark, required this.isBangla, required this.onLanguageChanged, required this.onThemeTap});
   final bool isDark;
+  final bool isBangla;
+  final ValueChanged<bool> onLanguageChanged;
   final VoidCallback onThemeTap;
   @override
   State<DownloadHome> createState() => _DownloadHomeState();
 }
 
 class _DownloadHomeState extends State<DownloadHome> {
+  String _tr(String english, String bangla) => widget.isBangla ? bangla : english;
+
+  Future<void> _showLanguageDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_tr('Choose language', 'ভাষা নির্বাচন করুন')),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          RadioListTile<bool>(
+            value: true, groupValue: widget.isBangla, title: const Text('বাংলা'),
+            onChanged: (v) { if (v != null) { widget.onLanguageChanged(v); Navigator.pop(ctx); } },
+          ),
+          RadioListTile<bool>(
+            value: false, groupValue: widget.isBangla, title: const Text('English'),
+            onChanged: (v) { if (v != null) { widget.onLanguageChanged(v); Navigator.pop(ctx); } },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _showAbout() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const DroxLogoMark(size: 58),
+        title: const Center(child: Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.4))),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(child: Text(_tr('Download Manager & Browser', 'ডাউনলোড ম্যানেজার ও ব্রাউজার'), style: const TextStyle(fontWeight: FontWeight.w600))),
+          const SizedBox(height: 16),
+          _aboutRow(_tr('Version', 'ভার্সন'), info.version),
+          _aboutRow(_tr('Build', 'বিল্ড'), info.buildNumber),
+          const Divider(height: 18),
+          Text(_tr(
+            'DROX helps you download files, track progress, manage completed downloads and browse the web in one app.',
+            'DROX দিয়ে ফাইল ডাউনলোড, অগ্রগতি দেখা, সম্পন্ন ফাইল পরিচালনা এবং একই অ্যাপে ওয়েব ব্রাউজ করা যায়।',
+          )),
+          const SizedBox(height: 10),
+          Text(_tr('Features', 'সুবিধাসমূহ'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(_tr(
+            '• Download queue and progress\n• Pause, resume and retry\n• File search and sorting\n• Built-in browser\n• Wi-Fi-only download option',
+            '• ডাউনলোড তালিকা ও অগ্রগতি\n• Pause, Resume ও Retry\n• ফাইল খোঁজা ও সাজানো\n• বিল্ট-ইন ব্রাউজার\n• শুধু Wi-Fi দিয়ে ডাউনলোড',
+          )),
+        ]),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_tr('Close', 'বন্ধ করুন')))],
+      ),
+    );
+  }
+
+  Widget _aboutRow(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 5),
+    child: Row(children: [
+      SizedBox(width: 82, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
+      Expanded(child: Text(value)),
+    ]),
+  );
+
   static const MethodChannel _shareMethod = MethodChannel('drox/share');
   static const EventChannel _shareEvents = EventChannel('drox/share_events');
   StreamSubscription<dynamic>? _shareSubscription;
@@ -553,7 +679,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           title: const Text('DROX', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.1, fontSize: 21)),
           actions: [
             IconButton(
-              tooltip: 'Search downloads',
+              tooltip: _tr('Search downloads', 'ডাউনলোড খুঁজুন'),
               onPressed: () => setState(() {
                 searching = !searching;
                 if (!searching) searchController.clear();
@@ -561,12 +687,12 @@ class _DownloadHomeState extends State<DownloadHome> {
               icon: Icon(searching ? Icons.close_rounded : Icons.search_rounded),
             ),
             IconButton(
-              tooltip: 'Browser',
+              tooltip: _tr('Browser', 'ব্রাউজার'),
               onPressed: () => setState(() => selectedTab = 1),
               icon: const Icon(Icons.public_rounded),
             ),
             PopupMenuButton<String>(
-              tooltip: 'More options',
+              tooltip: _tr('More options', 'আরও অপশন'),
               onSelected: (v) async {
                 switch (v) {
                   case 'settings':
@@ -576,15 +702,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                     widget.onThemeTap();
                     break;
                   case 'language':
-                    if (!mounted) break;
-                    showDialog<void>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Language'),
-                        content: const Text('DROX currently uses Bangla and English labels. Full language switching will be added in a future update.'),
-                        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
-                      ),
-                    );
+                    await _showLanguageDialog();
                     break;
                   case 'share':
                     await Clipboard.setData(const ClipboardData(text: 'DROX — Download Manager'));
@@ -596,25 +714,13 @@ class _DownloadHomeState extends State<DownloadHome> {
                     setState(() => selectedTab = 1);
                     break;
                   case 'notifications':
-                    if (mounted) showDialog<void>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Notification settings'),
-                        content: const Text('Download notifications are managed by Android app notification settings.'),
-                        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
-                      ),
-                    );
+                    await AppSettings.openAppSettings(type: AppSettingsType.notification);
                     break;
                   case 'wifi':
                     _setWifiOnly(!wifiOnly);
                     break;
                   case 'about':
-                    if (mounted) showAboutDialog(
-                      context: context,
-                      applicationName: 'DROX',
-                      applicationVersion: '1.0',
-                      children: const [Text('DROX Browser and Download Manager')],
-                    );
+                    await _showAbout();
                     break;
                   case 'sort':
                     setState(() => entries.sort((a, b) => a.task.filename.toLowerCase().compareTo(b.task.filename.toLowerCase())));
@@ -625,17 +731,17 @@ class _DownloadHomeState extends State<DownloadHome> {
                 }
               },
               itemBuilder: (_) => [
-                const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
-                const PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text('App theme'))),
-                const PopupMenuItem(value: 'language', child: ListTile(dense: true, leading: Icon(Icons.language_rounded), title: Text('Language'))),
-                const PopupMenuItem(value: 'share', child: ListTile(dense: true, leading: Icon(Icons.share_outlined), title: Text('Share the app'))),
-                const PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text('Browser'))),
-                const PopupMenuItem(value: 'notifications', child: ListTile(dense: true, leading: Icon(Icons.notifications_outlined), title: Text('Notification settings'))),
-                PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi only'), trailing: Icon(wifiOnly ? Icons.check_rounded : Icons.circle_outlined))),
-                const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text('About'))),
-                const PopupMenuItem(value: 'sort', child: ListTile(dense: true, leading: Icon(Icons.sort_by_alpha_rounded), title: Text('Sort by name'))),
+                const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text(_tr('Settings', 'সেটিংস')))),
+                const PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text(_tr('App theme', 'অ্যাপ থিম')))),
+                const PopupMenuItem(value: 'language', child: ListTile(dense: true, leading: Icon(Icons.language_rounded), title: Text(_tr('Language', 'ভাষা')))),
+                const PopupMenuItem(value: 'share', child: ListTile(dense: true, leading: Icon(Icons.share_outlined), title: Text(_tr('Share the app', 'অ্যাপ শেয়ার করুন')))),
+                const PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text(_tr('Browser', 'ব্রাউজার')))),
+                const PopupMenuItem(value: 'notifications', child: ListTile(dense: true, leading: Icon(Icons.notifications_outlined), title: Text(_tr('Notification settings', 'নোটিফিকেশন সেটিংস')))),
+                PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: const Text(_tr('Wi-Fi only', 'শুধু Wi-Fi')), trailing: Icon(wifiOnly ? Icons.check_rounded : Icons.circle_outlined))),
+                const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text(_tr('About', 'পরিচিতি')))),
+                const PopupMenuItem(value: 'sort', child: ListTile(dense: true, leading: Icon(Icons.sort_by_alpha_rounded), title: Text(_tr('Sort by name', 'নাম অনুযায়ী সাজান')))),
                 const PopupMenuDivider(),
-                const PopupMenuItem(value: 'exit', child: ListTile(dense: true, leading: Icon(Icons.exit_to_app_rounded), title: Text('Exit'))),
+                const PopupMenuItem(value: 'exit', child: ListTile(dense: true, leading: Icon(Icons.exit_to_app_rounded), title: Text(_tr('Exit', 'বন্ধ করুন')))),
               ],
             ),
             const SizedBox(width: 4),
@@ -646,10 +752,10 @@ class _DownloadHomeState extends State<DownloadHome> {
             Material(
               color: cs.surface,
               child: Row(children: [
-                _homeCategory('ALL', entries.length, DownloadFilter.all, Icons.all_inbox_rounded),
-                _homeCategory('DOWNLOADING', active, DownloadFilter.active, Icons.downloading_rounded),
-                _homeCategory('FINISHED', done, DownloadFilter.completed, Icons.check_circle_outline_rounded),
-                _homeCategory('ERROR', failed, DownloadFilter.failed, Icons.error_outline_rounded),
+                _homeCategory(_tr('ALL', 'সব'), entries.length, DownloadFilter.all, Icons.all_inbox_rounded),
+                _homeCategory(_tr('DOWNLOADING', 'চলমান'), active, DownloadFilter.active, Icons.downloading_rounded),
+                _homeCategory(_tr('FINISHED', 'সম্পন্ন'), done, DownloadFilter.completed, Icons.check_circle_outline_rounded),
+                _homeCategory(_tr('ERROR', 'ত্রুটি'), failed, DownloadFilter.failed, Icons.error_outline_rounded),
               ]),
             ),
             if (searching)
@@ -660,10 +766,10 @@ class _DownloadHomeState extends State<DownloadHome> {
                   autofocus: true,
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                    hintText: 'Search downloaded files',
+                    hintText: _tr('Search downloaded files', 'ডাউনলোড করা ফাইল খুঁজুন'),
                     prefixIcon: const Icon(Icons.search_rounded),
                     suffixIcon: IconButton(
-                      tooltip: 'Clear search',
+                      tooltip: _tr('Clear search', 'সার্চ মুছুন'),
                       onPressed: () { searchController.clear(); setState(() {}); },
                       icon: const Icon(Icons.close_rounded),
                     ),
@@ -681,10 +787,10 @@ class _DownloadHomeState extends State<DownloadHome> {
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
                           Icon(Icons.download_for_offline_outlined, size: 46, color: cs.onSurfaceVariant),
                           const SizedBox(height: 10),
-                          Text(searching && searchController.text.isNotEmpty ? 'No matching files' : 'No downloads yet',
+                          Text(searching && searchController.text.isNotEmpty ? _tr('No matching files', 'কোনো মিল পাওয়া যায়নি') : _tr('No downloads yet', 'এখনো কোনো ডাউনলোড নেই'),
                               style: const TextStyle(fontWeight: FontWeight.w700)),
                           const SizedBox(height: 5),
-                          Text('Tap + to add a download link', style: Theme.of(context).textTheme.bodySmall),
+                          Text(_tr('Tap + to add a download link', '+ চাপ দিয়ে ডাউনলোড লিংক যোগ করুন'), style: Theme.of(context).textTheme.bodySmall),
                         ]),
                       ),
                     )
@@ -698,29 +804,29 @@ class _DownloadHomeState extends State<DownloadHome> {
           BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
           ListView(padding: const EdgeInsets.all(12), children: [
             Row(children: [
-              const Text('Downloads', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+              const Text(_tr('Downloads', 'ডাউনলোড'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
               const Spacer(),
               Text('${entries.length} files'),
-              IconButton(tooltip: 'Quick download', onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded)),
+              IconButton(tooltip: _tr('Quick download', 'দ্রুত ডাউনলোড'), onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded)),
             ]),
             SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
-              _filterChip('All', DownloadFilter.all), _filterChip('Active', DownloadFilter.active),
-              _filterChip('Completed', DownloadFilter.completed), _filterChip('Failed', DownloadFilter.failed),
+              _filterChip(_tr('All', 'সব'), DownloadFilter.all), _filterChip(_tr('Active', 'চলমান'), DownloadFilter.active),
+              _filterChip(_tr('Completed', 'সম্পন্ন'), DownloadFilter.completed), _filterChip(_tr('Failed', 'ব্যর্থ'), DownloadFilter.failed),
             ])),
             ...visible.map(_downloadCard),
           ]),
           ListView(padding: const EdgeInsets.all(16), children: [
-            const Text('Settings', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+            const Text(_tr('Settings', 'সেটিংস'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
             const SizedBox(height: 12),
             Card(child: Column(children: [
-              ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Appearance'), subtitle: Text(widget.isDark ? 'Dark theme' : 'Light theme'), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
+              ListTile(leading: const Icon(Icons.palette_outlined), title: const Text(_tr('Appearance', 'দেখতে কেমন হবে')), subtitle: Text(widget.isDark ? _tr('Dark theme', 'ডার্ক থিম') : _tr('Light theme', 'লাইট থিম')), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
               const Divider(height: 1),
               ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi Only'), subtitle: const Text('Mobile data দিয়ে download বন্ধ রাখবে'), trailing: Switch(value: wifiOnly, onChanged: _setWifiOnly)),
               const Divider(height: 1),
-              const ListTile(leading: Icon(Icons.folder_outlined), title: Text('Download folder'), subtitle: Text('Phone storage / Downloads / DROX')),
+              const ListTile(leading: Icon(Icons.folder_outlined), title: Text(_tr('Download folder', 'ডাউনলোড ফোল্ডার')), subtitle: Text('Phone storage / Downloads / DROX')),
             ])),
             const SizedBox(height: 18),
-            const ListTile(leading: Icon(Icons.info_outline), title: Text('About DROX'), subtitle: Text('Browser and download manager')),
+            const ListTile(leading: Icon(Icons.info_outline), title: Text(_tr('About DROX', 'DROX পরিচিতি')), subtitle: Text(_tr('Browser and download manager', 'ব্রাউজার ও ডাউনলোড ম্যানেজার'))),
           ]),
         ]),
         floatingActionButton: selectedTab == 0
@@ -770,7 +876,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     final value = await showDialog<String>(context: context, builder: (ctx) {
       final field = TextEditingController();
       return AlertDialog(
-        title: const Text('Quick download'),
+        title: const Text(_tr('Quick download', 'দ্রুত ডাউনলোড')),
         content: TextField(controller: field, autofocus: true, keyboardType: TextInputType.url, decoration: const InputDecoration(hintText: 'Paste direct download URL')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
@@ -867,7 +973,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         PopupMenuButton<String>(
           padding: EdgeInsets.zero,
           iconSize: 21,
-          tooltip: 'More options',
+          tooltip: _tr('More options', 'আরও অপশন'),
           onSelected: (value) {
             if (value == 'open') _open(entry);
             if (value == 'redownload') _redownload(entry);
@@ -1156,10 +1262,10 @@ class _BrowserPageState extends State<BrowserPage> {
           const PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
           const PopupMenuDivider(),
           const PopupMenuItem(value: 'return', child: ListTile(dense: true, leading: Icon(Icons.home_outlined), title: Text('Return to DROX'))),
-          const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
+          const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text(_tr('Settings', 'সেটিংস')))),
           PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Dark Mode'), trailing: Icon(widget.isDark ? Icons.check : Icons.circle_outlined))),
           PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop Mode'), trailing: Icon(desktopMode ? Icons.check_box : Icons.check_box_outline_blank))),
-          const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('About'))),
+          const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text(_tr('About', 'পরিচিতি')))),
         ]),
       ]))),
       if (t?.loading == true) const LinearProgressIndicator(minHeight: 2),
@@ -1198,7 +1304,7 @@ class _BrowserPageState extends State<BrowserPage> {
                   icon: const Icon(Icons.home_outlined),
                 ),
                 IconButton(
-                  tooltip: 'Downloads',
+                  tooltip: _tr('Downloads', 'ডাউনলোড'),
                   onPressed: widget.onReturn,
                   icon: const Icon(Icons.download_outlined),
                 ),
