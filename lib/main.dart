@@ -2,7 +2,7 @@
 
 import 'dart:io';
 import 'dart:async';
-import 'dart:convert';
+import 'dart:convert';\nimport 'dart:ui' show ImageFilter;
 
 import 'package:dio/dio.dart';
 import 'package:background_downloader/background_downloader.dart';
@@ -95,21 +95,14 @@ class DroxLogoMark extends StatelessWidget {
     width: size,
     height: size,
     decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [Color(0xFF454B55), Color(0xFF171B22)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      borderRadius: BorderRadius.circular(size * .30),
-      border: Border.all(color: Colors.white.withValues(alpha: .18)),
+      color: const Color(0xFFF7F6F3),
+      borderRadius: BorderRadius.circular(size * .27),
+      border: Border.all(color: const Color(0xFFE8E5E0)),
       boxShadow: [
-        BoxShadow(color: Colors.black.withValues(alpha: .22), blurRadius: size * .22, offset: const Offset(0, 3)),
+        BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: size * .20, offset: const Offset(0, 3)),
       ],
     ),
-    child: CustomPaint(
-      painter: _DroxWingPainter(),
-      size: Size(size, size),
-    ),
+    child: CustomPaint(painter: _DroxWingPainter(), size: Size(size, size)),
   );
 }
 
@@ -118,29 +111,37 @@ class _DroxWingPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.scale(size.width / 44, size.height / 44);
-    final white = Paint()..color = const Color(0xFFF4F6F8);
-    final silver = Paint()..color = const Color(0xFF9DAAB9);
-    final line = Paint()
-      ..color = const Color(0xFFB8C7D8)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..strokeCap = StrokeCap.round;
-    final mainWing = Path()
-      ..moveTo(6, 32)
-      ..cubicTo(14, 27, 20, 15, 36, 7)
-      ..cubicTo(33, 18, 25, 28, 6, 32)
+    final orange = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFD5C7C5), Color(0xFFE66A18), Color(0xFF9E3515)],
+      ).createShader(const Rect.fromLTWH(0, 0, 44, 44))
+      ..style = PaintingStyle.fill;
+    final upper = Path()
+      ..moveTo(9, 28)
+      ..cubicTo(8, 27, 8, 25, 10, 23)
+      ..lineTo(31, 5)
+      ..cubicTo(33, 3, 37, 4, 36, 7)
+      ..lineTo(17, 30)
+      ..cubicTo(15, 33, 12, 32, 9, 28)
       ..close();
-    canvas.drawPath(mainWing, white);
-    final feathers = <Path>[
-      Path()..moveTo(10, 30)..cubicTo(17, 25, 23, 19, 32, 12)..cubicTo(27, 22, 20, 28, 10, 30)..close(),
-      Path()..moveTo(13, 33)..cubicTo(21, 28, 28, 24, 36, 18)..cubicTo(31, 28, 23, 32, 13, 33)..close(),
-      Path()..moveTo(18, 36)..cubicTo(26, 32, 32, 29, 38, 24)..cubicTo(34, 33, 27, 36, 18, 36)..close(),
-    ];
-    for (var i = 0; i < feathers.length; i++) {
-      canvas.drawPath(feathers[i], i == 0 ? silver : white);
-      canvas.drawPath(feathers[i], line);
-    }
-    canvas.drawPath(mainWing, line);
+    final lower = Path()
+      ..moveTo(16, 31)
+      ..cubicTo(17, 29, 18, 27, 20, 25)
+      ..lineTo(33, 14)
+      ..cubicTo(36, 12, 39, 14, 36, 17)
+      ..lineTo(27, 26)
+      ..cubicTo(25, 28, 26, 30, 28, 32)
+      ..lineTo(39, 39)
+      ..cubicTo(40, 40, 39, 42, 36, 42)
+      ..lineTo(25, 41)
+      ..cubicTo(22, 41, 20, 39, 18, 37)
+      ..lineTo(11, 32)
+      ..cubicTo(10, 31, 13, 29, 16, 31)
+      ..close();
+    canvas.drawPath(upper, orange);
+    canvas.drawPath(lower, orange);
     canvas.restore();
   }
 
@@ -832,7 +833,21 @@ class _DownloadHomeState extends State<DownloadHome> {
                               borderRadius: BorderRadius.circular(26),
                               border: Border.all(color: cs.outlineVariant.withValues(alpha: .45)),
                             ),
-                            child: Column(mainAxisSize: MainAxisSize.min, children: [
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    child: Opacity(
+                                      opacity: .10,
+                                      child: ImageFiltered(
+                                        imageFilter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+                                        child: const Center(child: DroxLogoMark(size: 245)),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Column(mainAxisSize: MainAxisSize.min, children: [
                               Container(
                                 width: 88, height: 88,
                                 decoration: BoxDecoration(
@@ -875,7 +890,9 @@ class _DownloadHomeState extends State<DownloadHome> {
                                   ),
                                 ),
                               ],
-                            ]),
+                                ]),
+                              ],
+                            ),
                           ),
                         ),
                       ),
