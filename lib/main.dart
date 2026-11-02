@@ -955,7 +955,7 @@ button{border:0;border-radius:50%;width:40px;height:40px;background:#a87912;colo
 <a class="shortcut" href="https://www.facebook.com/"><span>f</span>Facebook</a>
 <a class="shortcut add" href="#" onclick="event.preventDefault();DroxDownload.postMessage('ADD_SHORTCUT')"><span>＋</span>Add shortcut</a>
 </div><div class="hint">Your favourite sites, one tap away</div>
-</main></body></html>'''.replace('__CUSTOM_SHORTCUTS__', custom);
+</main></body></html>'''.replaceAll('__CUSTOM_SHORTCUTS__', custom);
   }
 
   Future<void> _newTab([String url = 'https://www.google.com']) async {
