@@ -742,7 +742,6 @@ class _DownloadHomeState extends State<DownloadHome> {
               onPressed: () => setState(() => selectedTab = 1),
               icon: const Icon(Icons.public_rounded),
             ),
-            IconButton(
             PopupMenuButton<String>(
               tooltip: _tr('Menu', 'মেনু'),
               icon: const Icon(Icons.menu_rounded),
@@ -792,7 +791,7 @@ class _DownloadHomeState extends State<DownloadHome> {
               },
               itemBuilder: (_) => [
                 PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
-                PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text(_tr('App theme', 'অ্যাপ থিম')))),
+                PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: Text(widget.isDark ? _tr('Light mode', 'লাইট মোড') : _tr('Dark mode', 'ডার্ক মোড')))),
                 PopupMenuItem(value: 'language', child: ListTile(dense: true, leading: Icon(Icons.language_rounded), title: Text(_tr('Language', 'ভাষা')))),
                 PopupMenuItem(value: 'share', child: ListTile(dense: true, leading: Icon(Icons.share_outlined), title: Text(_tr('Share the app', 'অ্যাপ শেয়ার করুন')))),
                 PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text(_tr('Browser', 'ব্রাউজার')))),
@@ -915,7 +914,7 @@ class _DownloadHomeState extends State<DownloadHome> {
               fontSize: 15,
               letterSpacing: .1,
               fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-              color: selected ? const Color(0xFFF2F2F2) : cs.onSurfaceVariant,
+              color: selected ? cs.onSurface : cs.onSurfaceVariant,
             ),
           ),
         ),
