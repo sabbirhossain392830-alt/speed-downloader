@@ -491,6 +491,31 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
   }
 
+  Future<void> _showDownloadProperties(DownloadEntry entry) async {
+    if (!mounted) return;
+    final cs = Theme.of(context).colorScheme;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Download properties'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(entry.task.filename, style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            Text('Status: ${entry.status}'),
+            Text('Progress: ${(entry.progress * 100).toStringAsFixed(1)}%'),
+            Text('Size: ${_formatBytes(entry.expectedFileSize)}'),
+            const SizedBox(height: 8),
+            SelectableText(entry.task.url, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+      ),
+    );
+  }
+
   Future<void> _remove(DownloadEntry entry) async {
     if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(entry.status)) {
       await FileDownloader().cancelTaskWithId(entry.task.taskId);
@@ -807,10 +832,15 @@ class _DownloadHomeState extends State<DownloadHome> {
                 if (value == 'open') _open(entry);
                 if (value == 'redownload') _redownload(entry);
                 if (value == 'remove') _remove(entry);
+                if (value == 'copy') Clipboard.setData(ClipboardData(text: entry.task.url));
+                if (value == 'properties') _showDownloadProperties(entry);
               },
               itemBuilder: (context) => [
-                PopupMenuItem(value: 'open', enabled: completed, child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open file'))),
+                PopupMenuItem(value: 'open', enabled: completed, child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
+                const PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: Icon(Icons.link_rounded), title: Text('Copy download link'))),
                 const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Download again'))),
+                const PopupMenuItem(value: 'properties', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('Properties'))),
+                const PopupMenuDivider(),
                 const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove from list'))),
               ],
             ),
@@ -1593,7 +1623,6 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
     final t = tab;
     final currentUri = Uri.tryParse(t?.url ?? '');
     final secure = currentUri?.scheme == 'https';
-    final host = currentUri?.host ?? 'Search the web';
     return SafeArea(top: true, bottom: false, child: Column(children: [
       Container(
         padding: const EdgeInsets.fromLTRB(8, 1, 4, 2),
