@@ -387,7 +387,9 @@ class _DownloadHomeState extends State<DownloadHome> {
     setState(() => adding = true);
     late final (String, String) details;
     try {
-      details = await _downloadDetails(value, headers: requestHeaders);
+      details = postBody == null
+          ? await _downloadDetails(value, headers: requestHeaders)
+          : (value, suggestedFilename == null || suggestedFilename.trim().isEmpty ? _fileName(value) : _safeFileName(suggestedFilename.trim()));
     } catch (e) {
       if (mounted) {
         setState(() => adding = false);
@@ -466,10 +468,13 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   Future<void> _redownload(DownloadEntry entry) async {
-    final details = await _downloadDetails(entry.task.url);
+    final details = entry.task.post == null
+        ? await _downloadDetails(entry.task.url, headers: entry.task.headers)
+        : (entry.task.url, entry.task.filename);
     final task = DownloadTask(
       url: details.$1,
       filename: details.$2,
+      headers: entry.task.headers,
       post: entry.task.post,
       httpRequestMethod: entry.task.httpRequestMethod,
       directory: 'DROX',
