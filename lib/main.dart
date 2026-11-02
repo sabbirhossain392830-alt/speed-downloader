@@ -1343,8 +1343,26 @@ class _BrowserPageState extends State<BrowserPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme; final t = tab;
     return SafeArea(top: true, bottom: false, child: Column(children: [
-      Material(color: cs.surface, elevation: 1, child: Padding(padding: const EdgeInsets.fromLTRB(12, 8, 6, 8), child: Row(children: [
-        Expanded(child: Container(height: 46, decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(14), border: Border.all(color: cs.outlineVariant.withValues(alpha: .45))), child: TextField(controller: address, onSubmitted: (_) => go(), textInputAction: TextInputAction.go, keyboardType: TextInputType.url, decoration: InputDecoration(hintText: 'Search or enter URL', prefixIcon: const Icon(Icons.search_rounded, size: 20), suffixIcon: IconButton(onPressed: go, icon: const Icon(Icons.arrow_forward_rounded, size: 20)), isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 11), border: InputBorder.none)))),
+      Material(color: cs.surface, elevation: 1, child: Padding(padding: const EdgeInsets.fromLTRB(10, 8, 6, 8), child: Row(children: [
+        Material(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: _showTabs,
+            child: SizedBox(
+              width: 42, height: 42,
+              child: Center(child: Text('${tabs.length}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Container(height: 46, decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(28), border: Border.all(color: cs.outlineVariant.withValues(alpha: .35))), child: TextField(controller: address, onSubmitted: (_) => go(), textInputAction: TextInputAction.go, keyboardType: TextInputType.url, decoration: InputDecoration(hintText: 'Search', prefixIcon: const Icon(Icons.search_rounded, size: 20), suffixIcon: IconButton(onPressed: go, icon: const Icon(Icons.refresh_rounded, size: 22)), isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 11), border: InputBorder.none)))),
+        IconButton(
+          tooltip: 'Downloads',
+          onPressed: widget.onReturn,
+          icon: const Icon(Icons.download_rounded),
+        ),
         PopupMenuButton<String>(tooltip: 'Browser menu', icon: const Icon(Icons.more_vert), onSelected: _action, itemBuilder: (_) => [
           PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New Tab'))),
           PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'), trailing: Icon(adBlockEnabled ? Icons.toggle_on : Icons.toggle_off))),
