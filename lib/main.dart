@@ -77,7 +77,7 @@ class DownloadEntry {
   String? sharedPath;
 }
 
-enum DownloadFilter { all, active, completed, failed }
+enum DownloadFilter { all, active, completed, failed, scheduled }
 
 class DownloadHome extends StatefulWidget {
   const DownloadHome({super.key, required this.isDark, required this.onThemeTap});
@@ -113,6 +113,8 @@ class _DownloadHomeState extends State<DownloadHome> {
   final List<DownloadEntry> entries = [];
   StreamSubscription<TaskUpdate>? subscription;
   DownloadFilter filter = DownloadFilter.all;
+  bool searching = false;
+  final TextEditingController searchController = TextEditingController();
   bool adding = false;
   bool wifiOnly = false;
   int selectedTab = 0;
@@ -486,17 +488,24 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   bool _matches(DownloadEntry e) {
+    final query = searchController.text.trim().toLowerCase();
+    final nameMatches = query.isEmpty ||
+        e.task.filename.toLowerCase().contains(query) ||
+        e.task.url.toLowerCase().contains(query);
+    if (!nameMatches) return false;
     switch (filter) {
       case DownloadFilter.all: return true;
       case DownloadFilter.active: return ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(e.status);
       case DownloadFilter.completed: return e.status == 'সম্পন্ন';
-      case DownloadFilter.failed: return ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি'].contains(e.status);
+      case DownloadFilter.failed: return ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি', 'যাচাই ব্যর্থ'].contains(e.status);
+      case DownloadFilter.scheduled: return e.status == 'নির্ধারিত';
     }
   }
 
   @override
   void dispose() {
     controller.dispose();
+    searchController.dispose();
     subscription?.cancel();
     _shareSubscription?.cancel();
     super.dispose();
@@ -504,8 +513,9 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   @override
   Widget build(BuildContext context) {
-    final active = entries.where((e) => ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(e.status)).length;
+    final active = entries.where((e) => ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(e.status)).length;
     final done = entries.where((e) => e.status == 'সম্পন্ন').length;
+    final failed = entries.where((e) => ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি', 'যাচাই ব্যর্থ'].contains(e.status)).length;
     final visible = entries.where(_matches).toList();
     final cs = Theme.of(context).colorScheme;
     return PopScope(
@@ -519,141 +529,186 @@ class _DownloadHomeState extends State<DownloadHome> {
         if (selectedTab != 0) setState(() => selectedTab = 0);
       },
       child: Scaffold(
-      appBar: selectedTab == 1 ? null : AppBar(
-        titleSpacing: 22,
-        title: const Text('DROX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 3.2, fontSize: 23)),
-        actions: [
-          PopupMenuButton<String>(
+        appBar: selectedTab == 1 ? null : AppBar(
+          leading: IconButton(
             tooltip: 'Main menu',
-            icon: const Icon(Icons.menu_rounded, size: 28),
-            onSelected: (v) {
-              if (v == 'theme') widget.onThemeTap();
-              if (v == 'wifi') _setWifiOnly(!wifiOnly);
-              if (v == 'quick') _quickDownloadDialog();
+            icon: const Icon(Icons.menu_rounded),
+            onPressed: () => showMenu<String>(
+              context: context,
+              position: const RelativeRect.fromLTRB(0, 80, 220, 0),
+              items: [
+                const PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text('Browser'))),
+                const PopupMenuItem(value: 'downloads', child: ListTile(dense: true, leading: Icon(Icons.download_rounded), title: Text('Downloads'))),
+                const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
+                const PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: Icon(Icons.wifi_rounded), title: Text('Wi-Fi Only'))),
+                const PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text('Change theme'))),
+              ],
+            ).then((v) {
               if (v == 'browser') setState(() => selectedTab = 1);
+              if (v == 'downloads') setState(() => selectedTab = 2);
               if (v == 'settings') setState(() => selectedTab = 3);
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Dark Mode'), trailing: Icon(widget.isDark ? Icons.check : Icons.circle_outlined))),
-              PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: const Text('Wi‑Fi Only'), trailing: Icon(wifiOnly ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: wifiOnly ? Theme.of(context).colorScheme.primary : null))),
-              const PopupMenuDivider(),
-              const PopupMenuItem(value: 'quick', child: ListTile(dense: true, leading: Icon(Icons.add_link_rounded), title: Text('Quick Download'))),
-              const PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text('Browser'))),
-              const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
-            ],
+              if (v == 'wifi') _setWifiOnly(!wifiOnly);
+              if (v == 'theme') widget.onThemeTap();
+            }),
           ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: IndexedStack(index: selectedTab, children: [
-        ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
-          const SizedBox(height: 4),
-          Row(children: [
-            _homeCategory('All', entries.length, DownloadFilter.all, Icons.apps_rounded),
-            _homeCategory('Downloading', active, DownloadFilter.active, Icons.downloading_rounded),
-            _homeCategory('Finished', done, DownloadFilter.completed, Icons.check_circle_outline_rounded),
-            _homeCategory('Error', entries.where((e) => ['ব্যর্থ','বাতিল','কিউতে যোগ করা যায়নি','যাচাই ব্যর্থ'].contains(e.status)).length, DownloadFilter.failed, Icons.error_outline_rounded),
-          ]),
-          const SizedBox(height: 14),
-          TextField(controller: controller, keyboardType: TextInputType.url, onSubmitted: (_) => _add(),
-            decoration: InputDecoration(
-              hintText: 'Paste download link or URL',
-              prefixIcon: const Icon(Icons.link_rounded),
-              suffixIcon: IconButton(tooltip: 'Quick download', onPressed: adding ? null : _add, icon: adding ? const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)) : const Icon(Icons.download_rounded)),
-              filled: true, fillColor: cs.surfaceContainerHighest.withValues(alpha: .45),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-            )),
-          const SizedBox(height: 16),
-          Row(children: [
-            const Text('Downloads', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-            const Spacer(),
-            Text('${entries.length} files', style: Theme.of(context).textTheme.labelSmall),
-          ]),
-          if (visible.isEmpty)
-            Container(
-              width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 18),
-              decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .28), borderRadius: BorderRadius.circular(16), border: Border.all(color: cs.outlineVariant.withValues(alpha: .5))),
-              child: Column(children: [
-                Icon(Icons.downloading_rounded, size: 46, color: cs.primary),
-                const SizedBox(height: 10),
-                const Text('No downloads yet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                const SizedBox(height: 5),
-                Text('Browse websites or paste a direct link to start.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
-
+          titleSpacing: 0,
+          title: const Text('DROX', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.1, fontSize: 21)),
+          actions: [
+            IconButton(
+              tooltip: 'Search downloads',
+              onPressed: () => setState(() {
+                searching = !searching;
+                if (!searching) searchController.clear();
+              }),
+              icon: Icon(searching ? Icons.close_rounded : Icons.search_rounded),
+            ),
+            IconButton(
+              tooltip: 'Browser',
+              onPressed: () => setState(() => selectedTab = 1),
+              icon: const Icon(Icons.public_rounded),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'More',
+              onSelected: (v) {
+                if (v == 'quick') _quickDownloadDialog();
+                if (v == 'sort') setState(() => entries.sort((a, b) => a.task.filename.toLowerCase().compareTo(b.task.filename.toLowerCase())));
+                if (v == 'wifi') _setWifiOnly(!wifiOnly);
+                if (v == 'theme') widget.onThemeTap();
+                if (v == 'settings') setState(() => selectedTab = 3);
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'quick', child: ListTile(dense: true, leading: Icon(Icons.add_link_rounded), title: Text('Add download link'))),
+                const PopupMenuItem(value: 'sort', child: ListTile(dense: true, leading: Icon(Icons.sort_by_alpha_rounded), title: Text('Sort by name'))),
+                PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi Only'), trailing: Icon(wifiOnly ? Icons.check : Icons.circle_outlined))),
+                const PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text('Change theme'))),
+                const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
+              ],
+            ),
+            const SizedBox(width: 4),
+          ],
+        ),
+        body: IndexedStack(index: selectedTab, children: [
+          Column(children: [
+            Material(
+              color: cs.surface,
+              child: Row(children: [
+                _homeCategory('ALL', entries.length, DownloadFilter.all, Icons.all_inbox_rounded),
+                _homeCategory('DOWNLOADING', active, DownloadFilter.active, Icons.downloading_rounded),
+                _homeCategory('FINISHED', done, DownloadFilter.completed, Icons.check_circle_outline_rounded),
+                _homeCategory('ERROR', failed, DownloadFilter.failed, Icons.error_outline_rounded),
               ]),
-            )
-          else ...visible.map(_downloadCard),
-        ]),
-        BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
-        ListView(padding: const EdgeInsets.all(16), children: [
-          Row(children: [
-            const Text('Downloads', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
-            const Spacer(),
-            Text('${entries.length} files', style: Theme.of(context).textTheme.labelMedium),
-            IconButton(tooltip: 'Quick download', onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded)),
+            ),
+            if (searching)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 9, 10, 5),
+                child: TextField(
+                  controller: searchController,
+                  autofocus: true,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Search downloaded files',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () { searchController.clear(); setState(() {}); },
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                    isDense: true,
+                    filled: true,
+                    border: const OutlineInputBorder(borderSide: BorderSide.none),
+                  ),
+                ),
+              ),
+            Expanded(
+              child: visible.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(28),
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.download_for_offline_outlined, size: 46, color: cs.onSurfaceVariant),
+                          const SizedBox(height: 10),
+                          Text(searching && searchController.text.isNotEmpty ? 'No matching files' : 'No downloads yet',
+                              style: const TextStyle(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 5),
+                          Text('Tap + to add a download link', style: Theme.of(context).textTheme.bodySmall),
+                        ]),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 100),
+                      itemCount: visible.length,
+                      itemBuilder: (_, i) => _downloadCard(visible[i]),
+                    ),
+            ),
           ]),
-          const SizedBox(height: 8),
-          SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
-            _filterChip('All', DownloadFilter.all), _filterChip('Active', DownloadFilter.active),
-            _filterChip('Completed', DownloadFilter.completed), _filterChip('Failed', DownloadFilter.failed),
-          ])),
-          const SizedBox(height: 10),
-          if (visible.isEmpty) const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('No downloads here yet')))
-          else ...visible.map(_downloadCard),
+          BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
+          ListView(padding: const EdgeInsets.all(12), children: [
+            Row(children: [
+              const Text('Downloads', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+              const Spacer(),
+              Text('${entries.length} files'),
+              IconButton(tooltip: 'Quick download', onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded)),
+            ]),
+            SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
+              _filterChip('All', DownloadFilter.all), _filterChip('Active', DownloadFilter.active),
+              _filterChip('Completed', DownloadFilter.completed), _filterChip('Failed', DownloadFilter.failed),
+            ])),
+            ...visible.map(_downloadCard),
+          ]),
+          ListView(padding: const EdgeInsets.all(16), children: [
+            const Text('Settings', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+            const SizedBox(height: 12),
+            Card(child: Column(children: [
+              ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Appearance'), subtitle: Text(widget.isDark ? 'Dark theme' : 'Light theme'), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
+              const Divider(height: 1),
+              ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi Only'), subtitle: const Text('Mobile data দিয়ে download বন্ধ রাখবে'), trailing: Switch(value: wifiOnly, onChanged: _setWifiOnly)),
+              const Divider(height: 1),
+              const ListTile(leading: Icon(Icons.folder_outlined), title: Text('Download folder'), subtitle: Text('Phone storage / Downloads / DROX')),
+            ])),
+            const SizedBox(height: 18),
+            const ListTile(leading: Icon(Icons.info_outline), title: Text('About DROX'), subtitle: Text('Browser and download manager')),
+          ]),
         ]),
-        ListView(padding: const EdgeInsets.all(16), children: [
-          const Text('Settings', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
-          const SizedBox(height: 14),
-          Text('GENERAL', style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1.3, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          Card(clipBehavior: Clip.antiAlias, child: Column(children: [
-            ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Appearance'), subtitle: Text(widget.isDark ? 'Dark theme' : 'Light theme'), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
-            const Divider(height: 1, indent: 56),
-            ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi‑Fi Only'), subtitle: const Text('Mobile data দিয়ে download বন্ধ রাখবে'), trailing: Switch(value: wifiOnly, onChanged: _setWifiOnly)),
-            const Divider(height: 1, indent: 56),
-            const ListTile(leading: Icon(Icons.folder_outlined), title: Text('Download folder'), subtitle: Text('Phone storage / Downloads / DROX')),
-          ])),
-          const SizedBox(height: 18),
-          Text('ABOUT', style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1.3, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          Card(child: const ListTile(leading: Icon(Icons.info_outline), title: Text('About DROX'), subtitle: Text('Browser and download manager'), trailing: Icon(Icons.chevron_right_rounded))),
-        ]),
-      ]),
-      bottomNavigationBar: selectedTab == 1 ? null : NavigationBar(
-        selectedIndex: selectedTab,
-        onDestinationSelected: (i) => setState(() => selectedTab = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.public), label: 'Browser'),
-          NavigationDestination(icon: Icon(Icons.download_outlined), selectedIcon: Icon(Icons.download), label: 'Downloads'),
-          NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings'),
-        ],
+        floatingActionButton: selectedTab == 0
+            ? FloatingActionButton(
+                tooltip: 'Add download',
+                onPressed: _quickDownloadDialog,
+                child: const Icon(Icons.add_rounded, size: 30),
+              )
+            : null,
       ),
-    ));
+    );
   }
 
   Widget _homeCategory(String label, int count, DownloadFilter value, IconData icon) {
     final selected = filter == value;
     final cs = Theme.of(context).colorScheme;
-    return Expanded(child: InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () => setState(() => filter = value),
-      child: Container(
-        margin: const EdgeInsets.only(right: 5),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 3),
-        decoration: BoxDecoration(
-          color: selected ? cs.primaryContainer : cs.surfaceContainerHighest.withValues(alpha: .35),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? cs.primary.withValues(alpha: .45) : cs.outlineVariant.withValues(alpha: .35)),
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => filter = value),
+        child: Container(
+          height: 54,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(
+              color: selected ? cs.primary : Colors.transparent,
+              width: 3,
+            )),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10,
+              letterSpacing: .25,
+              fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+              color: selected ? cs.primary : cs.onSurfaceVariant,
+            ),
+          ),
         ),
-        child: Column(children: [
-          Icon(icon, size: 19, color: selected ? cs.onPrimaryContainer : cs.onSurfaceVariant),
-          const SizedBox(height: 4),
-          Text('$count', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: selected ? cs.onPrimaryContainer : cs.onSurface)),
-          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: selected ? cs.onPrimaryContainer : cs.onSurfaceVariant)),
-        ]),
       ),
-    ));
+    );
   }
 
   Future<void> _quickDownloadDialog() async {
@@ -707,93 +762,78 @@ class _DownloadHomeState extends State<DownloadHome> {
     final running = entry.status == 'ডাউনলোড হচ্ছে';
     final paused = entry.status == 'বিরতি';
     final queued = ['কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status);
-    final failed = entry.status == 'ব্যর্থ';
-    final color = entry.status == 'সম্পন্ন' ? Colors.green : Theme.of(context).colorScheme.primary;
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 9),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55))),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(_fileIcon(entry.task.filename), color: color, size: 30),
-            const SizedBox(width: 10),
-            Expanded(child: Text(entry.task.filename, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
-            PopupMenuButton<String>(
-              tooltip: 'More options',
-              onSelected: (value) {
-                if (value == 'open') _open(entry);
-                if (value == 'redownload') _redownload(entry);
-                if (value == 'remove') _remove(entry);
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(value: 'open', enabled: entry.status == 'সম্পন্ন', child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
-                const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Redownload'))),
-                const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove'))),
-              ],
-            ),
-          ]),
-          const SizedBox(height: 4),
-          Text('${_fileType(entry.task.filename)}  •  ${_formatBytes(entry.expectedFileSize)}', style: Theme.of(context).textTheme.labelSmall),
-          const SizedBox(height: 6),
+    final failed = ['ব্যর্থ', 'যাচাই ব্যর্থ', 'কিউতে যোগ করা যায়নি'].contains(entry.status);
+    final completed = entry.status == 'সম্পন্ন';
+    final cs = Theme.of(context).colorScheme;
+    final statusColor = failed ? cs.error : completed ? Colors.green : cs.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 9, 4, 9),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: .35))),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        SizedBox(
+          width: 42,
+          height: 46,
+          child: Icon(_fileIcon(entry.task.filename), size: 30,
+              color: completed ? Colors.green : failed ? cs.error : cs.primary),
+        ),
+        const SizedBox(width: 7),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 3),
           Text(
             entry.expectedFileSize > 0
-                ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} / ${_formatBytes(entry.expectedFileSize)} downloaded'
-                : (entry.progress > 0 ? 'মোট সাইজ সার্ভার জানায়নি • ${ (entry.progress * 100).toStringAsFixed(0) }% সম্পন্ন' : 'ডাউনলোডের পরিমাণ হিসাব হচ্ছে…'),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+                ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} / ${_formatBytes(entry.expectedFileSize)}'
+                : completed ? '100% • ${_formatBytes(entry.expectedFileSize)}' : '${(entry.progress * 100).toStringAsFixed(0)}% downloaded',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
           ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(value: entry.progress),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: Text(entry.error == null ? entry.status : '${entry.status}: ${entry.error}', style: Theme.of(context).textTheme.bodySmall)),
-            Text('${(entry.progress * 100).toStringAsFixed(0)}%', style: Theme.of(context).textTheme.bodySmall),
-          ]),
-          if (running || paused || queued || failed) ...[
-            const SizedBox(height: 10),
-            Row(children: [
-              if (running)
-                _actionIcon(
-                  icon: Icons.pause_rounded,
-                  label: 'Pause',
-                  onTap: () => _pause(entry),
-                  primary: true,
-                ),
-              if (paused || queued)
-                _actionIcon(
-                  icon: Icons.play_arrow_rounded,
-                  label: 'Resume',
-                  onTap: () => _resume(entry),
-                  primary: true,
-                ),
-              if (failed)
-                _actionIcon(
-                  icon: Icons.refresh_rounded,
-                  label: 'Retry',
-                  onTap: () => _redownload(entry),
-                  primary: true,
-                ),
-              if (running || paused || queued)
-                _actionIcon(
-                  icon: Icons.close_rounded,
-                  label: 'Cancel',
-                  onTap: () => _cancel(entry),
-                ),
-              const Spacer(),
-              Text(
-                running ? 'DOWNLOADING' : paused ? 'PAUSED' : failed ? 'ERROR' : 'QUEUED',
-                style: TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 1,
-                  fontWeight: FontWeight.w800,
-                  color: failed ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+          if (!completed && !failed) ...[
+            const SizedBox(height: 5),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                height: 3,
+                child: LinearProgressIndicator(value: entry.progress, minHeight: 3),
               ),
-            ]),
+            ),
           ],
-        ]),
-      ),
+          const SizedBox(height: 3),
+          Text(entry.error == null ? entry.status : '${entry.status}: ${entry.error}',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.w600)),
+        ])),
+        const SizedBox(width: 4),
+        if (running)
+          IconButton(visualDensity: VisualDensity.compact, tooltip: 'Pause', onPressed: () => _pause(entry), icon: const Icon(Icons.pause_circle_filled_rounded))
+        else if (paused || queued)
+          IconButton(visualDensity: VisualDensity.compact, tooltip: 'Resume', onPressed: () => _resume(entry), icon: const Icon(Icons.play_circle_fill_rounded))
+        else if (failed)
+          IconButton(visualDensity: VisualDensity.compact, tooltip: 'Retry', onPressed: () => _redownload(entry), icon: const Icon(Icons.refresh_rounded))
+        else if (completed)
+          IconButton(visualDensity: VisualDensity.compact, tooltip: 'Open folder', onPressed: () => _open(entry), icon: const Icon(Icons.folder_open_rounded)),
+        PopupMenuButton<String>(
+          padding: EdgeInsets.zero,
+          iconSize: 21,
+          tooltip: 'More options',
+          onSelected: (value) {
+            if (value == 'open') _open(entry);
+            if (value == 'redownload') _redownload(entry);
+            if (value == 'remove') _remove(entry);
+            if (value == 'cancel') _cancel(entry);
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(value: 'open', enabled: completed, child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
+            const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Redownload'))),
+            if (running || paused || queued)
+              const PopupMenuItem(value: 'cancel', child: ListTile(dense: true, leading: Icon(Icons.close), title: Text('Cancel'))),
+            const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove'))),
+          ],
+        ),
+      ]),
     );
   }
 
