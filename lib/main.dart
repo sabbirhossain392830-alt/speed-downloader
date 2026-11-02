@@ -810,10 +810,10 @@ class _DownloadHomeState extends State<DownloadHome> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(item.$1, maxLines: 1, overflow: TextOverflow.clip,
-                      style: TextStyle(fontSize: 12.5, letterSpacing: .15, fontWeight: FontWeight.w900,
+                      style: TextStyle(fontSize: 14.5, letterSpacing: .1, fontWeight: FontWeight.w900,
                         color: filter == item.$3 ? cs.primary : cs.onSurfaceVariant)),
                     const SizedBox(height: 3),
-                    Text('${item.$2}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                    Text('${item.$2}', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800,
                       color: filter == item.$3 ? cs.primary : cs.onSurfaceVariant)),
                     const Spacer(),
                     Container(height: 2.5, margin: const EdgeInsets.symmetric(horizontal: 5),
@@ -902,88 +902,82 @@ class _DownloadHomeState extends State<DownloadHome> {
     final cs = Theme.of(context).colorScheme;
     final statusColor = completed ? Colors.green : failed ? cs.error : cs.primary;
     final percent = (entry.progress * 100).clamp(0, 100).toStringAsFixed(0);
-    final statusLabel = completed ? 'Completed' : running ? 'Downloading' : paused ? 'Paused' : failed ? 'Failed' : queued ? 'Queued' : 'Waiting';
+    final statusLabel = completed ? 'FINISHED' : running ? 'DOWNLOADING' : paused ? 'PAUSED' : failed ? 'ERROR' : queued ? 'QUEUED' : 'WAITING';
+    final downloaded = entry.expectedFileSize > 0
+        ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} / ${_formatBytes(entry.expectedFileSize)}'
+        : (entry.progress > 0 ? '$percent% downloaded' : _formatBytes(entry.expectedFileSize));
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(13, 9, 10, 9),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(color: statusColor.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)),
-            child: Icon(_fileIcon(entry.task.filename), color: statusColor, size: 22),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
-            const SizedBox(height: 3),
-            Text('${_fileType(entry.task.filename)}  •  ${_formatBytes(entry.expectedFileSize)}  •  $statusLabel',
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10.5, color: cs.onSurfaceVariant)),
-          ])),
-          const SizedBox(width: 7),
-          Text('$percent%', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: statusColor)),
-          PopupMenuButton<String>(
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            iconSize: 20,
-            tooltip: 'More options',
-            onSelected: (value) {
-              if (value == 'open') _open(entry);
-              if (value == 'redownload') _redownload(entry);
-              if (value == 'remove') _remove(entry);
-              if (value == 'copy') Clipboard.setData(ClipboardData(text: entry.task.url));
-              if (value == 'properties') _showDownloadProperties(entry);
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(value: 'open', enabled: completed, child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
-              const PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: Icon(Icons.link_rounded), title: Text('Copy download link'))),
-              const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Download again'))),
-              const PopupMenuItem(value: 'properties', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('Properties'))),
-              const PopupMenuDivider(),
-              const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove from list'))),
-            ],
-          ),
-        ]),
-        const SizedBox(height: 7),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0, end: completed ? 1 : entry.progress),
-            duration: const Duration(milliseconds: 420),
-            curve: Curves.easeOutCubic,
-            builder: (context, value, _) => LinearProgressIndicator(
-              value: value,
-              minHeight: 2.5,
-              backgroundColor: cs.surfaceContainerHighest,
-              color: statusColor,
+      padding: const EdgeInsets.fromLTRB(12, 7, 8, 7),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(color: statusColor.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)),
+          child: Icon(_fileIcon(entry.task.filename), color: statusColor, size: 21),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          const SizedBox(height: 3),
+          Row(children: [
+            Text(statusLabel, style: TextStyle(fontSize: 9.5, letterSpacing: .25, fontWeight: FontWeight.w800, color: statusColor)),
+            const SizedBox(width: 6),
+            Expanded(child: Text(downloaded, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant))),
+          ]),
+          const SizedBox(height: 5),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: completed ? 1 : entry.progress),
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) => LinearProgressIndicator(
+                value: value,
+                minHeight: 2.5,
+                backgroundColor: cs.surfaceContainerHighest,
+                color: statusColor,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 5),
-        Row(children: [
-          Expanded(child: Text(
-            entry.expectedFileSize > 0
-              ? '${_formatBytes((entry.progress * entry.expectedFileSize).round())} / ${_formatBytes(entry.expectedFileSize)}'
-              : (entry.progress > 0 ? '$percent% downloaded • Size unavailable' : 'Waiting for download information…'),
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 10.5, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500),
-          )),
+          if (entry.error != null)
+            Padding(padding: const EdgeInsets.only(top: 3), child: Text(entry.error!,
+              maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9.5, color: cs.error))),
+        ])),
+        const SizedBox(width: 5),
+        Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('$percent%', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: statusColor)),
           if (running)
-            _actionIcon(icon: Icons.pause_rounded, label: 'Pause', onTap: () => _pause(entry), primary: true),
-          if (paused || queued)
-            _actionIcon(icon: Icons.play_arrow_rounded, label: 'Resume', onTap: () => _resume(entry), primary: true),
-          if (failed)
-            _actionIcon(icon: Icons.refresh_rounded, label: 'Retry', onTap: () => _redownload(entry), primary: true),
-          if (completed)
+            _actionIcon(icon: Icons.pause_rounded, label: 'Pause', onTap: () => _pause(entry), primary: true)
+          else if (paused || queued)
+            _actionIcon(icon: Icons.play_arrow_rounded, label: 'Resume', onTap: () => _resume(entry), primary: true)
+          else if (failed)
+            _actionIcon(icon: Icons.refresh_rounded, label: 'Retry', onTap: () => _redownload(entry), primary: true)
+          else if (completed)
             _actionIcon(icon: Icons.open_in_new_rounded, label: 'Open', onTap: () => _open(entry), primary: true),
-          if (running || paused || queued)
-            _actionIcon(icon: Icons.close_rounded, label: 'Cancel', onTap: () => _cancel(entry)),
         ]),
-        if (entry.error != null)
-          Padding(padding: const EdgeInsets.only(top: 4), child: Text(entry.error!,
-            maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, color: cs.error))),
+        PopupMenuButton<String>(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          iconSize: 19,
+          tooltip: 'More options',
+          onSelected: (value) {
+            if (value == 'open') _open(entry);
+            if (value == 'redownload') _redownload(entry);
+            if (value == 'remove') _remove(entry);
+            if (value == 'copy') Clipboard.setData(ClipboardData(text: entry.task.url));
+            if (value == 'properties') _showDownloadProperties(entry);
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem(value: 'open', enabled: completed, child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
+            const PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: Icon(Icons.link_rounded), title: Text('Copy download link'))),
+            const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Download again'))),
+            const PopupMenuItem(value: 'properties', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('Properties'))),
+            const PopupMenuDivider(),
+            const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove from list'))),
+          ],
+        ),
       ]),
     );
   }
