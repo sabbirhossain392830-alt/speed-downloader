@@ -859,6 +859,7 @@ class _DroxTab {
   bool loading = false, back = false, forward = false;
 }
 class _BrowserPageState extends State<BrowserPage> {
+  static const MethodChannel _sessionChannel = MethodChannel('drox/browser_session');
   final address = TextEditingController(text: 'https://www.google.com');
   final tabs = <_DroxTab>[];
   final history = <Map<String,String>>[];
@@ -996,7 +997,7 @@ class _BrowserPageState extends State<BrowserPage> {
             var label=((f.innerText||'')+' '+(f.getAttribute('aria-label')||'')).toLowerCase();
             if(/download|save file|get file/i.test(label))send(f.action);
           },true);
-          if(window.open){window.open=function(u){if(u)send(u);return {closed:false,close:function(){},focus:function(){},postMessage:function(){}}}}
+          if(window.open){var originalWindowOpen=window.open;window.open=function(u,n,f){if(u)send(u);return originalWindowOpen.apply(this,arguments)}}
           document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download],a[href]'):null;if(a&&a.hasAttribute('download'))send(a.href,{'Content-Disposition':'attachment; filename="'+(a.download||'')+'"'})},true);
         })();''');
         final title = await ctrl.getTitle();
@@ -1021,6 +1022,25 @@ class _BrowserPageState extends State<BrowserPage> {
     return '${value.toStringAsFixed(value >= 100 || unit == 0 ? 0 : 1)} ${units[unit]}';
   }
 
+  Future<Map<String, String>> _withBrowserSession(String url, Map<String, String> supplied) async {
+    final merged = <String, String>{...supplied};
+    try {
+      final cookie = await _sessionChannel.invokeMethod<String>('getCookies', {'url': url});
+      if (cookie != null && cookie.isNotEmpty && !merged.keys.any((k) => k.toLowerCase() == 'cookie')) {
+        merged['Cookie'] = cookie;
+      }
+      final nativeAgent = await _sessionChannel.invokeMethod<String>('getUserAgent');
+      if (nativeAgent != null && nativeAgent.isNotEmpty && !merged.keys.any((k) => k.toLowerCase() == 'user-agent')) {
+        merged['User-Agent'] = nativeAgent;
+      }
+    } on PlatformException {
+      // Continue with the headers captured by the page if native session access fails.
+    } on MissingPluginException {
+      // Older installed builds may not have the native session bridge.
+    }
+    return merged;
+  }
+
   Future<void> _downloadPrompt(String url, {Map<String, String> headers = const {}}) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !['http', 'https'].contains(uri.scheme)) return;
@@ -1028,6 +1048,7 @@ class _BrowserPageState extends State<BrowserPage> {
     _promptedDownloadUrls.add(url);
     if (!mounted) { _promptedDownloadUrls.remove(url); return; }
 
+    final requestHeaders = await _withBrowserSession(url, headers);
     var finalUrl = url;
     var name = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'download_file';
     try { name = Uri.decodeComponent(name); } catch (_) {}
@@ -1053,7 +1074,7 @@ class _BrowserPageState extends State<BrowserPage> {
         sendTimeout: const Duration(seconds: 12),
         validateStatus: (s) => s != null && s < 500,
       ));
-      final response = await dio.head(url);
+      final response = await dio.head(url, options: Options(headers: requestHeaders));
       final responseType = (response.headers.value('content-type') ?? '').toLowerCase();
       if ((response.statusCode ?? 200) >= 400) {
         // HEAD is only a metadata probe. Many file hosts reject HEAD while
@@ -1188,7 +1209,7 @@ class _BrowserPageState extends State<BrowserPage> {
     filenameController.dispose();
     _promptedDownloadUrls.remove(url);
     if (result != null && mounted) {
-      await widget.onDownload(finalUrl, result.$1, result.$2, result.$3, headers);
+      await widget.onDownload(finalUrl, result.$1, result.$2, result.$3, requestHeaders);
     }
   }
 
@@ -1228,7 +1249,7 @@ class _BrowserPageState extends State<BrowserPage> {
         await tab?.controller.setUserAgent(desktopMode ? 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' : null);
         tab?.controller.reload(); break;
       case 'about':
-        if (mounted) showAboutDialog(context: context, applicationName: 'DROX', applicationVersion: '1.0', children: const [Text('A simple Android download manager.')]);
+        if (mounted) showAboutDialog(context: context, applicationName: 'DROX', applicationVersion: '1.0', children: const [Text('A multi-site browser download manager. Captures supported browser download links and session cookies; some protected or streaming formats may not be downloadable.')]);
         break;
     }
   }
