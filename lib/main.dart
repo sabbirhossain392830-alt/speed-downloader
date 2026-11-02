@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FileDownloader().configure(
+    globalConfig: (Config.holdingQueue, (3, 2, 1)),
     androidConfig: [(Config.runInForeground, Config.always)],
   );
   await FileDownloader().configureNotification(
@@ -665,6 +666,8 @@ class _DownloadHomeState extends State<DownloadHome> {
             const Divider(height: 1, indent: 56),
             const Divider(height: 1, indent: 56),
             ListTile(leading: const Icon(Icons.repeat_rounded), title: const Text('Automatic retries'), subtitle: Text('$retryCount retries after a failed attempt'), trailing: SizedBox(width: 150, child: Slider(value: retryCount.toDouble(), min: 0, max: 10, divisions: 10, label: '$retryCount', onChanged: (v) async { final n = v.round(); setState(() => retryCount = n); final prefs = await SharedPreferences.getInstance(); await prefs.setInt('drox_retry_count', n); }))),
+            const Divider(height: 1, indent: 56),
+            const ListTile(leading: Icon(Icons.queue_play_next_rounded), title: Text('Download queue'), subtitle: Text('Up to 3 downloads at once; up to 2 from one website')),
             const Divider(height: 1, indent: 56),
             const ListTile(leading: Icon(Icons.folder_outlined), title: Text('Download folder'), subtitle: Text('Phone storage / Downloads / DROX')),
           ])),
