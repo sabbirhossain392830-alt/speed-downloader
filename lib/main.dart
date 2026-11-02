@@ -12,12 +12,17 @@ import 'package:flutter/services.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FileDownloader().start();
+  FileDownloader().configure(
+    androidConfig: [(Config.runInForeground, Config.always)],
+  );
   FileDownloader().configureNotification(
-    running: const TaskNotification('DROX • Downloading', '{filename}'),
+    running: const TaskNotification('DROX • Downloading', '{filename} • {progress}'),
     paused: const TaskNotification('DROX • Paused', '{filename}'),
-    complete: const TaskNotification('DROX • Complete', '{filename}'),
-    error: const TaskNotification('DROX • Failed', '{filename}'),
+    complete: const TaskNotification('DROX • Download complete', '{filename}'),
+    error: const TaskNotification('DROX • Download failed', '{filename}'),
+    canceled: const TaskNotification('DROX • Canceled', '{filename}'),
     progressBar: true,
+    tapOpensFile: true,
   );
   runApp(const DroxApp());
 }
