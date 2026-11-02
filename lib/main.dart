@@ -971,7 +971,6 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   Widget _homeCategory(String label, int count, DownloadFilter value, IconData icon) {
     final selected = filter == value;
-    final cs = Theme.of(context).colorScheme;
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => filter = value),
@@ -1055,7 +1054,6 @@ class _DownloadHomeState extends State<DownloadHome> {
     final failed = ['ব্যর্থ', 'যাচাই ব্যর্থ', 'কিউতে যোগ করা যায়নি'].contains(entry.status);
     final completed = entry.status == 'সম্পন্ন';
     final cs = Theme.of(context).colorScheme;
-    final statusColor = failed ? cs.error : completed ? Colors.green : cs.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 9, 4, 9),
       decoration: BoxDecoration(
