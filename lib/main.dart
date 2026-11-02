@@ -325,7 +325,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       'নির্ধারিত': ['Scheduled', 'নির্ধারিত'],
     };
     final pair = labels[value];
-    return pair == null ? value : pair[widget.isBangla ? 1 : 0];
+    return pair == null ? (widget.isBangla ? value : (RegExp(r'[\\u0980-\\u09FF]').hasMatch(value) ? 'Status unavailable' : value)) : pair[widget.isBangla ? 1 : 0];
   }
 
   String _localizedError(String value) {
@@ -343,7 +343,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       'সার্ভার লিংকটি অনুমোদন করেনি': 'The server did not authorize this link',
       'এটি সরাসরি মিডিয়া ফাইল নয়—সার্ভার HTML/Cloudflare পেজ পাঠাচ্ছে': 'This is not a direct media file; the server returned an HTML/Cloudflare page',
     };
-    return translations[value] ?? value;
+    return translations[value] ?? (RegExp(r'[\\u0980-\\u09FF]').hasMatch(value) ? 'Download error. Please try again.' : value);
   }
 
   Future<void> _showLanguageDialog() async {
