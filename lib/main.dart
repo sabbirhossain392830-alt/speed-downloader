@@ -306,7 +306,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     return extensions[mime];
   }
 
-  Future<(String, String)> _downloadDetails(String url) async {
+  Future<(String, String)> _downloadDetails(String url, {Map<String, String> headers = const {}}) async {
     var finalUrl = url;
     var filename = _fileName(url);
     final dio = Dio(BaseOptions(
@@ -319,7 +319,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     // HEAD reads metadata only; do not probe with GET because some servers
     // ignore Range and may send the entire file.
     try {
-      response = await dio.head(url);
+      response = await dio.head(url, options: Options(headers: headers));
     } catch (_) {
       response = null;
     }
@@ -372,7 +372,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     return (finalUrl, filename);
   }
 
-  Future<void> _add({String? suggestedFilename, int retries = 5}) async {
+  Future<void> _add({String? suggestedFilename, int retries = 5, Map<String, String> requestHeaders = const {}}) async {
     if (adding) return;
     final value = controller.text.trim();
     final uri = Uri.tryParse(value);
@@ -383,7 +383,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     setState(() => adding = true);
     late final (String, String) details;
     try {
-      details = await _downloadDetails(value);
+      details = await _downloadDetails(value, headers: requestHeaders);
     } catch (e) {
       if (mounted) {
         setState(() => adding = false);
@@ -396,6 +396,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
     final task = DownloadTask(
       url: details.$1,
+      headers: requestHeaders,
       filename: suggestedFilename == null || suggestedFilename.trim().isEmpty ? details.$2 : _safeFileName(suggestedFilename.trim()),
       directory: 'DROX',
       baseDirectory: BaseDirectory.applicationSupport,
@@ -587,7 +588,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             )
           else ...visible.map(_downloadCard),
         ]),
-        BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url, filename, wifiOnly, retry) async { if (wifiOnly) await _setWifiOnly(true); controller.text = url; await _add(suggestedFilename: filename, retries: retry ? 5 : 0); }),
+        BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url, filename, wifiOnly, retry, headers) async { if (wifiOnly) await _setWifiOnly(true); controller.text = url; await _add(suggestedFilename: filename, retries: retry ? 5 : 0, requestHeaders: headers); }),
         ListView(padding: const EdgeInsets.all(16), children: [
           Row(children: [
             const Text('Downloads', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
@@ -844,7 +845,7 @@ class _DownloadHomeState extends State<DownloadHome> {
 
 class BrowserPage extends StatefulWidget {
   const BrowserPage({super.key, required this.onDownload, required this.isDark, required this.onThemeTap, required this.onReturn, required this.onSettings});
-  final Future<void> Function(String url, String filename, bool wifiOnly, bool retry) onDownload;
+  final Future<void> Function(String url, String filename, bool wifiOnly, bool retry, Map<String, String> headers) onDownload;
   final bool isDark;
   final VoidCallback onThemeTap, onReturn, onSettings;
   @override
@@ -900,7 +901,16 @@ class _BrowserPageState extends State<BrowserPage> {
         _downloadIntentTimer?.cancel();
         _downloadIntentTimer = Timer(const Duration(seconds: 20), () => _downloadIntentPending = false);
       } else {
-        _downloadPrompt(m.message);
+        try {
+          final payload = jsonDecode(m.message);
+          if (payload is Map && payload['url'] is String) {
+            final headers = <String, String>{};
+            if (payload['headers'] is Map) {
+              (payload['headers'] as Map).forEach((k, v) { if (k is String && v is String && v.isNotEmpty) headers[k] = v; });
+            }
+            _downloadPrompt(payload['url'] as String, headers: headers);
+          } else { _downloadPrompt(m.message); }
+        } catch (_) { _downloadPrompt(m.message); }
       }
     });
     await ctrl.setNavigationDelegate(NavigationDelegate(
@@ -925,7 +935,8 @@ class _BrowserPageState extends State<BrowserPage> {
           var exts=/\.(mp4|m4v|webm|mov|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd)(?:$|[?#])/i;
           var mediaTypes=/^(video\/|audio\/|image\/|application\/(octet-stream|pdf|zip|x-rar-compressed|vnd\.rar|x-7z-compressed|vnd\.android\.package-archive|vnd\.apple\.mpegurl|x-mpegurl|dash\+xml|msword|vnd\.openxmlformats-officedocument|vnd\.ms-|vnd\.oasis\.opendocument))/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
-          function send(raw){var u=valid(raw);if(!u||seen[u])return;seen[u]=1;DroxDownload.postMessage(u)}
+          function requestHeaders(){var h={};try{h['User-Agent']=navigator.userAgent||'';h['Referer']=location.href;var ck=document.cookie;if(ck)h['Cookie']=ck}catch(_){}return h}
+          function send(raw,extra){var u=valid(raw);if(!u)return;var h=requestHeaders();if(extra)Object.keys(extra).forEach(function(k){if(extra[k])h[k]=extra[k]});var key=u+'|'+(h.Cookie||'');if(seen[key])return;seen[key]=1;DroxDownload.postMessage(JSON.stringify({url:u,headers:h}))}
           function mediaSources(v){var list=[v.currentSrc,v.src];v.querySelectorAll('source[src]').forEach(function(s){list.push(s.src)});list.forEach(function(u){if(u)send(u)})}
           function scan(){document.querySelectorAll('video,audio').forEach(function(v){
             if(!v.__droxBound){v.__droxBound=true;
@@ -939,8 +950,8 @@ class _BrowserPageState extends State<BrowserPage> {
           })}
           function scanResources(){try{performance.getEntriesByType('resource').forEach(function(e){if(exts.test(e.name))send(e.name)})}catch(_){}}
           function scanFrames(){document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument){f.contentDocument.querySelectorAll('video,audio').forEach(function(v){mediaSources(v)})}}catch(_){}})}
-          if(window.fetch){var originalFetch=window.fetch;window.fetch=function(){var p=originalFetch.apply(this,arguments);try{var u=typeof arguments[0]==='string'?arguments[0]:arguments[0].url; p.then(function(r){var ct=r.headers.get('content-type')||'';var cd=r.headers.get('content-disposition')||'';var target=r.url||u;if(mediaTypes.test(ct)||exts.test(target||'')||/attachment/i.test(cd))send(target)})}catch(_){}return p}}
-          if(window.XMLHttpRequest){var originalOpen=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){this.__droxUrl=u;return originalOpen.apply(this,arguments)};var originalSend=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){this.addEventListener('load',function(){var ct=this.getResponseHeader('content-type')||'';var cd=this.getResponseHeader('content-disposition')||'';if(mediaTypes.test(ct)||exts.test(this.__droxUrl||'')||/attachment/i.test(cd))send(this.responseURL||this.__droxUrl)});return originalSend.apply(this,arguments)}}
+          if(window.fetch){var originalFetch=window.fetch;window.fetch=function(){var p=originalFetch.apply(this,arguments);try{var u=typeof arguments[0]==='string'?arguments[0]:arguments[0].url; p.then(function(r){var ct=r.headers.get('content-type')||'';var cd=r.headers.get('content-disposition')||'';var target=r.url||u;if(mediaTypes.test(ct)||exts.test(target||'')||/attachment/i.test(cd))send(target,{'Content-Type':ct,'Content-Disposition':cd})})}catch(_){}return p}}
+          if(window.XMLHttpRequest){var originalOpen=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){this.__droxUrl=u;return originalOpen.apply(this,arguments)};var originalSend=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){this.addEventListener('load',function(){var ct=this.getResponseHeader('content-type')||'';var cd=this.getResponseHeader('content-disposition')||'';if(mediaTypes.test(ct)||exts.test(this.__droxUrl||'')||/attachment/i.test(cd))send(this.responseURL||this.__droxUrl,{'Content-Type':ct,'Content-Disposition':cd})});return originalSend.apply(this,arguments)}}
           scan();new MutationObserver(function(){scan();scanResources();scanFrames()}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
           setInterval(function(){scan();scanResources();scanFrames()},2500);
           document.addEventListener('play',function(e){if(e.target&&(e.target.tagName==='VIDEO'||e.target.tagName==='AUDIO'))mediaSources(e.target)},true);
@@ -965,7 +976,8 @@ class _BrowserPageState extends State<BrowserPage> {
           document.addEventListener('click',function(e){
             var path=e.composedPath?e.composedPath():[];
             var nodes=path.length?path:(function(){var a=[],n=e.target;while(n){a.push(n);n=n.parentElement}return a})();
-            for(var i=0;i<nodes.length&&i<8;i++){
+            if(nodes.length){var n=nodes[nodes.length-1];while(n&&n.parentElement&&nodes.length<24){n=n.parentElement;nodes.push(n)}}
+            for(var i=0;i<nodes.length&&i<24;i++){
               var el=nodes[i];if(!el||el.nodeType!==1)continue;
               if(!downloadIntent(el))continue;
               DroxDownload.postMessage('__DROX_DOWNLOAD_INTENT__');
@@ -984,7 +996,8 @@ class _BrowserPageState extends State<BrowserPage> {
             var label=((f.innerText||'')+' '+(f.getAttribute('aria-label')||'')).toLowerCase();
             if(/download|save file|get file/i.test(label))send(f.action);
           },true);
-          if(window.open){var originalOpen=window.open;window.open=function(u){if(u)send(u);return originalOpen.apply(this,arguments)}}
+          if(window.open){window.open=function(u){if(u)send(u);return {closed:false,close:function(){},focus:function(){},postMessage:function(){}}}}
+          document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download],a[href]'):null;if(a&&a.hasAttribute('download'))send(a.href,{'Content-Disposition':'attachment; filename="'+(a.download||'')+'"'})},true);
         })();''');
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
@@ -1008,7 +1021,7 @@ class _BrowserPageState extends State<BrowserPage> {
     return '${value.toStringAsFixed(value >= 100 || unit == 0 ? 0 : 1)} ${units[unit]}';
   }
 
-  Future<void> _downloadPrompt(String url) async {
+  Future<void> _downloadPrompt(String url, {Map<String, String> headers = const {}}) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !['http', 'https'].contains(uri.scheme)) return;
     if (_promptedDownloadUrls.contains(url)) return;
@@ -1064,7 +1077,7 @@ class _BrowserPageState extends State<BrowserPage> {
       }
     } catch (_) {
       if (!isHlsManifest && !isDashManifest) {
-        statusNote = 'File information is unavailable. The server may require a session or may not support metadata requests.';
+        statusNote = 'Metadata unavailable. The server may require a session or block HEAD; you can still try START using captured browser headers.';
       }
     }
     // Intermediate landing pages are not downloadable files. Let the browser
@@ -1157,7 +1170,7 @@ class _BrowserPageState extends State<BrowserPage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 10),
                 child: Row(children: [
-                  TextButton(onPressed: (statusNote.isEmpty || statusNote.startsWith('Metadata check blocked')) && filenameController.text.trim().isNotEmpty
+                  TextButton(onPressed: (statusNote.isEmpty || statusNote.startsWith('Metadata check blocked') || statusNote.startsWith('Metadata unavailable')) && filenameController.text.trim().isNotEmpty
                     ? () => Navigator.pop(ctx, (filenameController.text.trim(), wifiOnly, retry)) : null, child: const Text('ADD')),
                   const Spacer(),
                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
@@ -1175,7 +1188,7 @@ class _BrowserPageState extends State<BrowserPage> {
     filenameController.dispose();
     _promptedDownloadUrls.remove(url);
     if (result != null && mounted) {
-      await widget.onDownload(finalUrl, result.$1, result.$2, result.$3);
+      await widget.onDownload(finalUrl, result.$1, result.$2, result.$3, headers);
     }
   }
 
