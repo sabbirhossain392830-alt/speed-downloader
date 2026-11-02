@@ -127,6 +127,14 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          # AndroidX dependencies now require compileSdk 34+; use API 36.
+          for gradle_path in (Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")):
+              if not gradle_path.exists():
+                  continue
+              gradle_text = gradle_path.read_text()
+              gradle_text = gradle_text.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
+              gradle_text = gradle_text.replace("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36")
+              gradle_path.write_text(gradle_text)
           groovy = Path("android/app/build.gradle")
           kotlin = Path("android/app/build.gradle.kts")
           if kotlin.exists():
