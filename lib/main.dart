@@ -721,17 +721,9 @@ class _DownloadHomeState extends State<DownloadHome> {
       },
       child: Scaffold(
         appBar: selectedTab == 1 ? null : AppBar(
-          leadingWidth: 54,
-          leading: Padding(
-            padding: const EdgeInsets.only(left: 12, top: 7, bottom: 7),
-            child: Row(children: [
-              const DroxLogoMark(size: 30),
-              const SizedBox(width: 3),
-              Icon(Icons.play_arrow_rounded, size: 17, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ]),
-          ),
-          titleSpacing: 4,
-          title: const Text('DROX', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.1, fontSize: 21)),
+          automaticallyImplyLeading: false,
+          titleSpacing: 16,
+          title: const Text('DROX', style: TextStyle(fontWeight: FontWeight.w500, letterSpacing: .2, fontSize: 22)),
           actions: [
             IconButton(
               tooltip: _tr('Search downloads', 'ডাউনলোড খুঁজুন'),
@@ -742,9 +734,19 @@ class _DownloadHomeState extends State<DownloadHome> {
               icon: Icon(searching ? Icons.close_rounded : Icons.search_rounded),
             ),
             IconButton(
+              tooltip: _tr('Sort downloads', 'ডাউনলোড সাজান'),
+              onPressed: () => setState(() => entries.sort((a, b) => a.task.filename.toLowerCase().compareTo(b.task.filename.toLowerCase()))),
+              icon: const Icon(Icons.sort_rounded),
+            ),
+            IconButton(
               tooltip: _tr('Browser', 'ব্রাউজার'),
               onPressed: () => setState(() => selectedTab = 1),
               icon: const Icon(Icons.public_rounded),
+            ),
+            IconButton(
+              tooltip: _tr('Download tools', 'ডাউনলোড টুলস'),
+              onPressed: _quickDownloadDialog,
+              icon: const Icon(Icons.push_pin_outlined),
             ),
             PopupMenuButton<String>(
               tooltip: _tr('Menu', 'মেনু'),
@@ -844,42 +846,7 @@ class _DownloadHomeState extends State<DownloadHome> {
               ),
             Expanded(
               child: visible.isEmpty
-                  ? Stack(
-                      children: [
-                        Center(
-                          child: IgnorePointer(
-                            child: Opacity(
-                              opacity: .12,
-                              child: ImageFiltered(
-                                imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                                child: const DroxLogoMark(size: 250),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (!(searching && searchController.text.isNotEmpty))
-                          Align(
-                            alignment: const Alignment(0, .48),
-                            child: FilledButton.icon(
-                              onPressed: _quickDownloadDialog,
-                              icon: const Icon(Icons.add_link_rounded),
-                              label: Text(_tr('Add your first download', 'প্রথম ডাউনলোড যোগ করুন')),
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size(0, 52),
-                                padding: const EdgeInsets.symmetric(horizontal: 22),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              ),
-                            ),
-                          )
-                        else
-                          Center(
-                            child: Text(
-                              _tr('No matching files', 'কোনো মিল পাওয়া যায়নি'),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ),
-                      ],
-                    )
+                  ? const SizedBox.expand()
                   : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(8, 4, 8, 100),
                       itemCount: visible.length,
@@ -937,11 +904,11 @@ class _DownloadHomeState extends State<DownloadHome> {
       child: InkWell(
         onTap: () => setState(() => filter = value),
         child: Container(
-          height: 54,
+          height: 58,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(
-              color: selected ? cs.primary : Colors.transparent,
+              color: selected ? const Color(0xFFFFD45A) : Colors.transparent,
               width: 3,
             )),
           ),
@@ -950,10 +917,10 @@ class _DownloadHomeState extends State<DownloadHome> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 13,
-              letterSpacing: .15,
+              fontSize: 15,
+              letterSpacing: .1,
               fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-              color: selected ? cs.primary : cs.onSurfaceVariant,
+              color: selected ? const Color(0xFFF2F2F2) : cs.onSurfaceVariant,
             ),
           ),
         ),
