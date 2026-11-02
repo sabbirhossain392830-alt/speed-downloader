@@ -731,17 +731,17 @@ class _DownloadHomeState extends State<DownloadHome> {
                 }
               },
               itemBuilder: (_) => [
-                const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text(_tr('Settings', 'সেটিংস')))),
-                const PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text(_tr('App theme', 'অ্যাপ থিম')))),
-                const PopupMenuItem(value: 'language', child: ListTile(dense: true, leading: Icon(Icons.language_rounded), title: Text(_tr('Language', 'ভাষা')))),
-                const PopupMenuItem(value: 'share', child: ListTile(dense: true, leading: Icon(Icons.share_outlined), title: Text(_tr('Share the app', 'অ্যাপ শেয়ার করুন')))),
-                const PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text(_tr('Browser', 'ব্রাউজার')))),
-                const PopupMenuItem(value: 'notifications', child: ListTile(dense: true, leading: Icon(Icons.notifications_outlined), title: Text(_tr('Notification settings', 'নোটিফিকেশন সেটিংস')))),
-                PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: const Text(_tr('Wi-Fi only', 'শুধু Wi-Fi')), trailing: Icon(wifiOnly ? Icons.check_rounded : Icons.circle_outlined))),
-                const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text(_tr('About', 'পরিচিতি')))),
-                const PopupMenuItem(value: 'sort', child: ListTile(dense: true, leading: Icon(Icons.sort_by_alpha_rounded), title: Text(_tr('Sort by name', 'নাম অনুযায়ী সাজান')))),
+                PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text(_tr('Settings', 'সেটিংস')))),
+                PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text(_tr('App theme', 'অ্যাপ থিম')))),
+                PopupMenuItem(value: 'language', child: ListTile(dense: true, leading: Icon(Icons.language_rounded), title: Text(_tr('Language', 'ভাষা')))),
+                PopupMenuItem(value: 'share', child: ListTile(dense: true, leading: Icon(Icons.share_outlined), title: Text(_tr('Share the app', 'অ্যাপ শেয়ার করুন')))),
+                PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text(_tr('Browser', 'ব্রাউজার')))),
+                PopupMenuItem(value: 'notifications', child: ListTile(dense: true, leading: Icon(Icons.notifications_outlined), title: Text(_tr('Notification settings', 'নোটিফিকেশন সেটিংস')))),
+                PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: Text(_tr('Wi-Fi only', 'শুধু Wi-Fi')), trailing: Icon(wifiOnly ? Icons.check_rounded : Icons.circle_outlined))),
+                PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text(_tr('About', 'পরিচিতি')))),
+                PopupMenuItem(value: 'sort', child: ListTile(dense: true, leading: Icon(Icons.sort_by_alpha_rounded), title: Text(_tr('Sort by name', 'নাম অনুযায়ী সাজান')))),
                 const PopupMenuDivider(),
-                const PopupMenuItem(value: 'exit', child: ListTile(dense: true, leading: Icon(Icons.exit_to_app_rounded), title: Text(_tr('Exit', 'বন্ধ করুন')))),
+                PopupMenuItem(value: 'exit', child: ListTile(dense: true, leading: Icon(Icons.exit_to_app_rounded), title: Text(_tr('Exit', 'বন্ধ করুন')))),
               ],
             ),
             const SizedBox(width: 4),
@@ -804,7 +804,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           BrowserPage(key: browserKey, isDark: widget.isDark, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
           ListView(padding: const EdgeInsets.all(12), children: [
             Row(children: [
-              const Text(_tr('Downloads', 'ডাউনলোড'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+              Text(_tr('Downloads', 'ডাউনলোড'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
               const Spacer(),
               Text('${entries.length} files'),
               IconButton(tooltip: _tr('Quick download', 'দ্রুত ডাউনলোড'), onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded)),
@@ -816,17 +816,21 @@ class _DownloadHomeState extends State<DownloadHome> {
             ...visible.map(_downloadCard),
           ]),
           ListView(padding: const EdgeInsets.all(16), children: [
-            const Text(_tr('Settings', 'সেটিংস'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+            Text(_tr('Settings', 'সেটিংস'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
             const SizedBox(height: 12),
             Card(child: Column(children: [
-              ListTile(leading: const Icon(Icons.palette_outlined), title: const Text(_tr('Appearance', 'দেখতে কেমন হবে')), subtitle: Text(widget.isDark ? _tr('Dark theme', 'ডার্ক থিম') : _tr('Light theme', 'লাইট থিম')), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
+              ListTile(leading: const Icon(Icons.palette_outlined), title: Text(_tr('Appearance', 'দেখতে কেমন হবে')), subtitle: Text(widget.isDark ? _tr('Dark theme', 'ডার্ক থিম') : _tr('Light theme', 'লাইট থিম')), trailing: Switch(value: widget.isDark, onChanged: (_) => widget.onThemeTap())),
               const Divider(height: 1),
-              ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi Only'), subtitle: const Text('Mobile data দিয়ে download বন্ধ রাখবে'), trailing: Switch(value: wifiOnly, onChanged: _setWifiOnly)),
+              ListTile(leading: const Icon(Icons.wifi_rounded), title: Text(_tr('Wi-Fi only', 'শুধু Wi-Fi')), subtitle: Text(_tr('Prevent downloads on mobile data', 'মোবাইল ডেটায় ডাউনলোড বন্ধ রাখুন')), trailing: Switch(value: wifiOnly, onChanged: _setWifiOnly)),
               const Divider(height: 1),
-              const ListTile(leading: Icon(Icons.folder_outlined), title: Text(_tr('Download folder', 'ডাউনলোড ফোল্ডার')), subtitle: Text('Phone storage / Downloads / DROX')),
+              ListTile(leading: const Icon(Icons.language_rounded), title: Text(_tr('Language', 'ভাষা')), subtitle: Text(widget.isBangla ? 'বাংলা' : 'English'), onTap: _showLanguageDialog),
+              const Divider(height: 1),
+              ListTile(leading: const Icon(Icons.notifications_outlined), title: Text(_tr('Notification settings', 'নোটিফিকেশন সেটিংস')), onTap: () => AppSettings.openAppSettings(type: AppSettingsType.notification)),
+              const Divider(height: 1),
+              ListTile(leading: const Icon(Icons.folder_outlined), title: Text(_tr('Download folder', 'ডাউনলোড ফোল্ডার')), subtitle: const Text('Phone storage / Downloads / DROX')),
             ])),
             const SizedBox(height: 18),
-            const ListTile(leading: Icon(Icons.info_outline), title: Text(_tr('About DROX', 'DROX পরিচিতি')), subtitle: Text(_tr('Browser and download manager', 'ব্রাউজার ও ডাউনলোড ম্যানেজার'))),
+            ListTile(leading: Icon(Icons.info_outline), title: Text(_tr('About DROX', 'DROX পরিচিতি')), subtitle: Text(_tr('Browser and download manager', 'ব্রাউজার ও ডাউনলোড ম্যানেজার'))),
           ]),
         ]),
         floatingActionButton: selectedTab == 0
@@ -876,7 +880,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     final value = await showDialog<String>(context: context, builder: (ctx) {
       final field = TextEditingController();
       return AlertDialog(
-        title: const Text(_tr('Quick download', 'দ্রুত ডাউনলোড')),
+        title: Text(_tr('Quick download', 'দ্রুত ডাউনলোড')),
         content: TextField(controller: field, autofocus: true, keyboardType: TextInputType.url, decoration: const InputDecoration(hintText: 'Paste direct download URL')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
@@ -981,11 +985,11 @@ class _DownloadHomeState extends State<DownloadHome> {
             if (value == 'cancel') _cancel(entry);
           },
           itemBuilder: (_) => [
-            PopupMenuItem(value: 'open', enabled: completed, child: const ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
-            const PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Redownload'))),
+            PopupMenuItem(value: 'open', enabled: completed, child: ListTile(dense: true, leading: Icon(Icons.open_in_new), title: Text('Open'))),
+            PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Redownload'))),
             if (running || paused || queued)
-              const PopupMenuItem(value: 'cancel', child: ListTile(dense: true, leading: Icon(Icons.close), title: Text('Cancel'))),
-            const PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove'))),
+              PopupMenuItem(value: 'cancel', child: ListTile(dense: true, leading: Icon(Icons.close), title: Text('Cancel'))),
+            PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: Icon(Icons.delete_outline), title: Text('Remove'))),
           ],
         ),
       ]),
@@ -1256,21 +1260,21 @@ class _BrowserPageState extends State<BrowserPage> {
       Material(color: cs.surface, elevation: 1, child: Padding(padding: const EdgeInsets.fromLTRB(12, 8, 6, 8), child: Row(children: [
         Expanded(child: Container(height: 46, decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(14), border: Border.all(color: cs.outlineVariant.withValues(alpha: .45))), child: TextField(controller: address, onSubmitted: (_) => go(), textInputAction: TextInputAction.go, keyboardType: TextInputType.url, decoration: InputDecoration(hintText: 'Search or enter URL', prefixIcon: const Icon(Icons.search_rounded, size: 20), suffixIcon: IconButton(onPressed: go, icon: const Icon(Icons.arrow_forward_rounded, size: 20)), isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 11), border: InputBorder.none)))),
         PopupMenuButton<String>(tooltip: 'Browser menu', icon: const Icon(Icons.more_vert), onSelected: _action, itemBuilder: (_) => [
-          const PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New Tab'))),
+          PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New Tab'))),
           PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'), trailing: Icon(adBlockEnabled ? Icons.toggle_on : Icons.toggle_off))),
-          const PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
-          const PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
+          PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
+          PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
           const PopupMenuDivider(),
-          const PopupMenuItem(value: 'return', child: ListTile(dense: true, leading: Icon(Icons.home_outlined), title: Text('Return to DROX'))),
-          const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text(_tr('Settings', 'সেটিংস')))),
+          PopupMenuItem(value: 'return', child: ListTile(dense: true, leading: Icon(Icons.home_outlined), title: Text('Return to DROX'))),
+          PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text(_tr('Settings', 'সেটিংস')))),
           PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Dark Mode'), trailing: Icon(widget.isDark ? Icons.check : Icons.circle_outlined))),
           PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop Mode'), trailing: Icon(desktopMode ? Icons.check_box : Icons.check_box_outline_blank))),
-          const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text(_tr('About', 'পরিচিতি')))),
+          PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text(_tr('About', 'পরিচিতি')))),
         ]),
       ]))),
       if (t?.loading == true) const LinearProgressIndicator(minHeight: 2),
       Expanded(child: showHistory ? ListView(children: [
-        const ListTile(title: Text('BROWSING HISTORY', style: TextStyle(fontWeight: FontWeight.bold))),
+        ListTile(title: Text('BROWSING HISTORY', style: TextStyle(fontWeight: FontWeight.bold))),
         if (history.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No history yet')),
         ...history.map((e) => ListTile(leading: const Icon(Icons.history), title: Text(e['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(e['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { address.text = e['url'] ?? ''; go(); }, trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { history.remove(e); await _saveHistory(); if (mounted) setState(() {}); }))),
         if (history.isNotEmpty) Padding(padding: const EdgeInsets.all(16), child: OutlinedButton.icon(onPressed: () async { final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Clear history?'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear all'))])); if (ok == true) { history.clear(); await _saveHistory(); if (mounted) setState(() {}); } }, icon: const Icon(Icons.delete_sweep_outlined), label: const Text('Clear all history'))),
