@@ -33,13 +33,23 @@ class _DroxAppState extends State<DroxApp> {
 
   @override
   Widget build(BuildContext context) {
-    const seed = Color(0xFF168BFF);
+    const ash = Color(0xFF858585);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'DROX',
       themeMode: mode,
-      theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: seed)),
-      darkTheme: ThemeData(useMaterial3: true, scaffoldBackgroundColor: const Color(0xFF050B18), colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark, surface: const Color(0xFF101C32))),
+      theme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF0F0F0),
+        colorScheme: ColorScheme.fromSeed(seedColor: ash, surface: const Color(0xFFF8F8F8)),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFFE6E6E6), foregroundColor: Color(0xFF292929), elevation: 0),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFF202020),
+        colorScheme: ColorScheme.fromSeed(seedColor: ash, brightness: Brightness.dark, surface: const Color(0xFF303030)),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF292929), foregroundColor: Color(0xFFF1F1F1), elevation: 0),
+      ),
       home: DownloadHome(
         isDark: mode == ThemeMode.dark,
         onThemeTap: () => setState(() => mode = mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark),
