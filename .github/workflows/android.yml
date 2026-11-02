@@ -88,6 +88,7 @@ jobs:
           class MainActivity : FlutterActivity() {
               private val methodName = "drox/share"
               private val eventName = "drox/share_events"
+              private val sessionName = "drox/browser_session"
               private var eventSink: EventChannel.EventSink? = null
               private var pendingText: String? = null
 
@@ -98,6 +99,20 @@ jobs:
                           result.success(pendingText ?: sharedText(intent))
                           pendingText = null
                       } else result.notImplemented()
+                  }
+                  MethodChannel(flutterEngine.dartExecutor.binaryMessenger, sessionName).setMethodCallHandler { call, result ->
+                      when (call.method) {
+                          "getCookies" -> {
+                              val url = call.argument<String>("url")
+                              if (url.isNullOrBlank() || !(url.startsWith("https://") || url.startsWith("http://"))) {
+                                  result.success(null)
+                              } else {
+                                  result.success(android.webkit.CookieManager.getInstance().getCookie(url))
+                              }
+                          }
+                          "getUserAgent" -> result.success(android.webkit.WebSettings.getDefaultUserAgent(this))
+                          else -> result.notImplemented()
+                      }
                   }
                   EventChannel(flutterEngine.dartExecutor.binaryMessenger, eventName).setStreamHandler(object : EventChannel.StreamHandler {
                       override fun onListen(arguments: Any?, events: EventChannel.EventSink?) { eventSink = events }
