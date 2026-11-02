@@ -744,9 +744,13 @@ class _DownloadHomeState extends State<DownloadHome> {
                   case 'share':
                     try {
                       await _shareMethod.invokeMethod<void>('shareApp');
-                    } on PlatformException {
+                    } on PlatformException catch (error) {
                       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(_tr('Could not open share options', 'শেয়ার অপশন খোলা যায়নি'))),
+                        SnackBar(content: Text(_tr('Share failed: ${error.message ?? 'Unknown error'}', 'শেয়ার করা যায়নি: ${error.message ?? 'অজানা সমস্যা'}'))),
+                      );
+                    } on MissingPluginException {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(_tr('Share is unavailable in this build. Please update the app.', 'এই বিল্ডে শেয়ার সুবিধা নেই। অ্যাপ আপডেট করুন।'))),
                       );
                     }
                     break;
