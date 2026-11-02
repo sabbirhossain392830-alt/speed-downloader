@@ -245,15 +245,15 @@ class _DownloadHomeState extends State<DownloadHome> {
     subscription = FileDownloader().updates.listen(_onUpdate);
     _shareSubscription = _shareEvents.receiveBroadcastStream().listen((value) => _acceptSharedText(value?.toString()));
     _shareMethod.invokeMethod<String>('getInitialSharedText').then(_acceptSharedText).catchError((_) {});
-    _initializeDownloader();
-    _loadHistory();
+    _initializeApp();
   }
 
-  Future<void> _initializeDownloader() async {
-    // Register the update listener before start so background task events
-    // can be replayed to the UI after the app is opened again.
+  Future<void> _initializeApp() async {
+    // Start the native downloader before restoring its database. This avoids
+    // update events arriving while the visible task list is still empty.
     await FileDownloader().start();
     await FileDownloader().resumeFromBackground();
+    await _loadHistory();
   }
 
   void _onUpdate(TaskUpdate update) {
@@ -1150,7 +1150,18 @@ class _BrowserPageState extends State<BrowserPage> {
   bool privateModeNext = false;
   _DroxTab? get tab => tabs.isEmpty ? null : tabs[active];
   @override
-  void initState() { super.initState(); _loadHistory(); _newTab(); }
+  void initState() { super.initState(); _loadHistory(); _loadBrowserSettings(); _newTab(); }
+  Future<void> _loadBrowserSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('drox_ad_block_enabled') ?? true;
+    if (mounted) setState(() => adBlockEnabled = enabled);
+  }
+  Future<void> _setAdBlockEnabled(bool enabled) async {
+    setState(() => adBlockEnabled = enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('drox_ad_block_enabled', enabled);
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(enabled ? 'Ad blocking enabled' : 'Ad blocking disabled')));
+  }
   Future<void> _loadHistory() async {
     final p = await SharedPreferences.getInstance();
     try {
@@ -1179,7 +1190,14 @@ class _BrowserPageState extends State<BrowserPage> {
   }
   bool _isKnownAdUrl(String url) {
     final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
-    const blocked = ['doubleclick.net', 'googlesyndication.com', 'googleadservices.com', 'adservice.google.com', 'googletagmanager.com', 'adnxs.com', 'taboola.com', 'outbrain.com'];
+    const blocked = [
+      'doubleclick.net', 'googlesyndication.com', 'googleadservices.com',
+      'adservice.google.com', 'googletagmanager.com', 'adnxs.com',
+      'taboola.com', 'outbrain.com', ' تبلیغات.invalid',
+      'popads.net', 'popcash.net', 'propellerads.com', 'exoclick.com',
+      'adsterra.com', 'trafficjunky.net', 'criteo.com', 'pubmatic.com',
+      'openx.net', 'rubiconproject.com', 'smartadserver.com', 'adsrvr.org',
+    ];
     return blocked.any((domain) => host == domain || host.endsWith('.' + domain));
   }
   bool _downloadable(String url) {
@@ -1753,7 +1771,7 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
     switch (v) {
       case 'new': _newTab(); break;
       case 'private': _newTab('https://www.google.com', true); break;
-      case 'adblock': setState(() => adBlockEnabled = !adBlockEnabled); break;
+      case 'adblock': await _setAdBlockEnabled(!adBlockEnabled); break;
       case 'refresh': tab?.controller.reload(); break;
       case 'copy':
         final current = tab?.url ?? '';
