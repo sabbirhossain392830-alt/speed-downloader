@@ -540,28 +540,16 @@ class _DownloadHomeState extends State<DownloadHome> {
       },
       child: Scaffold(
         appBar: selectedTab == 1 ? null : AppBar(
-          leading: IconButton(
-            tooltip: 'Main menu',
-            icon: const Icon(Icons.menu_rounded),
-            onPressed: () => showMenu<String>(
-              context: context,
-              position: const RelativeRect.fromLTRB(0, 80, 220, 0),
-              items: [
-                const PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text('Browser'))),
-                const PopupMenuItem(value: 'downloads', child: ListTile(dense: true, leading: Icon(Icons.download_rounded), title: Text('Downloads'))),
-                const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
-                const PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: Icon(Icons.wifi_rounded), title: Text('Wi-Fi Only'))),
-                const PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text('Change theme'))),
-              ],
-            ).then((v) {
-              if (v == 'browser') setState(() => selectedTab = 1);
-              if (v == 'downloads') setState(() => selectedTab = 2);
-              if (v == 'settings') setState(() => selectedTab = 3);
-              if (v == 'wifi') _setWifiOnly(!wifiOnly);
-              if (v == 'theme') widget.onThemeTap();
-            }),
+          leadingWidth: 54,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 12, top: 7, bottom: 7),
+            child: Row(children: [
+              const DroxLogoMark(size: 30),
+              const SizedBox(width: 3),
+              Icon(Icons.play_arrow_rounded, size: 17, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ]),
           ),
-          titleSpacing: 0,
+          titleSpacing: 4,
           title: const Text('DROX', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.1, fontSize: 21)),
           actions: [
             IconButton(
@@ -578,20 +566,76 @@ class _DownloadHomeState extends State<DownloadHome> {
               icon: const Icon(Icons.public_rounded),
             ),
             PopupMenuButton<String>(
-              tooltip: 'More',
-              onSelected: (v) {
-                if (v == 'quick') _quickDownloadDialog();
-                if (v == 'sort') setState(() => entries.sort((a, b) => a.task.filename.toLowerCase().compareTo(b.task.filename.toLowerCase())));
-                if (v == 'wifi') _setWifiOnly(!wifiOnly);
-                if (v == 'theme') widget.onThemeTap();
-                if (v == 'settings') setState(() => selectedTab = 3);
+              tooltip: 'More options',
+              onSelected: (v) async {
+                switch (v) {
+                  case 'settings':
+                    setState(() => selectedTab = 3);
+                    break;
+                  case 'theme':
+                    widget.onThemeTap();
+                    break;
+                  case 'language':
+                    if (!mounted) break;
+                    showDialog<void>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Language'),
+                        content: const Text('DROX currently uses Bangla and English labels. Full language switching will be added in a future update.'),
+                        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+                      ),
+                    );
+                    break;
+                  case 'share':
+                    await Clipboard.setData(const ClipboardData(text: 'DROX — Download Manager'));
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('DROX নাম কপি হয়েছে')),
+                    );
+                    break;
+                  case 'browser':
+                    setState(() => selectedTab = 1);
+                    break;
+                  case 'notifications':
+                    if (mounted) showDialog<void>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Notification settings'),
+                        content: const Text('Download notifications are managed by Android app notification settings.'),
+                        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+                      ),
+                    );
+                    break;
+                  case 'wifi':
+                    _setWifiOnly(!wifiOnly);
+                    break;
+                  case 'about':
+                    if (mounted) showAboutDialog(
+                      context: context,
+                      applicationName: 'DROX',
+                      applicationVersion: '1.0',
+                      children: const [Text('DROX Browser and Download Manager')],
+                    );
+                    break;
+                  case 'sort':
+                    setState(() => entries.sort((a, b) => a.task.filename.toLowerCase().compareTo(b.task.filename.toLowerCase())));
+                    break;
+                  case 'exit':
+                    SystemNavigator.pop();
+                    break;
+                }
               },
               itemBuilder: (_) => [
-                const PopupMenuItem(value: 'quick', child: ListTile(dense: true, leading: Icon(Icons.add_link_rounded), title: Text('Add download link'))),
-                const PopupMenuItem(value: 'sort', child: ListTile(dense: true, leading: Icon(Icons.sort_by_alpha_rounded), title: Text('Sort by name'))),
-                PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi Only'), trailing: Icon(wifiOnly ? Icons.check : Icons.circle_outlined))),
-                const PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text('Change theme'))),
                 const PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
+                const PopupMenuItem(value: 'theme', child: ListTile(dense: true, leading: Icon(Icons.palette_outlined), title: Text('App theme'))),
+                const PopupMenuItem(value: 'language', child: ListTile(dense: true, leading: Icon(Icons.language_rounded), title: Text('Language'))),
+                const PopupMenuItem(value: 'share', child: ListTile(dense: true, leading: Icon(Icons.share_outlined), title: Text('Share the app'))),
+                const PopupMenuItem(value: 'browser', child: ListTile(dense: true, leading: Icon(Icons.public_rounded), title: Text('Browser'))),
+                const PopupMenuItem(value: 'notifications', child: ListTile(dense: true, leading: Icon(Icons.notifications_outlined), title: Text('Notification settings'))),
+                PopupMenuItem(value: 'wifi', child: ListTile(dense: true, leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi only'), trailing: Icon(wifiOnly ? Icons.check_rounded : Icons.circle_outlined))),
+                const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text('About'))),
+                const PopupMenuItem(value: 'sort', child: ListTile(dense: true, leading: Icon(Icons.sort_by_alpha_rounded), title: Text('Sort by name'))),
+                const PopupMenuDivider(),
+                const PopupMenuItem(value: 'exit', child: ListTile(dense: true, leading: Icon(Icons.exit_to_app_rounded), title: Text('Exit'))),
               ],
             ),
             const SizedBox(width: 4),
@@ -706,12 +750,12 @@ class _DownloadHomeState extends State<DownloadHome> {
             )),
           ),
           child: Text(
-            label,
+            '$label ($count)',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 10,
-              letterSpacing: .25,
+              letterSpacing: .1,
               fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
               color: selected ? cs.primary : cs.onSurfaceVariant,
             ),
