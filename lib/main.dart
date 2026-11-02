@@ -762,8 +762,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     final done = entries.where((e) => e.status == 'সম্পন্ন').length;
     final failed = entries.where((e) => ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি', 'যাচাই ব্যর্থ'].contains(e.status)).length;
     final visible = entries.where(_matches).toList();
-    final cs = Theme.of(context).colorScheme;
-    return PopScope(
+    return PopScope,
       canPop: selectedTab == 0,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
@@ -1411,14 +1410,14 @@ class _BrowserPageState extends State<BrowserPage> {
         ),
         PopupMenuButton<String>(tooltip: 'Browser menu', icon: const Icon(Icons.more_vert), onSelected: _action, itemBuilder: (_) => [
           PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New Tab'))),
-          PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'), trailing: DroxAnimatedSwitch(value: adBlockEnabled, onChanged: (_) => Navigator.pop(context, 'adblock')))),
+          PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: Icon(Icons.shield_outlined), title: Text('Ad Block'), trailing: IgnorePointer(child: DroxAnimatedSwitch(value: adBlockEnabled, onChanged: (_) {})))),
           PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Refresh'))),
           PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('History'))),
           const PopupMenuDivider(),
           PopupMenuItem(value: 'return', child: ListTile(dense: true, leading: Icon(Icons.home_outlined), title: Text('Return to DROX'))),
           PopupMenuItem(value: 'settings', child: ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
           PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: Icon(widget.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined), title: const Text('Dark Mode'), trailing: Icon(widget.isDark ? Icons.check : Icons.circle_outlined))),
-          PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop Mode'), trailing: DroxAnimatedSwitch(value: desktopMode, onChanged: (_) => Navigator.pop(context, 'desktop')))),
+          PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop Mode'), trailing: IgnorePointer(child: DroxAnimatedSwitch(value: desktopMode, onChanged: (_) {})))),
           PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline), title: Text('About'))),
         ]),
       ]))),
