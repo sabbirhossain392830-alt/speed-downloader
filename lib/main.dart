@@ -1530,14 +1530,23 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
     final host = currentUri?.host ?? 'Search the web';
     return SafeArea(top: true, bottom: false, child: Column(children: [
       Container(
-        padding: const EdgeInsets.fromLTRB(10, 4, 6, 5),
+        padding: const EdgeInsets.fromLTRB(9, 3, 5, 4),
         decoration: BoxDecoration(color: cs.surface, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .06), blurRadius: 10, offset: const Offset(0, 2))]),
         child: Column(children: [
           Row(children: [
-            const DroxLogoMark(size: 29),
+            const DroxLogoMark(size: 32),
             const SizedBox(width: 8),
-            const Expanded(child: Text('DROX', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: .15))),
-            IconButton(visualDensity: VisualDensity.compact, padding: const EdgeInsets.all(5), constraints: const BoxConstraints(minWidth: 36, minHeight: 36), tooltip: 'New tab', onPressed: () => _newTab(), icon: const Icon(Icons.add_rounded, size: 23)),
+            Expanded(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('DROX', style: TextStyle(fontSize: 15, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: .15)),
+                const SizedBox(height: 2),
+                Text(t?.url.isNotEmpty == true ? t!.url : 'Your browser', maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 10, height: 1.05, color: cs.onSurfaceVariant)),
+              ],
+            )),
+            IconButton(visualDensity: VisualDensity.compact, padding: const EdgeInsets.all(4), constraints: const BoxConstraints(minWidth: 34, minHeight: 34), tooltip: 'New tab', onPressed: () => _newTab(), icon: const Icon(Icons.add_rounded, size: 22)),
             IconButton(visualDensity: VisualDensity.compact, padding: const EdgeInsets.all(3), constraints: const BoxConstraints(minWidth: 36, minHeight: 36), tooltip: 'Open pages', onPressed: _showTabs, icon: Container(
               width: 30, height: 30, alignment: Alignment.center,
               decoration: BoxDecoration(border: Border.all(color: cs.onSurfaceVariant, width: 1.7), borderRadius: BorderRadius.circular(7)),
@@ -1563,9 +1572,9 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
               ],
             ),
           ]),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
           Container(
-            height: 49,
+            height: 46,
             decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .72), borderRadius: BorderRadius.circular(17), border: Border.all(color: cs.outlineVariant.withValues(alpha: .55))),
             child: Row(children: [
               const SizedBox(width: 12),
