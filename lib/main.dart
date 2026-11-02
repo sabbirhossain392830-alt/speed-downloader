@@ -865,8 +865,9 @@ class BrowserPage extends StatefulWidget {
   State<BrowserPage> createState() => _BrowserPageState();
 }
 class _DroxTab {
-  _DroxTab(this.controller, this.url);
+  _DroxTab(this.controller, this.url, {this.isPrivate = false});
   final WebViewController controller;
+  final bool isPrivate;
   String url;
   String title = 'New tab';
   bool loading = false, back = false, forward = false;
@@ -884,6 +885,7 @@ class _BrowserPageState extends State<BrowserPage> {
   final bookmarks = <Map<String, String>>[];
   final shortcuts = <Map<String, String>>[];
   bool showBookmarks = false;
+  bool privateModeNext = false;
   _DroxTab? get tab => tabs.isEmpty ? null : tabs[active];
   @override
   void initState() { super.initState(); _loadHistory(); _newTab(); }
@@ -963,8 +965,10 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
 </main></body></html>'''.replaceAll('__CUSTOM_SHORTCUTS__', custom);
   }
 
-  Future<void> _newTab([String url = 'https://www.google.com']) async {
-    final t = _DroxTab(WebViewController(), url);
+  Future<void> _newTab([String url = 'https://www.google.com', bool? private]) async {
+    final makePrivate = private ?? privateModeNext;
+    privateModeNext = false;
+    final t = _DroxTab(WebViewController(), url, isPrivate: makePrivate);
     tabs.add(t); active = tabs.length - 1; showHistory = false;
     final ctrl = t.controller;
     await ctrl.setJavaScriptMode(JavaScriptMode.unrestricted);
@@ -1110,7 +1114,7 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
         t.loading = false; t.back = await ctrl.canGoBack(); t.forward = await ctrl.canGoForward();
         if (!mounted) return;
         setState(() { if (tab == t) address.text = u; });
-        if (u.startsWith('http')) { history.removeWhere((e) => e['url'] == u); history.insert(0, {'title': t.title, 'url': u}); if (history.length > 100) history.removeLast(); _saveHistory(); }
+        if (u.startsWith('http') && !t.isPrivate) { history.removeWhere((e) => e['url'] == u); history.insert(0, {'title': t.title, 'url': u}); if (history.length > 100) history.removeLast(); _saveHistory(); }
       },
       onWebResourceError: (_) { t.loading = false; if (mounted) setState(() {}); },
     ));
@@ -1459,14 +1463,28 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
     setState(() { tabs.removeAt(i); if (active >= tabs.length) active = tabs.length - 1; else if (i < active) active--; address.text = tab?.url ?? ''; });
   }
   void _showTabs() {
-    showModalBottomSheet<void>(context: context, showDragHandle: true, builder: (ctx) => SafeArea(child: SizedBox(height: 350, child: Column(children: [
-      ListTile(title: Text('Open pages (' + tabs.length.toString() + ')'), trailing: IconButton(onPressed: () { Navigator.pop(ctx); _newTab(); }, icon: const Icon(Icons.add))),
-      Expanded(child: ListView.builder(itemCount: tabs.length, itemBuilder: (_, i) => ListTile(selected: i == active, leading: const Icon(Icons.language), title: Text(tabs[i].title, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(tabs[i].url, maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { Navigator.pop(ctx); _select(i); }, trailing: IconButton(onPressed: () { Navigator.pop(ctx); _close(i); }, icon: const Icon(Icons.close))))),
+    showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, builder: (ctx) => StatefulBuilder(builder: (ctx, refresh) => SafeArea(child: SizedBox(height: MediaQuery.of(ctx).size.height * .72, child: Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(18, 4, 12, 10), child: Row(children: [
+        Expanded(child: Text('Your tabs • ${tabs.length}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900))),
+        IconButton(tooltip: 'New tab', onPressed: () { Navigator.pop(ctx); _newTab(); }, icon: const Icon(Icons.add_rounded)),
+        IconButton(tooltip: 'Private tab', onPressed: () { Navigator.pop(ctx); _newTab('https://www.google.com', true); }, icon: const Icon(Icons.visibility_off_outlined)),
+      ])),
+      Expanded(child: GridView.builder(padding: const EdgeInsets.all(12), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 1.25), itemCount: tabs.length, itemBuilder: (_, i) {
+        final item = tabs[i]; final cs = Theme.of(ctx).colorScheme;
+        return InkWell(borderRadius: BorderRadius.circular(16), onTap: () { Navigator.pop(ctx); _select(i); },
+          child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: i == active ? cs.primaryContainer.withValues(alpha: .45) : cs.surfaceContainerHighest.withValues(alpha: .55), borderRadius: BorderRadius.circular(16), border: Border.all(color: i == active ? cs.primary : cs.outlineVariant)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [Icon(item.isPrivate ? Icons.visibility_off_outlined : Icons.language_rounded, size: 18, color: cs.primary), const Spacer(), IconButton(visualDensity: VisualDensity.compact, onPressed: () { _close(i); refresh(() {}); if (tabs.isEmpty) Navigator.pop(ctx); }, icon: const Icon(Icons.close_rounded, size: 18))]),
+              const Spacer(), Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+              const SizedBox(height: 4), Text(item.isPrivate ? 'Private tab' : (Uri.tryParse(item.url)?.host ?? item.url), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+            ])));
+      })),
     ]))));
   }
   Future<void> _action(String v) async {
     switch (v) {
       case 'new': _newTab(); break;
+      case 'private': _newTab('https://www.google.com', true); break;
       case 'adblock': setState(() => adBlockEnabled = !adBlockEnabled); break;
       case 'refresh': tab?.controller.reload(); break;
       case 'history': setState(() { showHistory = true; showBookmarks = false; }); break;
@@ -1560,6 +1578,7 @@ button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;colo
               icon: const Icon(Icons.more_vert_rounded, size: 22),
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'new', child: ListTile(dense: true, leading: Icon(Icons.add_box_outlined), title: Text('New tab'))),
+                const PopupMenuItem(value: 'private', child: ListTile(dense: true, leading: Icon(Icons.visibility_off_outlined), title: Text('New private tab'))),
                 PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: const Icon(Icons.shield_outlined), title: const Text('Ad blocking'), trailing: Icon(adBlockEnabled ? Icons.toggle_on : Icons.toggle_off))),
                 const PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: Icon(Icons.refresh_rounded), title: Text('Reload page'))),
                 const PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history_rounded), title: Text('History'))),
