@@ -762,7 +762,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     final done = entries.where((e) => e.status == 'সম্পন্ন').length;
     final failed = entries.where((e) => ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি', 'যাচাই ব্যর্থ'].contains(e.status)).length;
     final visible = entries.where(_matches).toList();
-    return PopScope,
+    return PopScope(
       canPop: selectedTab == 0,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
