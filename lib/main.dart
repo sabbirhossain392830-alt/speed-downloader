@@ -924,36 +924,41 @@ class _BrowserPageState extends State<BrowserPage> {
   }
   String get _homePageHtml {
     final custom = shortcuts.map((item) {
-      final title = const HtmlEscape().convert(item['title'] ?? 'Website');
+      final rawTitle = item['title'] ?? 'Website';
+      final title = const HtmlEscape().convert(rawTitle);
       final url = const HtmlEscape().convert(item['url'] ?? '');
-      return '<a class="shortcut" href="$url"><span>↗</span>$title</a>';
+      final letter = const HtmlEscape().convert(rawTitle.trim().isEmpty ? 'W' : rawTitle.trim()[0].toUpperCase());
+      return '<a class="shortcut" href="$url"><span class="app-icon custom-icon">$letter</span><small>$title</small></a>';
     }).join();
     return r'''<!doctype html>
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <style>
 *{box-sizing:border-box}body{margin:0;background:#101010;color:#f5f5f5;font-family:Arial,sans-serif;min-height:100vh}
-main{padding:16px 18px 20px;display:flex;flex-direction:column;align-items:center}
-.brand{font-size:clamp(48px,13vw,64px);font-weight:650;letter-spacing:-4px;margin:8px 0 22px;line-height:1.12}
+main{padding:10px 14px 14px;display:flex;flex-direction:column;align-items:center}
+.brand{font-size:clamp(44px,11vw,56px);font-weight:700;letter-spacing:-3.5px;margin:3px 0 16px;line-height:1.08}
 .b{color:#4285f4}.r{color:#ea4335}.y{color:#fbbc05}.g{color:#34a853}
-form{width:100%;max-width:560px;height:51px;border:1px solid #454545;border-radius:28px;display:flex;align-items:center;padding:0 7px 0 16px;background:#171717}
+form{width:100%;max-width:560px;height:46px;border:1px solid #454545;border-radius:25px;display:flex;align-items:center;padding:0 6px 0 14px;background:#171717}
 form:focus-within{background:#202020;border-color:#777}
-input{min-width:0;flex:1;background:transparent;border:0;outline:0;color:white;font-size:16px;padding:9px}
+input{min-width:0;flex:1;background:transparent;border:0;outline:0;color:white;font-size:15px;padding:8px}
 input::placeholder{color:#aaa}
-button{border:0;border-radius:50%;width:40px;height:40px;background:#a87912;color:white;font-size:23px}
-.shortcuts{width:100%;max-width:560px;display:flex;gap:11px;margin-top:24px;flex-wrap:wrap;justify-content:center}
-.shortcut{width:116px;min-height:98px;border-radius:18px;background:#202020;color:#eee;text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;font-size:13px;font-weight:650;text-align:center;padding:10px;overflow-wrap:anywhere}
-.shortcut span{font-size:23px;color:#c5a04b}
-.add{border:1px dashed #555;background:#191919;cursor:pointer}
-.hint{color:#777;font-size:11px;margin-top:19px;text-align:center}
+button{border:0;border-radius:50%;width:36px;height:36px;background:#a87912;color:white;font-size:21px}
+.shortcuts{width:100%;max-width:560px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:20px;justify-items:center}
+.shortcut{width:100%;max-width:76px;min-height:78px;border-radius:15px;background:#202633;color:#eee;text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:11px;font-weight:600;text-align:center;padding:6px 3px;overflow-wrap:anywhere;border:1px solid #30394a}
+.app-icon{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:white;background:linear-gradient(145deg,#287cff,#152c62);box-shadow:0 3px 10px #0008}
+.custom-icon{background:linear-gradient(145deg,#7c5cff,#1d397c)}
+.shortcut small{font-size:10px;line-height:1.15;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.add{border:1px dashed #65718a;background:#171e2b;cursor:pointer}
+.add .app-icon{background:linear-gradient(145deg,#348cff,#1754ba);font-size:25px}
+.hint{color:#777;font-size:10px;margin-top:14px;text-align:center}
 </style></head><body><main>
 <div class="brand"><span class="b">G</span><span class="r">o</span><span class="y">o</span><span class="b">g</span><span class="g">l</span><span class="r">e</span></div>
 <form onsubmit="event.preventDefault();var q=document.getElementById('q').value.trim();if(q)location.href='https://www.google.com/search?q='+encodeURIComponent(q)">
 <input id="q" type="search" placeholder="Search Google or type a URL" autocomplete="off" aria-label="Search Google"><button type="submit" aria-label="Search">→</button>
 </form>
 <div class="shortcuts">__CUSTOM_SHORTCUTS__
-<a class="shortcut" href="https://www.youtube.com/"><span>▶</span>YouTube</a>
-<a class="shortcut" href="https://www.facebook.com/"><span>f</span>Facebook</a>
-<a class="shortcut add" href="#" onclick="event.preventDefault();DroxDownload.postMessage('ADD_SHORTCUT')"><span>＋</span>Add shortcut</a>
+<a class="shortcut" href="https://www.youtube.com/"><span class="app-icon" style="background:#e62117">▶</span><small>YouTube</small></a>
+<a class="shortcut" href="https://www.facebook.com/"><span class="app-icon" style="background:#1877f2">f</span><small>Facebook</small></a>
+<a class="shortcut add" href="#" onclick="event.preventDefault();DroxDownload.postMessage('ADD_SHORTCUT')"><span class="app-icon">＋</span><small>Add</small></a>
 </div><div class="hint">Your favourite sites, one tap away</div>
 </main></body></html>'''.replaceAll('__CUSTOM_SHORTCUTS__', custom);
   }
@@ -1322,27 +1327,107 @@ button{border:0;border-radius:50%;width:40px;height:40px;background:#a87912;colo
   Future<void> _addHomeShortcut() async {
     final nameController = TextEditingController();
     final urlController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
     final result = await showDialog<Map<String, String>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add shortcut'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: nameController, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Website name', hintText: 'e.g. My favourite site')),
-          const SizedBox(height: 10),
-          TextField(controller: urlController, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Website URL', hintText: 'https://example.com')),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () {
-            var raw = urlController.text.trim();
-            if (raw.isNotEmpty && !raw.contains('://')) raw = 'https://$raw';
-            final uri = Uri.tryParse(raw);
-            if (nameController.text.trim().isNotEmpty && uri != null && ['http', 'https'].contains(uri.scheme) && uri.host.isNotEmpty) {
-              Navigator.pop(ctx, {'title': nameController.text.trim(), 'url': uri.toString()});
-            }
-          }, child: const Text('Save')),
-        ],
-      ),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return Dialog(
+          backgroundColor: cs.surface,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: cs.primary.withValues(alpha: .45), width: 1),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: Form(
+              key: formKey,
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Container(
+                    width: 42, height: 42,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: LinearGradient(colors: [cs.primary, cs.primary.withValues(alpha: .65)]),
+                    ),
+                    child: const Icon(Icons.add_link_rounded, color: Colors.white, size: 23),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Add shortcut', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                    Text('Save your favourite website', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                  ])),
+                  IconButton(visualDensity: VisualDensity.compact, tooltip: 'Close', onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded)),
+                ]),
+                const SizedBox(height: 20),
+                Text('WEBSITE NAME', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1, color: cs.onSurfaceVariant)),
+                const SizedBox(height: 7),
+                TextFormField(
+                  controller: nameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. YouTube',
+                    prefixIcon: const Icon(Icons.short_text_rounded),
+                    filled: true,
+                    fillColor: cs.surfaceContainerHighest.withValues(alpha: .45),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: cs.outlineVariant)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: cs.outlineVariant)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: cs.primary, width: 1.5)),
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter a website name' : null,
+                ),
+                const SizedBox(height: 15),
+                Text('WEBSITE URL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1, color: cs.onSurfaceVariant)),
+                const SizedBox(height: 7),
+                TextFormField(
+                  controller: urlController,
+                  keyboardType: TextInputType.url,
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    hintText: 'https://example.com',
+                    prefixIcon: const Icon(Icons.link_rounded),
+                    filled: true,
+                    fillColor: cs.surfaceContainerHighest.withValues(alpha: .45),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: cs.outlineVariant)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: cs.outlineVariant)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: cs.primary, width: 1.5)),
+                  ),
+                  validator: (v) {
+                    var raw = (v ?? '').trim();
+                    if (raw.isEmpty) return 'Enter a website URL';
+                    if (!raw.contains('://')) raw = 'https://$raw';
+                    final uri = Uri.tryParse(raw);
+                    if (uri == null || !['http', 'https'].contains(uri.scheme) || uri.host.isEmpty) return 'Enter a valid website URL';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+                Row(children: [
+                  Expanded(child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel'),
+                  )),
+                  const SizedBox(width: 10),
+                  Expanded(child: FilledButton.icon(
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(46), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                    onPressed: () {
+                      if (!(formKey.currentState?.validate() ?? false)) return;
+                      var raw = urlController.text.trim();
+                      if (!raw.contains('://')) raw = 'https://$raw';
+                      final uri = Uri.parse(raw);
+                      Navigator.pop(ctx, {'title': nameController.text.trim(), 'url': uri.toString()});
+                    },
+                    icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+                    label: const Text('Save'),
+                  )),
+                ]),
+              ]),
+            ),
+          ),
+        );
+      },
     );
     nameController.dispose();
     urlController.dispose();
