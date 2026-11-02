@@ -763,11 +763,6 @@ class _DownloadHomeState extends State<DownloadHome> {
     return value >= 100 || unit == 0 ? '${value.toStringAsFixed(0)} ${units[unit]}' : '${value.toStringAsFixed(1)} ${units[unit]}';
   }
 
-  String _fileType(String name) {
-    final dot = name.lastIndexOf('.');
-    return dot < 0 ? 'FILE' : name.substring(dot + 1).toUpperCase() + ' FILE';
-  }
-
   Widget _downloadCard(DownloadEntry entry) {
     final running = entry.status == 'ডাউনলোড হচ্ছে';
     final paused = entry.status == 'বিরতি';
@@ -847,32 +842,6 @@ class _DownloadHomeState extends State<DownloadHome> {
     );
   }
 
-  Widget _actionIcon({required IconData icon, required String label, required VoidCallback onTap, bool primary = false}) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(right: 9),
-      child: Tooltip(
-        message: label,
-        child: Material(
-          color: primary ? cs.primaryContainer : cs.surfaceContainerHighest,
-          shape: const CircleBorder(),
-          child: InkWell(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            child: SizedBox(
-              width: 42,
-              height: 42,
-              child: Icon(
-                icon,
-                size: 22,
-                color: primary ? cs.onPrimaryContainer : cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
 }
 
