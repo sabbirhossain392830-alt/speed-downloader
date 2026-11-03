@@ -63,13 +63,11 @@ patch("Notifications.kt", [
     ("        val output3 = networkSpeedRegEx.replace(output2, networkSpeedString)",
      "        val output3 = networkSpeedRegEx.replace(output2WithSizes, networkSpeedString)"),
 
-    ("import android.content.Intent\n",
-     "import android.content.Intent\nimport androidx.preference.PreferenceManager\n"),
     ("    private suspend fun handleAction(\n",
      """    private fun loadResumeData(context: Context, taskId: String): ResumeData? {
         BDPlugin.localResumeData[taskId]?.let { return it }
         return try {
-            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
             val mapJson = prefs.getString(BDPlugin.keyResumeDataMap, "{}") ?: "{}"
             val resumeMap = bdJson.decodeFromString<MutableMap<String, String>>(mapJson)
             val encoded = resumeMap[taskId] ?: return null
