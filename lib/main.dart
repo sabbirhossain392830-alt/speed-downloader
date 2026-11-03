@@ -1245,11 +1245,11 @@ class _DownloadHomeState extends State<DownloadHome> {
     final completed = entry.status == 'সম্পন্ন';
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final ink = isDark ? Colors.white : Colors.black;
-    final progress = entry.progress.clamp(0.0, 1.0);
+    final progress = completed ? 1.0 : entry.progress.clamp(0.0, 1.0);
     final downloaded = entry.expectedFileSize > 0
-        ? _formatBytes((progress * entry.expectedFileSize).round())
+        ? _formatBytes(completed ? entry.expectedFileSize : (progress * entry.expectedFileSize).round())
         : _formatBytes(0);
-    final percent = (progress * 100).toStringAsFixed(0);
+    final percent = completed ? '100' : (progress * 100).toStringAsFixed(0);
     final isVideo = RegExp(r'\.(mp4|mkv|avi|mov|webm|m4v|3gp)$', caseSensitive: false)
         .hasMatch(entry.task.filename);
     final speed = entry.speedBytesPerSecond;
@@ -1344,9 +1344,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ] else if (completed)
-                            Text('100% | $downloaded', style: TextStyle(fontSize: 12, color: ink))
-                          else
+                          ] else
                             Text(
                               _localizedStatus(entry.status),
                               style: TextStyle(fontSize: 12, color: ink),
