@@ -98,7 +98,7 @@ class DroxLinkResolver {
 
   Future<DroxLinkResolution> resolve(String input) async {
     final base = recognize(input);
-    if (!base.canQueue) return base;
+    if (!base.canQueue && base.kind != DroxLinkKind.webPage) return base;
     if (base.kind == DroxLinkKind.directFile) return base;
     try {
       final response = await _dio.head<dynamic>(base.downloadUrl,
@@ -110,10 +110,10 @@ class DroxLinkResolver {
       if (response.statusCode != null && response.statusCode! >= 400) {
         return DroxLinkResolution(originalUrl: input, downloadUrl: base.downloadUrl, provider: base.provider, kind: base.kind, canQueue: false, message: 'The server denied this link (HTTP ${response.statusCode}). Check sharing permissions.');
       }
-      if (type == 'text/html' || type == 'application/xhtml+xml') {
-        return DroxLinkResolution(originalUrl: input, downloadUrl: base.downloadUrl, provider: base.provider, kind: base.kind, canQueue: false, message: 'This link opens a web page, not a direct file. Use the provider’s authorized download option.');
+      if (type == 'text/html' || type == 'application/xhtml+xml' || (type == null && disposition == null)) {
+        return DroxLinkResolution(originalUrl: input, downloadUrl: base.downloadUrl, provider: base.provider, kind: base.kind, canQueue: false, message: 'This link opens a web page or could not be verified as a file. Use the website’s authorized download option.');
       }
-      return DroxLinkResolution(originalUrl: input, downloadUrl: base.downloadUrl, provider: base.provider, kind: base.kind, canQueue: true, message: base.message, filename: name, contentLength: length, contentType: type);
+      return DroxLinkResolution(originalUrl: input, downloadUrl: base.downloadUrl, provider: base.provider, kind: base.kind, canQueue: true, message: base.canQueue ? base.message : 'Direct file response detected from this website.', filename: name, contentLength: length, contentType: type);
     } on DioException {
       // Some legitimate hosts reject HEAD. Known provider URL forms remain
       // queueable; the download engine will report the actual transfer result.
