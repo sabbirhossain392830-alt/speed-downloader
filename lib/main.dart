@@ -996,7 +996,7 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   @override
   Widget build(BuildContext context) {
-    final active = entries.where((e) => ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(e.status)).length;
+    final active = entries.where((e) => ['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(e.status)).length;
     final done = entries.where((e) => e.status == 'সম্পন্ন').length;
     final failed = entries.where((e) => ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি', 'যাচাই ব্যর্থ'].contains(e.status)).length;
     final visible = entries.where(_matches).toList();
