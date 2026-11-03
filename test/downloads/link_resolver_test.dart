@@ -30,6 +30,19 @@ void main() {
     expect(result.downloadUrl, contains('download=1'));
   });
 
+  test('recognizes direct GitHub release asset URLs', () {
+    final result = resolver.recognize('https://github.com/user/project/releases/download/v1.0/app.apk');
+    expect(result.canQueue, isTrue);
+    expect(result.kind, DroxLinkKind.directFile);
+    expect(result.filename, 'app.apk');
+  });
+
+  test('recognizes direct Internet Archive download URLs', () {
+    final result = resolver.recognize('https://archive.org/download/sample/movie.mp4');
+    expect(result.canQueue, isTrue);
+    expect(result.kind, DroxLinkKind.directFile);
+  });
+
   test('does not claim protected video platform pages are downloadable', () {
     final result = resolver.recognize('https://www.youtube.com/watch?v=abcdefghijk');
     expect(result.provider, 'YouTube');
