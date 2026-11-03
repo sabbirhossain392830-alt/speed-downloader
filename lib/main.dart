@@ -19,13 +19,13 @@ void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
     running: enabled
         ? TaskNotification(
             bangla ? 'DROX • ডাউনলোড হচ্ছে' : 'DROX • Downloading',
-            '{filename} • {progress}%',
+            '{filename} • {progress}',
           )
         : null,
     paused: enabled
         ? TaskNotification(
             bangla ? 'DROX • ডাউনলোড বিরতিতে' : 'DROX • Paused',
-            '{filename} • {progress}%',
+            '{filename} • {progress}',
           )
         : null,
     complete: enabled
@@ -1041,7 +1041,6 @@ class _DownloadHomeState extends State<DownloadHome> {
             ListTile(leading: const Icon(Icons.pause_circle_outline_rounded), title: Text(_tr('Cancel download', 'ডাউনলোড বাতিল')), onTap: () => Navigator.pop(ctx, 'cancel')),
           ListTile(leading: const Icon(Icons.refresh_rounded), title: Text(_tr('Redownload', 'আবার ডাউনলোড')), onTap: () => Navigator.pop(ctx, 'redownload')),
           ListTile(leading: const Icon(Icons.copy_rounded), title: Text(_tr('Copy download link', 'ডাউনলোড লিংক কপি')), onTap: () => Navigator.pop(ctx, 'copy')),
-          ListTile(leading: const Icon(Icons.link_rounded), title: Text(_tr('Refresh link', 'লিংক রিফ্রেশ')), onTap: () => Navigator.pop(ctx, 'refresh')),
           ListTile(leading: const Icon(Icons.drive_file_rename_outline_rounded), title: Text(_tr('Rename file', 'ফাইলের নাম পরিবর্তন')), onTap: () => Navigator.pop(ctx, 'rename')),
           if (entry.status == 'সম্পন্ন')
             ListTile(leading: const Icon(Icons.open_in_new_rounded), title: Text(_tr('Open file', 'ফাইল খুলুন')), onTap: () => Navigator.pop(ctx, 'open')),
@@ -1297,7 +1296,8 @@ class _DownloadHomeState extends State<DownloadHome> {
             const SizedBox(width: 4),
           ],
         ),
-        body: IndexedStack(index: selectedTab, children: [
+        body: Stack(children: [
+          IndexedStack(index: selectedTab, children: [
           Column(children: [
             Material(
               color: widget.isDark ? const Color(0xFF151A22) : const Color(0xFF6B351B),
@@ -1370,6 +1370,14 @@ class _DownloadHomeState extends State<DownloadHome> {
             const SizedBox(height: 18),
             ListTile(leading: Icon(Icons.info_outline), title: Text(_tr('About DROX', 'DROX পরিচিতি')), subtitle: Text(_tr('Browser and download manager', 'ব্রাউজার ও ডাউনলোড ম্যানেজার'))),
           ]),
+          if (_fabExpanded && selectedTab == 0)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _fabExpanded = false),
+                child: const SizedBox.expand(),
+              ),
+            ),
         ]),
         floatingActionButton: selectedTab == 0
             ? Column(
@@ -1377,8 +1385,8 @@ class _DownloadHomeState extends State<DownloadHome> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   AnimatedSize(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeInOut,
+                    duration: const Duration(milliseconds: 320),
+                    curve: Curves.easeOutBack,
                     child: _fabExpanded
                         ? Column(
                             mainAxisSize: MainAxisSize.min,
@@ -1413,8 +1421,8 @@ class _DownloadHomeState extends State<DownloadHome> {
                     onPressed: () => setState(() => _fabExpanded = !_fabExpanded),
                     child: AnimatedRotation(
                       turns: _fabExpanded ? 0.125 : 0,
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeInOut,
+                      duration: const Duration(milliseconds: 360),
+                      curve: Curves.easeInOutBack,
                       child: const Icon(Icons.add_rounded, size: 30),
                     ),
                   ),
