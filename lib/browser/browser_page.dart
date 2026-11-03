@@ -135,10 +135,12 @@ class BrowserPageState extends State<BrowserPage> {
     final ctrl = t.controller;
     await ctrl.setJavaScriptMode(JavaScriptMode.unrestricted);
     await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) => _downloadPrompt(m.message));
-    await ctrl.addJavaScriptChannel('DroxRefresh', onMessageReceived: (_) {
+    await ctrl.addJavaScriptChannel('DroxRefresh', onMessageReceived: (_) async {
+      if (t.refreshing) return;
       t.refreshing = true;
       t.loading = true;
       if (mounted) setState(() {});
+      await ctrl.reload();
     });
     await ctrl.setNavigationDelegate(NavigationDelegate(
       onNavigationRequest: (r) {
@@ -195,7 +197,7 @@ class BrowserPageState extends State<BrowserPage> {
           var droxTouchStartY=0;var droxAtTop=false;var droxRefreshing=false;
           function droxPageAtTop(){var root=document.scrollingElement||document.documentElement;return (window.scrollY||root.scrollTop||(document.body&&document.body.scrollTop)||0)<=0}
           window.addEventListener('touchstart',function(e){if(e.touches&&e.touches.length===1){droxTouchStartY=e.touches[0].clientY;droxAtTop=droxPageAtTop();droxRefreshing=false;}}, {passive:true,capture:true});
-          window.addEventListener('touchend',function(e){if(!droxAtTop||droxRefreshing||!e.changedTouches||!e.changedTouches.length)return;var delta=e.changedTouches[0].clientY-droxTouchStartY;if(delta>85&&droxPageAtTop()){droxRefreshing=true;try{DroxRefresh.postMessage('refresh')}catch(_){}window.location.reload();}droxAtTop=false;}, {passive:true,capture:true});
+          window.addEventListener('touchend',function(e){if(!droxAtTop||droxRefreshing||!e.changedTouches||!e.changedTouches.length)return;var delta=e.changedTouches[0].clientY-droxTouchStartY;if(delta>85&&droxPageAtTop()){droxRefreshing=true;try{DroxRefresh.postMessage('refresh')}catch(_){}}droxAtTop=false;}, {passive:true,capture:true});
           window.addEventListener('touchcancel',function(){droxAtTop=false;droxRefreshing=false;}, {passive:true,capture:true});
           scan();new MutationObserver(function(){scan();scanResources();scanFrames()}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
           setInterval(function(){scan();scanResources();scanFrames()},2500);
@@ -205,8 +207,10 @@ class BrowserPageState extends State<BrowserPage> {
         if (adBlockEnabled) await ctrl.runJavaScript(_droxAdBlockScript);
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
-        final visitedTrailIndex = t.trail.lastIndexWhere((entry) => entry == u);
-        if (visitedTrailIndex >= 0) t.trailIndex = visitedTrailIndex;
+        if (t.trailIndex < 0 || t.trailIndex >= t.trail.length || t.trail[t.trailIndex] != u) {
+          final visitedTrailIndex = t.trail.lastIndexWhere((entry) => entry == u);
+          if (visitedTrailIndex >= 0) t.trailIndex = visitedTrailIndex;
+        }
         t.pendingTraversal = 0;
         t.loading = false;
         t.refreshing = false;
@@ -405,10 +409,30 @@ class BrowserPageState extends State<BrowserPage> {
 
   Future<void> _goBack() async {
     final current = tab;
-    if (current == null || !await current.controller.canGoBack()) return;
-    current.pendingTraversal--;
-    await current.controller.goBack();
-    if (mounted) setState(() {});
+    if (current == null) return;
+    if (await current.controller.canGoBack()) {
+      current.pendingTraversal--;
+      await current.controller.goBack();
+      if (mounted) setState(() {});
+      return;
+    }
+    if (current.url.isNotEmpty && mounted) {
+      setState(() {
+        current.url = '';
+        current.title = 'Google';
+        current.loading = false;
+        current.refreshing = false;
+        current.back = false;
+        current.forward = false;
+        address.clear();
+        homeSearch.clear();
+        showHistory = false;
+        showTrail = false;
+        showTabOverview = false;
+        historySelectionMode = false;
+        selectedHistory.clear();
+      });
+    }
   }
 
   Future<void> _goForward() async {
@@ -602,7 +626,17 @@ class BrowserPageState extends State<BrowserPage> {
             return Card(elevation: 0, color: selected ? cs.primaryContainer.withValues(alpha: .55) : (widget.isDark ? const Color(0xFF303134) : Colors.white),
               margin: const EdgeInsets.only(bottom: 7), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               child: ListTile(
-                leading: historySelectionMode ? Checkbox(value: selected, onChanged: (v) => setState(() { if (v == true) selectedHistory.add(i); else selectedHistory.remove(i); })) : _siteIcon(item['url'] ?? '', size: 34),
+                leading: Row(mainAxisSize: MainAxisSize.min, children: [
+                  _siteIcon(item['url'] ?? '', size: 34),
+                  if (historySelectionMode) ...[
+                    const SizedBox(width: 6),
+                    Checkbox(value: selected, visualDensity: VisualDensity.compact,
+                      onChanged: (v) => setState(() {
+                        if (v == true) selectedHistory.add(i);
+                        else selectedHistory.remove(i);
+                      })),
+                  ],
+                ]),
                 title: Text(item['title']?.isNotEmpty == true ? item['title']! : (Uri.tryParse(item['url'] ?? '')?.host ?? 'Website'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: Text('${item['url'] ?? ''}${(item['visitedAt'] ?? '').isNotEmpty ? '\\n${_formatHistoryTime(item['visitedAt']!)}' : ''}', maxLines: 2, overflow: TextOverflow.ellipsis),
                 onTap: () { if (historySelectionMode) setState(() { if (selected) selectedHistory.remove(i); else selectedHistory.add(i); }); else _loadUrl(item['url'] ?? ''); },
@@ -647,13 +681,29 @@ class BrowserPageState extends State<BrowserPage> {
                       final url = current.trail[i];
                       final host = Uri.tryParse(url)?.host ?? url;
                       final selected = i == current.trailIndex;
-                      return ListTile(
-                        selected: selected,
-                        leading: _siteIcon(url, size: 34),
-                        title: Text(host, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w500)),
-                        subtitle: Text(url, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        trailing: IconButton(tooltip: 'Remove from trail', visualDensity: VisualDensity.compact, icon: Icon(Icons.close_rounded, size: 19, color: cs.onSurfaceVariant), onPressed: () => _removeTrailItem(i)),
-                        onTap: () => _jumpToTrail(i),
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? (widget.isDark ? const Color(0xFF203653) : const Color(0xFFE8F1FF))
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                          border: selected
+                              ? Border.all(color: const Color(0xFF8AB4F8), width: 1.2)
+                              : null,
+                        ),
+                        child: ListTile(
+                          leading: _siteIcon(url, size: 34),
+                          title: Text(host, maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                              color: selected ? (widget.isDark ? const Color(0xFFD6E6FF) : const Color(0xFF174EA6)) : cs.onSurface)),
+                          subtitle: Text(url, maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: selected ? (widget.isDark ? const Color(0xFFB6D0F5) : const Color(0xFF3C69A8)) : cs.onSurfaceVariant)),
+                          trailing: IconButton(tooltip: 'Remove from trail', visualDensity: VisualDensity.compact,
+                            icon: Icon(Icons.close_rounded, size: 19, color: selected ? const Color(0xFF4285F4) : cs.onSurfaceVariant),
+                            onPressed: () => _removeTrailItem(i)),
+                          onTap: () => _jumpToTrail(i),
+                        ),
                       );
                     },
                   ),
@@ -669,9 +719,21 @@ class BrowserPageState extends State<BrowserPage> {
   }
   Future<bool> handleSystemBack() async {
     if (showTrail) { setState(() => showTrail = false); return true; }
-    if (showHistory) { setState(() => showHistory = false); return true; }
+    if (showHistory) {
+      setState(() { showHistory = false; historySelectionMode = false; selectedHistory.clear(); });
+      return true;
+    }
     if (showTabOverview) { setState(() => showTabOverview = false); return true; }
-    if (tab != null && await tab!.controller.canGoBack()) { await _goBack(); return true; }
+    final current = tab;
+    if (current == null) return false;
+    if (await current.controller.canGoBack()) {
+      await _goBack();
+      return true;
+    }
+    if (current.url.isNotEmpty) {
+      await _goBack();
+      return true;
+    }
     return false;
   }
   void _select(int i) { setState(() { active = i; address.text = tab?.url ?? ''; showHistory = false; showTrail = false; showTabOverview = false; }); }
@@ -774,13 +836,6 @@ class BrowserPageState extends State<BrowserPage> {
         await prefs.setBool('drox_browser_adblock', adBlockEnabled);
         if (tab?.url.isNotEmpty == true) await tab!.controller.reload();
         break;
-      case 'adblock_info':
-        if (mounted) showDialog<void>(context: context, builder: (ctx) => AlertDialog(
-          icon: const Icon(Icons.shield_rounded, size: 38), title: const Text('DROX Ad Protection'),
-          content: const Text('DROX blocks a built-in list of known advertising and tracking domains, and hides common ad frames and page ad containers. Some ads may still appear because websites can change their ad systems or serve ads from the same domain as page content.'),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Got it'))],
-        ));
-        break;
       case 'refresh': tab?.controller.reload(); break;
       case 'history': setState(() { showHistory = true; showTrail = false; }); break;
       case 'exit': widget.onReturn(); break;
@@ -865,8 +920,7 @@ class BrowserPageState extends State<BrowserPage> {
                   itemBuilder: (_) => [
                     PopupMenuItem(value: 'new', child: const ListTile(dense: true, leading: Icon(Icons.add_rounded), title: Text('New tab'))),
                     PopupMenuItem(value: 'history', child: const ListTile(dense: true, leading: Icon(Icons.history_rounded), title: Text('History'))),
-                    PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: const Icon(Icons.shield_rounded), title: const Text('Block ads & trackers'), trailing: Icon(adBlockEnabled ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: adBlockEnabled ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
-                    PopupMenuItem(value: 'adblock_info', child: const ListTile(dense: true, leading: Icon(Icons.security_rounded), title: Text('Ad blocking protection'))),
+                    PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: const Icon(Icons.shield_rounded), title: const Text('Ad Block'), trailing: Icon(adBlockEnabled ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: adBlockEnabled ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
                     PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop site'), trailing: Icon(desktopMode ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: desktopMode ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
                     PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: const Icon(Icons.dark_mode_outlined), title: const Text('Dark mode'), trailing: Icon(widget.isDark ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: widget.isDark ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
                     PopupMenuItem(value: 'settings', child: const ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
@@ -918,7 +972,7 @@ class BrowserPageState extends State<BrowserPage> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(8, 3, 8, 5),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                  IconButton(tooltip: 'Back', onPressed: current?.back == true ? _goBack : null, icon: const Icon(Icons.arrow_back_rounded)),
+                  IconButton(tooltip: 'Back', onPressed: current == null ? null : _goBack, icon: const Icon(Icons.arrow_back_rounded)),
                   IconButton(tooltip: 'Forward', onPressed: current?.forward == true ? _goForward : null, icon: const Icon(Icons.arrow_forward_rounded)),
                   IconButton(tooltip: 'Home', onPressed: () {
                     setState(() {
