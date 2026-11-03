@@ -1304,7 +1304,9 @@ class _DownloadHomeState extends State<DownloadHome> {
         ],
       );
     });
-    if (value != null && value.isNotEmpty && mounted) { controller.text = value; _add(); }
+    if (value != null && value.isNotEmpty && mounted) {
+      await downloadCenterKey.currentState?.acceptSharedUrl(value);
+    }
   }
 
   Widget _filterChip(String label, DownloadFilter value) => Padding(
