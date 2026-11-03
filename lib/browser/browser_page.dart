@@ -493,12 +493,15 @@ class BrowserPageState extends State<BrowserPage> {
           setState(() {});
         }
       },
-      child: Container(
+      child: ColoredBox(
       color: widget.isDark ? const Color(0xFF202124) : const Color(0xFFFFFFFF),
-      child: SingleChildScrollView(
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(22, 34, 22, 28),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
           const SizedBox(height: 54),
           Row(mainAxisSize: MainAxisSize.min, children: List.generate(letters.length, (i) => Text(
             letters[i], style: TextStyle(fontSize: 43, fontWeight: FontWeight.w600, color: googleColors[i], letterSpacing: -2),
@@ -578,6 +581,8 @@ class BrowserPageState extends State<BrowserPage> {
           const SizedBox(height: 34),
           Text('Discover the web', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
         ]),
+        ),
+      ),
       ),
     ));
   }
@@ -838,7 +843,6 @@ class BrowserPageState extends State<BrowserPage> {
         break;
       case 'refresh': tab?.controller.reload(); break;
       case 'history': setState(() { showHistory = true; showTrail = false; }); break;
-      case 'exit': widget.onReturn(); break;
       case 'return': widget.onReturn(); break;
       case 'settings': widget.onSettings(); break;
       case 'dark': widget.onThemeTap(); break;
@@ -925,7 +929,6 @@ class BrowserPageState extends State<BrowserPage> {
                     PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: const Icon(Icons.dark_mode_outlined), title: const Text('Dark mode'), trailing: Icon(widget.isDark ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: widget.isDark ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
                     PopupMenuItem(value: 'settings', child: const ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
                     PopupMenuItem(value: 'return', child: const ListTile(dense: true, leading: Icon(Icons.download_rounded), title: Text('DROX downloads'))),
-                    PopupMenuItem(value: 'exit', child: const ListTile(dense: true, leading: Icon(Icons.exit_to_app_rounded), title: Text('Exit browser'))),
                     PopupMenuItem(value: 'about', child: const ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text('About'))),
                   ],
                 ),
@@ -949,7 +952,13 @@ class BrowserPageState extends State<BrowserPage> {
             child: Stack(children: [
               Positioned.fill(
                 child: Stack(children: [
-                  IndexedStack(index: active, children: tabs.map((item) => WebViewWidget(controller: item.controller)).toList()),
+                  Offstage(
+                    offstage: isHome || showHistory || showTabOverview,
+                    child: IndexedStack(
+                      index: active,
+                      children: tabs.map((item) => WebViewWidget(controller: item.controller)).toList(),
+                    ),
+                  ),
                   if (isHome && !showHistory && !showTabOverview) Positioned.fill(child: _buildStartPage()),
                   if (showHistory) Positioned.fill(child: _buildHistoryPage()),
                   if (showTabOverview) Positioned.fill(child: _buildTabOverview()),
@@ -972,7 +981,7 @@ class BrowserPageState extends State<BrowserPage> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(8, 3, 8, 5),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                  IconButton(tooltip: 'Back', onPressed: current == null ? null : _goBack, icon: const Icon(Icons.arrow_back_rounded)),
+                  IconButton(tooltip: 'Back', onPressed: current?.url.isNotEmpty == true ? _goBack : null, icon: const Icon(Icons.arrow_back_rounded)),
                   IconButton(tooltip: 'Forward', onPressed: current?.forward == true ? _goForward : null, icon: const Icon(Icons.arrow_forward_rounded)),
                   IconButton(tooltip: 'Home', onPressed: () {
                     setState(() {
