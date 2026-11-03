@@ -44,7 +44,10 @@ class DownloadController extends ChangeNotifier {
         final expected = data['expectedBytes'];
         if (expected is num) item.expectedBytes = expected.toInt();
         final savedState = data['state'] as String?;
-        item.state = DroxDownloadState.values.where((s) => s.name == savedState).firstOrNull ?? DroxDownloadState.paused;
+        item.state = DroxDownloadState.paused;
+        for (final candidate in DroxDownloadState.values) {
+          if (candidate.name == savedState) item.state = candidate;
+        }
         if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued) {
           item.state = DroxDownloadState.paused;
         }
