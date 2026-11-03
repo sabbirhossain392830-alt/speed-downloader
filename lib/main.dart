@@ -17,13 +17,13 @@ void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
     running: enabled
         ? TaskNotification(
             bangla ? 'DROX • ডাউনলোড চলছে' : 'DROX • Download in progress',
-            bangla ? '{filename}\\nঅগ্রগতি: {progress}' : '{filename}\\nProgress: {progress}',
+            bangla ? '{filename}\nঅগ্রগতি: {progress}' : '{filename}\nProgress: {progress}',
           )
         : null,
     paused: enabled
         ? TaskNotification(
             bangla ? 'DROX • ডাউনলোড বিরতিতে' : 'DROX • Download paused',
-            bangla ? '{filename}\\nসর্বশেষ অগ্রগতি: {progress}' : '{filename}\\nLast progress: {progress}',
+            bangla ? '{filename}\nসর্বশেষ অগ্রগতি: {progress}' : '{filename}\nLast progress: {progress}',
           )
         : null,
     complete: enabled
@@ -42,7 +42,8 @@ void main() async {
   await FileDownloader().configure(androidConfig: [
     (Config.runInForeground, Config.always),
     (Config.useCacheDir, Config.never),
-  ]);\n  await FileDownloader().start(autoCleanDatabase: true);
+  ]);
+  await FileDownloader().start(autoCleanDatabase: true);
   final prefs = await SharedPreferences.getInstance();
   _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? true, bangla: prefs.getBool('drox_language_bangla_v2') ?? false);
 
