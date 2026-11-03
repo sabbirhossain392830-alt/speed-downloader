@@ -480,7 +480,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     if (enabled) {
       var status = await FileDownloader().permissions.status(PermissionType.notifications);
       if (status != PermissionStatus.granted) {
-        status = await FileDownloader().permissions.request();
+        status = await FileDownloader().permissions.request(PermissionType.notifications);
       }
       if (status != PermissionStatus.granted) enabled = false;
     }
