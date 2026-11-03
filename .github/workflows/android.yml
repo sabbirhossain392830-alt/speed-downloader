@@ -292,6 +292,7 @@ jobs:
               raise SystemExit("App Gradle build file not found")
           PY
           flutter pub get
+          python3 tool/patch_background_downloader_notifications.py
           flutter analyze lib/main.dart
           flutter build apk --release
       - name: Upload APK
