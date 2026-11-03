@@ -14,10 +14,21 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
   FileDownloader().configureNotification(
-    running: enabled ? TaskNotification(bangla ? 'DROX • ডাউনলোড হচ্ছে' : 'DROX • Downloading', '{filename}') : null,
-    paused: enabled ? TaskNotification(bangla ? 'DROX • বিরতি' : 'DROX • Paused', '{filename}') : null,
-    complete: enabled ? TaskNotification(bangla ? 'DROX • ডাউনলোড সম্পন্ন' : 'DROX • Download complete', '{filename}') : null,
-    error: enabled ? TaskNotification(bangla ? 'DROX • ডাউনলোড ব্যর্থ' : 'DROX • Download failed', '{filename}') : null,
+    running: enabled
+        ? TaskNotification(
+            bangla ? 'DROX • ডাউনলোড হচ্ছে {progress}' : 'DROX • Downloading {progress}',
+            '{filename}',
+          )
+        : null,
+    paused: enabled
+        ? TaskNotification(bangla ? 'DROX • বিরতি' : 'DROX • Paused', '{filename} • {progress}')
+        : null,
+    complete: enabled
+        ? TaskNotification(bangla ? 'DROX • ডাউনলোড সম্পন্ন' : 'DROX • Download complete', '{filename}')
+        : null,
+    error: enabled
+        ? TaskNotification(bangla ? 'DROX • ডাউনলোড ব্যর্থ' : 'DROX • Download failed', '{filename}')
+        : null,
     progressBar: enabled,
   );
 }
@@ -446,7 +457,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool('drox_notifications_enabled') ?? true;
     if (mounted) setState(() => notificationsEnabled = enabled);
-    _configureDroxNotifications(enabled);
+    _configureDroxNotifications(enabled, bangla: widget.isBangla);
   }
 
   Future<void> _setNotificationsEnabled(bool enabled) async {
@@ -827,7 +838,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
-      retries: 5,
+      retries: 10,
     );
     setState(() {
       entries.insert(0, DownloadEntry(task));
@@ -868,7 +879,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         baseDirectory: BaseDirectory.applicationSupport,
         updates: Updates.statusAndProgress,
         allowPause: true,
-        retries: 5,
+        retries: 10,
       );
       final replacement = DownloadEntry(retryTask);
       final index = entries.indexWhere((e) => e.task.taskId == entry.task.taskId);
@@ -924,7 +935,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
-      retries: 5,
+      retries: 10,
     );
     setState(() => entries.insert(0, DownloadEntry(task)));
     _saveHistory();
@@ -1173,16 +1184,45 @@ class _DownloadHomeState extends State<DownloadHome> {
               width: 3,
             )),
           ),
-          child: Text(
-            '$label ($count)',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              letterSpacing: .05,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              color: Colors.white,
-            ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  letterSpacing: .05,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Container(
+                constraints: const BoxConstraints(minWidth: 20, minHeight: 17),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? (widget.isDark ? const Color(0xFF4FC3F7) : Colors.white)
+                      : Colors.white.withValues(alpha: .18),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    color: selected
+                        ? (widget.isDark ? const Color(0xFF101820) : const Color(0xFF6B351B))
+                        : Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
