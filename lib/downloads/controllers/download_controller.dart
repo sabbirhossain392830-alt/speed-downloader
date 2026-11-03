@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:background_downloader/background_downloader.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/download_item.dart';
 import '../core/download_repository.dart';
@@ -32,7 +34,40 @@ class DownloadController extends ChangeNotifier {
     try {
       _updates ??= _engine.updates.listen(_onTaskUpdate);
       await _engine.initialize();
-      final saved = await _repository.load();
+      var saved = await _repository.load();
+      if (saved.isEmpty) {
+        // Import the previous manager's history once. Keep the legacy key
+        // until the migrated v2 snapshot has been persisted successfully.
+        final prefs = await SharedPreferences.getInstance();
+        final raw = prefs.getString('drox_download_history');
+        if (raw != null && raw.isNotEmpty) {
+          try {
+            final legacy = (jsonDecode(raw) as List)
+                .whereType<Map>()
+                .map((entry) => Map<String, dynamic>.from(entry));
+            saved = legacy.map((entry) {
+              final status = entry['status'] as String? ?? '';
+              final state = switch (status) {
+                'সম্পন্ন' => 'complete',
+                'ব্যর্থ' || 'যাচাই ব্যর্থ' || 'কিউতে যোগ করা যায়নি' => 'failed',
+                'বাতিল' => 'cancelled',
+                _ => 'paused',
+              };
+              return <String, dynamic>{
+                'id': entry['taskId'],
+                'url': entry['url'],
+                'filename': entry['filename'],
+                'state': state,
+                'progress': entry['progress'],
+                'expectedBytes': entry['expectedFileSize'],
+                'error': entry['error'],
+              };
+            }).where((entry) => entry['url'] is String && entry['filename'] is String).toList();
+          } catch (_) {
+            // Preserve unreadable legacy data for manual recovery.
+          }
+        }
+      }
       for (final data in saved) {
         final url = data['url'] as String?;
         final filename = data['filename'] as String?;
@@ -56,6 +91,8 @@ class DownloadController extends ChangeNotifier {
       }
       _initialized = true;
       await _persist();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('drox_download_history');
     } finally {
       _busy = false;
       notifyListeners();
