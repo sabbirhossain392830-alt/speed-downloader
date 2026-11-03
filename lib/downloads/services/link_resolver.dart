@@ -99,6 +99,21 @@ class DroxLinkResolver {
   }
 
   Future<DroxLinkResolution> resolve(String input) async {
+    final parsed = Uri.tryParse(input.trim());
+    if (parsed != null && parsed.host.isNotEmpty) {
+      final host = parsed.host.toLowerCase().replaceFirst(RegExp(r'^www\\.'), '');
+      if (host == 'github.com' &&
+          parsed.pathSegments.length >= 5 &&
+          parsed.pathSegments[2] == 'releases' &&
+          parsed.pathSegments[3] == 'tag') {
+        return _resolveGitHubRelease(input, parsed);
+      }
+      if (host == 'archive.org' &&
+          parsed.pathSegments.length >= 2 &&
+          parsed.pathSegments[0] == 'details') {
+        return _resolveArchiveItem(input, parsed);
+      }
+    }
     final base = recognize(input);
     if (!base.canQueue && base.kind != DroxLinkKind.webPage) return base;
     if (base.kind == DroxLinkKind.directFile) return base;
