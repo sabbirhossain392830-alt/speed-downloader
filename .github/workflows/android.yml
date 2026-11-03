@@ -353,8 +353,25 @@ jobs:
                "        timeRemaining: Long? = null,\n        groupNotification: GroupNotification? = null,\n        downloadedBytes: Long = -1L,\n        totalBytes: Long = -1L\n    ): String {"),
               ("        return if (groupNotification != null) {", "        val output5 = downloadedBytesRegEx.replace(output4, formatNotificationBytes(downloadedBytes))\n        val output6 = totalBytesRegEx.replace(output5, formatNotificationBytes(totalBytes))\n        return if (groupNotification != null) {"),
               ("numTotalRegEx.replace(output4,", "numTotalRegEx.replace(output6,"),
-              ("                output4\n            )\n        } else {\n            output4\n        }\n    }",
-               "                output6\n            )\n        } else {\n            output6\n        }\n    }\n\n    private fun formatNotificationBytes(bytes: Long): String {\n        if (bytes < 0L) return \"--\"\n        val units = arrayOf(\"B\", \"KB\", \"MB\", \"GB\", \"TB\")\n        var value = bytes.toDouble()\n        var unit = 0\n        while (value >= 1024.0 && unit < units.lastIndex) {\n            value /= 1024.0\n            unit++\n        }\n        return if (unit == 0) bytes.toString() + \" B\" else String.format(Locale.US, \"%.1f %s\", value, units[unit])\n    }")
+              # output4 is transformed below within replaceTokens() using scoped edits.
+          ])
+          # Patch the token function by its boundaries, avoiding fragile whitespace anchors.
+          notification_file = root / "Notifications.kt"
+          source = notification_file.read_text()
+          start = source.index("    private fun replaceTokens(")
+          end = source.index("\n    /** Add display notification", start)
+          function = source[start:end]
+          anchor = "        return if (groupNotification != null) {"
+          if function.count(anchor) != 1:
+              raise SystemExit("Could not find replaceTokens return anchor")
+          function = function.replace(anchor,
+              "        val output5 = downloadedBytesRegEx.replace(output4, formatNotificationBytes(downloadedBytes))\n"
+              "        val output6 = totalBytesRegEx.replace(output5, formatNotificationBytes(totalBytes))\n" + anchor, 1)
+          function = function.replace("numTotalRegEx.replace(output4,", "numTotalRegEx.replace(output6,", 1)
+          function = function.replace("\n            output4\n", "\n            output6\n", 1)
+          source = source[:start] + function + source[end:]
+          notification_file.write_text(source)
+          print("Patched Notifications.kt token replacement")
           ])
           PY
           flutter analyze lib/main.dart
