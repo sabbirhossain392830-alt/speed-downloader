@@ -427,6 +427,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     ]),
   );
 
+  static const MethodChannel _notificationMethod = MethodChannel('drox/notifications');
   static const MethodChannel _shareMethod = MethodChannel('drox/share');
   static const EventChannel _shareEvents = EventChannel('drox/share_events');
   StreamSubscription<dynamic>? _shareSubscription;
@@ -655,7 +656,60 @@ class _DownloadHomeState extends State<DownloadHome> {
         }
       }
     });
+    _syncNativeNotification(entries[index]);
     _saveHistory();
+  }
+
+  String _notificationSize(int bytes) {
+    if (bytes < 0) return '—';
+    if (bytes < 1024) return '${bytes} B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  Future<void> _syncNativeNotification(DownloadEntry entry) async {
+    if (!Platform.isAndroid || !notificationsEnabled) return;
+    final total = entry.expectedFileSize;
+    final downloaded = total > 0 ? (entry.progress * total).round() : 0;
+    final speed = entry.speedBytesPerSecond;
+    final remaining = total > 0 && speed > 0
+        ? ((total - downloaded) / speed).ceil()
+        : -1;
+    final eta = remaining < 0
+        ? '—'
+        : remaining >= 3600
+            ? '${remaining ~/ 3600}h ${(remaining % 3600) ~/ 60}m'
+            : remaining >= 60
+                ? '${remaining ~/ 60}m ${remaining % 60}s'
+                : '${remaining}s';
+    final bangla = widget.isBangla;
+    final status = entry.status;
+    final title = status == 'সম্পন্ন'
+        ? (bangla ? 'DROX • ডাউনলোড সম্পন্ন' : 'DROX • Download complete')
+        : status == 'বিরতি'
+            ? (bangla ? 'DROX • ডাউনলোড বিরতিতে' : 'DROX • Download paused')
+            : status == 'ব্যর্থ' || status == 'যাচাই ব্যর্থ'
+                ? (bangla ? 'DROX • ডাউনলোড ব্যর্থ' : 'DROX • Download failed')
+                : (bangla ? 'DROX • ডাউনলোড চলছে' : 'DROX • Downloading');
+    final details = [
+      '${(entry.progress * 100).round()}%',
+      '${_notificationSize(downloaded)} / ${_notificationSize(total)}',
+      speed > 0 ? '${_notificationSize(speed.round())}/s' : (bangla ? 'স্পিড হিসাব হচ্ছে' : 'Calculating speed'),
+      '${bangla ? 'সময় বাকি' : 'ETA'}: $eta',
+    ].join('  •  ');
+    try {
+      await _notificationMethod.invokeMethod<void>('updateDownload', {
+        'id': entry.task.taskId.hashCode & 0x7fffffff,
+        'title': title,
+        'filename': entry.task.filename,
+        'details': details,
+        'progress': (entry.progress * 100).round().clamp(0, 100),
+        'ongoing': !['সম্পন্ন', 'বিরতি', 'ব্যর্থ', 'যাচাই ব্যর্থ', 'বাতিল'].contains(status),
+      });
+    } catch (_) {
+      // The plugin's own background notification remains the fallback.
+    }
   }
 
   Future<void> _verifyCompletedFile(DownloadEntry entry) async {
