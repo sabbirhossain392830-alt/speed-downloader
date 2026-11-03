@@ -60,7 +60,7 @@ class DroxLinkResolver {
     if (uri == null || !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty) {
       return DroxLinkResolution(originalUrl: input, downloadUrl: input, provider: 'Unknown', kind: DroxLinkKind.unknown, canQueue: false, message: 'Enter a valid HTTP/HTTPS link.');
     }
-    final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\\.'), '');
+    final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
     if (_isDirectFilePath(uri.path)) {
       return DroxLinkResolution(originalUrl: input, downloadUrl: input, provider: 'Direct file', kind: DroxLinkKind.directFile, canQueue: true, message: 'Direct file link detected.', filename: _filename(uri));
     }
@@ -121,13 +121,13 @@ class DroxLinkResolver {
   DroxLinkResolution _manual(String url, String provider, DroxLinkKind kind, String message) =>
       DroxLinkResolution(originalUrl: url, downloadUrl: url, provider: provider, kind: kind, canQueue: false, message: message);
 
-  bool _isDirectFilePath(String path) => RegExp(r'\\.(mp4|mkv|avi|mov|webm|mp3|m4a|wav|flac|aac|pdf|zip|rar|7z|tar|gz|jpg|jpeg|png|webp|gif|apk|exe|msi|txt|csv|json|xml|docx?|pptx?)$', caseSensitive: false).hasMatch(path);
+  bool _isDirectFilePath(String path) => RegExp(r'\.(mp4|mkv|avi|mov|webm|mp3|m4a|wav|flac|aac|pdf|zip|rar|7z|tar|gz|jpg|jpeg|png|webp|gif|apk|exe|msi|txt|csv|json|xml|docx?|pptx?)$', caseSensitive: false).hasMatch(path);
 
   String? _filename(Uri uri) => uri.pathSegments.isEmpty ? null : Uri.decodeComponent(uri.pathSegments.last);
 
   String? _filenameFromDisposition(String? value) {
     if (value == null) return null;
-    final utf = RegExp(r"filename\\*=UTF-8''([^;]+)", caseSensitive: false).firstMatch(value)?.group(1);
+    final utf = RegExp(r"filename\*=UTF-8''([^;]+)", caseSensitive: false).firstMatch(value)?.group(1);
     final plain = RegExp(r'filename="?([^";]+)', caseSensitive: false).firstMatch(value)?.group(1);
     final raw = utf ?? plain;
     if (raw == null) return null;
