@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+import 'dart:convert';\n\nimport 'package:dio/dio.dart';
 
 enum DroxLinkKind { directFile, googleDrive, dropbox, oneDrive, mega, mediaFire, box, pCloud, terabox, weTransfer, videoPlatform, webPage, unknown }
 
@@ -118,6 +118,61 @@ class DroxLinkResolver {
       // Some legitimate hosts reject HEAD. Known provider URL forms remain
       // queueable; the download engine will report the actual transfer result.
       return base;
+    }
+  }
+
+  Future<DroxLinkResolution> _resolveGitHubRelease(String input, Uri uri) async {
+    final p = uri.pathSegments;
+    if (p.length < 5 || p[3] != 'tag') {
+      return _manual(input, 'GitHub Releases', DroxLinkKind.webPage, 'Open the release page and select a specific asset. Direct asset links can be downloaded in DROX.');
+    }
+    try {
+      final owner = p[0], repo = p[1], tag = p.sublist(4).join('/');
+      final api = Uri.https('api.github.com', '/repos/$owner/$repo/releases/tags/$tag');
+      final response = await _dio.get<dynamic>(api.toString(), options: Options(headers: {'Accept': 'application/vnd.github+json'}));
+      final data = response.data is String ? jsonDecode(response.data as String) : response.data;
+      final assets = (data is Map ? data['assets'] : null) as List? ?? const [];
+      final downloadable = assets.whereType<Map>().where((a) => a['browser_download_url'] is String).toList();
+      if (downloadable.length != 1) {
+        return _manual(input, 'GitHub Releases', DroxLinkKind.webPage,
+          downloadable.isEmpty ? 'No public release assets were found. Open the release page to inspect available files.' : 'This release has ${downloadable.length} assets. Open GitHub and choose the exact asset you want.');
+      }
+      final asset = downloadable.single;
+      final url = asset['browser_download_url'] as String;
+      return DroxLinkResolution(originalUrl: input, downloadUrl: url, provider: 'GitHub Releases', kind: DroxLinkKind.directFile, canQueue: true, message: 'One public release asset found.', filename: asset['name'] as String?, contentLength: asset['size'] is int ? asset['size'] as int : null, contentType: null);
+    } on DioException {
+      return _manual(input, 'GitHub Releases', DroxLinkKind.webPage, 'Could not read public release assets. Open GitHub and choose an asset manually.');
+    } on FormatException {
+      return _manual(input, 'GitHub Releases', DroxLinkKind.webPage, 'GitHub returned an unexpected release response. Open the release page and choose an asset.');
+    }
+  }
+
+  Future<DroxLinkResolution> _resolveArchiveItem(String input, Uri uri) async {
+    final index = uri.pathSegments.indexOf('details');
+    final identifier = uri.pathSegments[index + 1];
+    try {
+      final api = Uri.https('archive.org', '/metadata/$identifier');
+      final response = await _dio.get<dynamic>(api.toString());
+      final data = response.data is String ? jsonDecode(response.data as String) : response.data;
+      final files = (data is Map ? data['files'] : null) as List? ?? const [];
+      final downloadable = files.whereType<Map>().where((file) {
+        final name = file['name'];
+        final source = file['source'];
+        return name is String && source != 'metadata' && _isDirectFilePath(name);
+      }).toList();
+      if (downloadable.length != 1) {
+        return _manual(input, 'Internet Archive', DroxLinkKind.webPage,
+          downloadable.isEmpty ? 'No single supported public file was found in this item.' : 'This item contains ${downloadable.length} downloadable files. Open the item and choose a specific file.');
+      }
+      final file = downloadable.single;
+      final name = file['name'] as String;
+      final url = Uri.https('archive.org', '/download/$identifier/${Uri.encodeComponent(name)}').toString();
+      final size = int.tryParse('${file['size'] ?? ''}');
+      return DroxLinkResolution(originalUrl: input, downloadUrl: url, provider: 'Internet Archive', kind: DroxLinkKind.directFile, canQueue: true, message: 'One public downloadable file found.', filename: name, contentLength: size);
+    } on DioException {
+      return _manual(input, 'Internet Archive', DroxLinkKind.webPage, 'Could not read item metadata. Open the Archive item and select a file.');
+    } on FormatException {
+      return _manual(input, 'Internet Archive', DroxLinkKind.webPage, 'The item metadata could not be read.');
     }
   }
 
