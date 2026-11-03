@@ -22,9 +22,24 @@ void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
             '{filename} • {progress}%',
           )
         : null,
-    paused: null,
-    complete: null,
-    error: null,
+    paused: enabled
+        ? TaskNotification(
+            bangla ? 'DROX • ডাউনলোড বিরতিতে' : 'DROX • Paused',
+            '{filename} • {progress}%',
+          )
+        : null,
+    complete: enabled
+        ? TaskNotification(
+            bangla ? 'DROX • ডাউনলোড সম্পন্ন' : 'DROX • Download Complete',
+            '{filename}',
+          )
+        : null,
+    error: enabled
+        ? TaskNotification(
+            bangla ? 'DROX • ডাউনলোড ব্যর্থ' : 'DROX • Download Failed',
+            '{filename}',
+          )
+        : null,
     progressBar: true,
     tapOpensFile: false,
   );
@@ -450,6 +465,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   bool searching = false;
   final TextEditingController searchController = TextEditingController();
   bool adding = false;
+  bool _fabExpanded = false;
   bool wifiOnly = false;
   bool notificationsEnabled = false;
   int selectedTab = 0;
@@ -1356,12 +1372,53 @@ class _DownloadHomeState extends State<DownloadHome> {
           ]),
         ]),
         floatingActionButton: selectedTab == 0
-            ? FloatingActionButton(
-                tooltip: 'Add download',
-                backgroundColor: widget.isDark ? const Color(0xFF4FC3F7) : const Color(0xFF6B351B),
-                foregroundColor: widget.isDark ? const Color(0xFF101820) : Colors.white,
-                onPressed: _quickDownloadDialog,
-                child: const Icon(Icons.add_rounded, size: 30),
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeInOut,
+                    child: _fabExpanded
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              _fabAction(
+                                label: _tr('Add Link', 'লিংক যোগ করুন'),
+                                icon: Icons.link_rounded,
+                                onTap: () {
+                                  setState(() => _fabExpanded = false);
+                                  _quickDownloadDialog();
+                                },
+                              ),
+                              const SizedBox(height: 10),
+                              _fabAction(
+                                label: _tr('Open Browser', 'ব্রাউজার খুলুন'),
+                                icon: Icons.language_rounded,
+                                onTap: () => setState(() {
+                                  _fabExpanded = false;
+                                  selectedTab = 1;
+                                }),
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  FloatingActionButton(
+                    tooltip: _fabExpanded ? 'Close actions' : 'Add download',
+                    backgroundColor: widget.isDark ? const Color(0xFF4FC3F7) : const Color(0xFF6B351B),
+                    foregroundColor: widget.isDark ? const Color(0xFF101820) : Colors.white,
+                    onPressed: () => setState(() => _fabExpanded = !_fabExpanded),
+                    child: AnimatedRotation(
+                      turns: _fabExpanded ? 0.125 : 0,
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeInOut,
+                      child: const Icon(Icons.add_rounded, size: 30),
+                    ),
+                  ),
+                ],
               )
             : null,
       ),
@@ -1422,6 +1479,26 @@ class _DownloadHomeState extends State<DownloadHome> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fabAction({required String label, required IconData icon, required VoidCallback onTap}) {
+    return Material(
+      elevation: 4,
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 9),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ]),
         ),
       ),
     );
