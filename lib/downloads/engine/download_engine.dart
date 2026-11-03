@@ -16,6 +16,7 @@ class DownloadEngine {
     required String filename,
     String directory = 'DROX',
     int retries = 5,
+    String? taskId,
   }) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty) {
@@ -29,6 +30,7 @@ class DownloadEngine {
       updates: Updates.statusAndProgress,
       allowPause: true,
       retries: retries,
+      taskId: taskId,
     );
   }
 
