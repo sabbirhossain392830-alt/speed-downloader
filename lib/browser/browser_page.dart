@@ -843,7 +843,6 @@ class BrowserPageState extends State<BrowserPage> {
         break;
       case 'refresh': tab?.controller.reload(); break;
       case 'history': setState(() { showHistory = true; showTrail = false; }); break;
-      case 'return': widget.onReturn(); break;
       case 'settings': widget.onSettings(); break;
       case 'dark': widget.onThemeTap(); break;
       case 'desktop':
@@ -928,7 +927,6 @@ class BrowserPageState extends State<BrowserPage> {
                     PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop site'), trailing: Icon(desktopMode ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: desktopMode ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
                     PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: const Icon(Icons.dark_mode_outlined), title: const Text('Dark mode'), trailing: Icon(widget.isDark ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: widget.isDark ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
                     PopupMenuItem(value: 'settings', child: const ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
-                    PopupMenuItem(value: 'return', child: const ListTile(dense: true, leading: Icon(Icons.download_rounded), title: Text('DROX downloads'))),
                     PopupMenuItem(value: 'about', child: const ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text('About'))),
                   ],
                 ),
