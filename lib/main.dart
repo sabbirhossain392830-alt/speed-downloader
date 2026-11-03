@@ -1370,6 +1370,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             const SizedBox(height: 18),
             ListTile(leading: Icon(Icons.info_outline), title: Text(_tr('About DROX', 'DROX পরিচিতি')), subtitle: Text(_tr('Browser and download manager', 'ব্রাউজার ও ডাউনলোড ম্যানেজার'))),
           ]),
+          ]),
           if (_fabExpanded && selectedTab == 0)
             Positioned.fill(
               child: GestureDetector(
