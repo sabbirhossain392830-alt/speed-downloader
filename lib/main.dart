@@ -451,6 +451,7 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   final controller = TextEditingController();
   final List<DownloadEntry> entries = [];
+  final Set<String> _selectedTaskIds = <String>{};
   StreamSubscription<TaskUpdate>? subscription;
   DownloadFilter filter = DownloadFilter.all;
   bool searching = false;
@@ -1025,12 +1026,60 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
   }
 
+  void _toggleSelection(DownloadEntry entry) {
+    setState(() {
+      final id = entry.task.taskId;
+      if (!_selectedTaskIds.add(id)) _selectedTaskIds.remove(id);
+    });
+  }
+
+  Future<void> _removeSelected() async {
+    final ids = _selectedTaskIds.toList();
+    if (ids.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_tr('Remove downloads?', 'ডাউনলোডগুলো সরাবেন?')),
+        content: Text(_tr('Remove ${ids.length} selected item(s) from the list and history?', 'নির্বাচিত ${ids.length}টি আইটেম তালিকা ও ইতিহাস থেকে মুছে ফেলবেন?')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_tr('Cancel', 'বাতিল'))),
+          FilledButton.icon(onPressed: () => Navigator.pop(ctx, true), icon: const Icon(Icons.delete_outline), label: Text(_tr('Remove', 'মুছুন'))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final selected = entries.where((e) => ids.contains(e.task.taskId)).toList();
+    for (final entry in selected) {
+      if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(entry.status)) {
+        try { await FileDownloader().cancelTaskWithId(entry.task.taskId); } catch (_) {}
+      }
+      if (Platform.isAndroid) {
+        try { await _notificationMethod.invokeMethod<void>('cancelDownload', entry.task.taskId.hashCode & 0x7fffffff); } catch (_) {}
+      }
+    }
+    try { await FileDownloader().database.deleteRecordsWithIds(ids); } catch (_) {}
+    if (mounted) {
+      setState(() {
+        entries.removeWhere((e) => ids.contains(e.task.taskId));
+        _selectedTaskIds.clear();
+      });
+    }
+    await _saveHistory();
+  }
+
   Future<void> _remove(DownloadEntry entry) async {
     if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে', 'বিরতি'].contains(entry.status)) {
       await FileDownloader().cancelTaskWithId(entry.task.taskId);
     }
-    if (mounted) setState(() => entries.removeWhere((e) => e.task.taskId == entry.task.taskId));
-    _saveHistory();
+    try { await FileDownloader().database.deleteRecordWithId(entry.task.taskId); } catch (_) {}
+    if (Platform.isAndroid) {
+      try { await _notificationMethod.invokeMethod<void>('cancelDownload', entry.task.taskId.hashCode & 0x7fffffff); } catch (_) {}
+    }
+    if (mounted) setState(() {
+      entries.removeWhere((e) => e.task.taskId == entry.task.taskId);
+      _selectedTaskIds.remove(entry.task.taskId);
+    });
+    await _saveHistory();
   }
 
   bool _matches(DownloadEntry e) {
@@ -1077,8 +1126,14 @@ class _DownloadHomeState extends State<DownloadHome> {
         appBar: selectedTab == 1 ? null : AppBar(
           automaticallyImplyLeading: false,
           titleSpacing: 16,
-          title: const Text('DROX', style: TextStyle(fontWeight: FontWeight.w500, letterSpacing: .2, fontSize: 22)),
+          title: Text(_selectedTaskIds.isEmpty ? 'DROX' : _tr('${_selectedTaskIds.length} selected', '${_selectedTaskIds.length}টি নির্বাচিত'), style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: .2, fontSize: 20)),
           actions: [
+            if (_selectedTaskIds.isNotEmpty)
+              IconButton(tooltip: _tr('Remove selected', 'নির্বাচিতগুলো মুছুন'), onPressed: _removeSelected, icon: const Icon(Icons.delete_sweep_rounded)),
+            if (_selectedTaskIds.isNotEmpty)
+              IconButton(tooltip: _tr('Select all visible', 'দেখানো সব নির্বাচন'), onPressed: () => setState(() => _selectedTaskIds.addAll(visible.map((e) => e.task.taskId))), icon: const Icon(Icons.select_all_rounded)),
+            if (_selectedTaskIds.isNotEmpty)
+              IconButton(tooltip: _tr('Clear selection', 'নির্বাচন বাতিল'), onPressed: () => setState(_selectedTaskIds.clear), icon: const Icon(Icons.close_rounded)),
             IconButton(
               tooltip: _tr('Search downloads', 'ডাউনলোড খুঁজুন'),
               onPressed: () => setState(() {
@@ -1358,6 +1413,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   Widget _downloadCard(DownloadEntry entry) {
+    final selected = _selectedTaskIds.contains(entry.task.taskId);
     final running = entry.status == 'ডাউনলোড হচ্ছে';
     final paused = entry.status == 'বিরতি';
     final queued = ['কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status);
@@ -1383,15 +1439,18 @@ class _DownloadHomeState extends State<DownloadHome> {
       return minutes > 0 ? '${minutes}m${secs}s' : '${secs}s';
     }
 
-    return Container(
+    return GestureDetector(
+      onLongPress: () => _toggleSelection(entry),
+      onTap: _selectedTaskIds.isNotEmpty ? () => _toggleSelection(entry) : null,
+      child: Container(
       height: 90,
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(13),
         border: Border.all(
-          color: (isDark ? const Color(0xFF455A64) : const Color(0xFF8A5636)).withValues(alpha: isDark ? .95 : .72),
-          width: 1.15,
+          color: selected ? Theme.of(context).colorScheme.primary : (isDark ? const Color(0xFF455A64) : const Color(0xFF8A5636)).withValues(alpha: isDark ? .95 : .72),
+          width: selected ? 2.2 : 1.15,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -1406,7 +1465,9 @@ class _DownloadHomeState extends State<DownloadHome> {
               children: [
                 SizedBox(
                   width: 48,
-                  child: Icon(
+                  child: selected
+                      ? Icon(Icons.check_circle_rounded, size: 34, color: Theme.of(context).colorScheme.primary)
+                      : Icon(
                     isVideo ? Icons.video_file_rounded : _fileIcon(entry.task.filename),
                     size: 39,
                     color: ink,
@@ -1536,7 +1597,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           ),
         ],
       ),
-    );
+    ));
   }
 
 
