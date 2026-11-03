@@ -351,14 +351,10 @@ class _DownloadHomeState extends State<DownloadHome> {
     super.initState();
     _loadWifiOnly();
     _loadNotificationSetting();
-    // Register the update listener BEFORE starting the downloader. The
-    // start() call restores background events and reschedules interrupted
-    // native tasks, including notification Pause/Resume actions.
-    subscription = FileDownloader().updates.listen(_onUpdate);
-    // FileDownloader.start() replays background updates after database tracking is ready.
+    // The modular DownloadController owns FileDownloader startup and task
+    // updates. Home only forwards Android share intents to the download UI.
     _shareSubscription = _shareEvents.receiveBroadcastStream().listen((value) => _acceptSharedText(value?.toString()));
     _shareMethod.invokeMethod<String>('getInitialSharedText').then(_acceptSharedText).catchError((_) {});
-    _initializeDownloader();
   }
 
   Future<void> _initializeDownloader() async {
@@ -988,7 +984,6 @@ class _DownloadHomeState extends State<DownloadHome> {
     _shareSubscription?.cancel();
     _historySaveTimer?.cancel();
     _historySaveTimer = null;
-    _saveHistory();
     super.dispose();
   }
 
@@ -1112,19 +1107,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           IndexedStack(index: selectedTab, children: [
           DownloadCenterScreen(key: downloadCenterKey),
           BrowserPage(key: browserKey, isDark: widget.isDark, isBangla: widget.isBangla, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { downloadCenterKey.currentState?.acceptSharedUrl(url); setState(() => selectedTab = 0); }),
-          ListView(padding: const EdgeInsets.all(12), children: [
-            Row(children: [
-              Text('Downloads', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
-              const Spacer(),
-              Text('${entries.length} files'),
-              IconButton(tooltip: _tr('Quick download', 'দ্রুত ডাউনলোড'), onPressed: _quickDownloadDialog, icon: const Icon(Icons.add_link_rounded)),
-            ]),
-            SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
-              _filterChip(_tr('All', 'সব'), DownloadFilter.all), _filterChip(_tr('Active', 'চলমান'), DownloadFilter.active),
-              _filterChip(_tr('Completed', 'সম্পন্ন'), DownloadFilter.completed), _filterChip(_tr('Failed', 'ব্যর্থ'), DownloadFilter.failed),
-            ])),
-            ...visible.map(_downloadCard),
-          ]),
+          const SizedBox.shrink(), // Reserved legacy tab; the v2 Download Center is the only queue.
           ListView(padding: const EdgeInsets.all(16), children: [
             Text('Settings', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
             const SizedBox(height: 12),
