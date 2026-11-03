@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home/download_home.dart';
 import '../notifications/download_notifications.dart';
-import '../shared/widgets/drox_widgets.dart';
 
 class DroxApp extends StatefulWidget {
   const DroxApp({super.key});
