@@ -21,7 +21,7 @@ class _DroxTab {
   final WebViewController controller;
   String url;
   String title = 'Google';
-  bool loading = false, back = false, forward = false;
+  bool loading = false, refreshing = false, back = false, forward = false;
   final List<String> trail = <String>[];
   int trailIndex = -1;
   int pendingTraversal = 0;
@@ -135,6 +135,11 @@ class BrowserPageState extends State<BrowserPage> {
     final ctrl = t.controller;
     await ctrl.setJavaScriptMode(JavaScriptMode.unrestricted);
     await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) => _downloadPrompt(m.message));
+    await ctrl.addJavaScriptChannel('DroxRefresh', onMessageReceived: (_) {
+      t.refreshing = true;
+      t.loading = true;
+      if (mounted) setState(() {});
+    });
     await ctrl.setNavigationDelegate(NavigationDelegate(
       onNavigationRequest: (r) {
         if (_downloadable(r.url)) { _downloadPrompt(r.url); return NavigationDecision.prevent; }
@@ -187,9 +192,11 @@ class BrowserPageState extends State<BrowserPage> {
           function scanFrames(){document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument){f.contentDocument.querySelectorAll('video,audio').forEach(function(v){mediaSources(v)})}}catch(_){}})}
           if(window.fetch){var originalFetch=window.fetch;window.fetch=function(){var p=originalFetch.apply(this,arguments);try{var u=typeof arguments[0]==='string'?arguments[0]:arguments[0].url; p.then(function(r){var ct=r.headers.get('content-type')||'';var target=r.url||u;if(mediaTypes.test(ct)||exts.test(target||''))send(target)})}catch(_){}return p}}
           if(window.XMLHttpRequest){var originalOpen=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){this.__droxUrl=u;return originalOpen.apply(this,arguments)};var originalSend=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){this.addEventListener('load',function(){var ct=this.getResponseHeader('content-type')||'';if(mediaTypes.test(ct)||exts.test(this.__droxUrl||''))send(this.responseURL||this.__droxUrl)});return originalSend.apply(this,arguments)}}
-          var droxTouchStartY=0;var droxAtTop=false;
-          window.addEventListener('touchstart',function(e){if(e.touches&&e.touches.length===1){droxTouchStartY=e.touches[0].clientY;droxAtTop=(window.scrollY<=0);}}, {passive:true});
-          window.addEventListener('touchend',function(e){if(!droxAtTop||!e.changedTouches||!e.changedTouches.length)return;var delta=e.changedTouches[0].clientY-droxTouchStartY;if(delta>95&&window.scrollY<=0){window.location.reload();}droxAtTop=false;}, {passive:true});
+          var droxTouchStartY=0;var droxAtTop=false;var droxRefreshing=false;
+          function droxPageAtTop(){var root=document.scrollingElement||document.documentElement;return (window.scrollY||root.scrollTop||(document.body&&document.body.scrollTop)||0)<=0}
+          window.addEventListener('touchstart',function(e){if(e.touches&&e.touches.length===1){droxTouchStartY=e.touches[0].clientY;droxAtTop=droxPageAtTop();droxRefreshing=false;}}, {passive:true,capture:true});
+          window.addEventListener('touchend',function(e){if(!droxAtTop||droxRefreshing||!e.changedTouches||!e.changedTouches.length)return;var delta=e.changedTouches[0].clientY-droxTouchStartY;if(delta>85&&droxPageAtTop()){droxRefreshing=true;try{DroxRefresh.postMessage('refresh')}catch(_){}window.location.reload();}droxAtTop=false;}, {passive:true,capture:true});
+          window.addEventListener('touchcancel',function(){droxAtTop=false;droxRefreshing=false;}, {passive:true,capture:true});
           scan();new MutationObserver(function(){scan();scanResources();scanFrames()}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
           setInterval(function(){scan();scanResources();scanFrames()},2500);
           document.addEventListener('play',function(e){if(e.target&&(e.target.tagName==='VIDEO'||e.target.tagName==='AUDIO'))mediaSources(e.target)},true);
@@ -198,7 +205,13 @@ class BrowserPageState extends State<BrowserPage> {
         if (adBlockEnabled) await ctrl.runJavaScript(_droxAdBlockScript);
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
-        t.loading = false; t.back = await ctrl.canGoBack(); t.forward = await ctrl.canGoForward();
+        final visitedTrailIndex = t.trail.lastIndexWhere((entry) => entry == u);
+        if (visitedTrailIndex >= 0) t.trailIndex = visitedTrailIndex;
+        t.pendingTraversal = 0;
+        t.loading = false;
+        t.refreshing = false;
+        t.back = await ctrl.canGoBack();
+        t.forward = await ctrl.canGoForward();
         if (!mounted) return;
         setState(() { if (tab == t) address.text = u; });
         if (u.startsWith('http')) {
@@ -208,7 +221,7 @@ class BrowserPageState extends State<BrowserPage> {
           _saveHistory();
         }
       },
-      onWebResourceError: (_) { t.loading = false; if (mounted) setState(() {}); },
+      onWebResourceError: (_) { t.loading = false; t.refreshing = false; if (mounted) setState(() {}); },
     ));
     if (mounted) setState(() {});
     if (url.isNotEmpty) await ctrl.loadRequest(Uri.parse(url));
@@ -865,7 +878,19 @@ class BrowserPageState extends State<BrowserPage> {
               ]),
             ),
           ),
-          if (current?.loading == true) const LinearProgressIndicator(minHeight: 2, color: Color(0xFF4285F4), backgroundColor: Colors.transparent),
+          if (current?.loading == true)
+            Container(
+              height: 25,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              color: chromeBg,
+              child: Row(children: [
+                const Expanded(child: LinearProgressIndicator(minHeight: 3, color: Color(0xFF4285F4), backgroundColor: Colors.transparent)),
+                if (current?.refreshing == true) ...[
+                  const SizedBox(width: 10),
+                  const Text('Refreshing…', style: TextStyle(fontSize: 11, color: Color(0xFF4285F4), fontWeight: FontWeight.w600)),
+                ],
+              ]),
+            ),
           Expanded(
             child: Stack(children: [
               Positioned.fill(
