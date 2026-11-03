@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
-enum DroxLinkKind { directFile, googleDrive, dropbox, oneDrive, mega, mediaFire, box, pCloud, terabox, weTransfer, videoPlatform, webPage, unknown }
+enum DroxLinkKind { directFile, googleDrive, dropbox, oneDrive, nextcloud, ownCloud, mega, mediaFire, box, pCloud, terabox, weTransfer, videoPlatform, webPage, unknown }
 
 class DroxLinkResolution {
   const DroxLinkResolution({
@@ -45,13 +45,13 @@ class DroxLinkResolver {
   static const supportedProviders = <String>[
     'Direct HTTP/HTTPS files', 'Google Drive public files',
     'Dropbox public shared files', 'OneDrive public shared files',
-    'GitHub release assets', 'Internet Archive public files',
+    'GitHub release assets', 'Internet Archive public files', 'Nextcloud public shares', 'ownCloud public shares',
   ];
 
   static const recognizedProviders = <String>[
     'Google Drive', 'Dropbox', 'Microsoft OneDrive', 'MEGA',
     'MediaFire', 'Box', 'pCloud', 'TeraBox', 'WeTransfer',
-    '4shared', 'Yandex Disk', 'Sync.com', 'Koofr', 'Send Anywhere',
+    '4shared', 'Yandex Disk', 'Sync.com', 'Koofr', 'Send Anywhere', 'Nextcloud', 'ownCloud', 'SharePoint', 'Google Photos',
     'Wormhole', 'Smash', 'Vimeo', 'Dailymotion', 'YouTube',
     'Facebook', 'Instagram', 'TikTok', 'Twitch', 'Reddit', 'X',
     'GitHub', 'GitLab', 'SourceForge', 'Internet Archive',
@@ -84,6 +84,22 @@ class DroxLinkResolver {
     if (host == '1drv.ms' || host == 'onedrive.live.com' || host == '1drv.com') {
       final q = Map<String, String>.from(uri.queryParameters)..['download'] = '1';
       return DroxLinkResolution(originalUrl: input, downloadUrl: uri.replace(queryParameters: q).toString(), provider: 'Microsoft OneDrive', kind: DroxLinkKind.oneDrive, canQueue: true, message: 'OneDrive download option prepared; public sharing permission is required.');
+    }
+    if ((host == 'nextcloud.com' || host.endsWith('.nextcloud.com') || uri.pathSegments.contains('s')) &&
+        uri.pathSegments.length >= 2 && uri.pathSegments.contains('s')) {
+      final shareIndex = uri.pathSegments.indexOf('s');
+      if (shareIndex + 1 < uri.pathSegments.length) {
+        final downloadPath = [...uri.pathSegments.take(shareIndex + 2), 'download'];
+        final downloadUri = uri.replace(pathSegments: downloadPath, query: null, fragment: null);
+        return DroxLinkResolution(originalUrl: input, downloadUrl: downloadUri.toString(), provider: 'Nextcloud', kind: DroxLinkKind.nextcloud, canQueue: true, message: 'Nextcloud public share download prepared; the share must allow downloads.');
+      }
+    }
+    if (host == 'owncloud.com' || host.endsWith('.owncloud.com')) {
+      return _manual(input, 'ownCloud', DroxLinkKind.ownCloud, 'Open the public ownCloud share and use its authorized download control.');
+    }
+    if (host.contains('sharepoint.com') || host.contains('1drv.com')) {
+      final q = Map<String, String>.from(uri.queryParameters)..['download'] = '1';
+      return DroxLinkResolution(originalUrl: input, downloadUrl: uri.replace(queryParameters: q).toString(), provider: 'SharePoint', kind: DroxLinkKind.oneDrive, canQueue: true, message: 'SharePoint download option prepared; organizational sharing permissions may apply.');
     }
     if (host == 'mega.nz' || host == 'mega.co.nz') return _manual(input, 'MEGA', DroxLinkKind.mega, 'MEGA links need the official client/API and may be encrypted; open the link in MEGA.');
     if (host == 'mediafire.com') return _manual(input, 'MediaFire', DroxLinkKind.mediaFire, 'Open the MediaFire page and use its own download control.');
@@ -196,7 +212,7 @@ class DroxLinkResolver {
   DroxLinkResolution _manual(String url, String provider, DroxLinkKind kind, String message) =>
       DroxLinkResolution(originalUrl: url, downloadUrl: url, provider: provider, kind: kind, canQueue: false, message: message);
 
-  bool _isDirectFilePath(String path) => RegExp(r'\.(mp4|mkv|avi|mov|webm|mp3|m4a|wav|flac|aac|pdf|zip|rar|7z|tar|gz|jpg|jpeg|png|webp|gif|apk|exe|msi|txt|csv|json|xml|docx?|pptx?)$', caseSensitive: false).hasMatch(path);
+  bool _isDirectFilePath(String path) => RegExp(r'\.(mp4|m4v|mkv|avi|mov|webm|ogv|3gp|mpeg|mpg|mp3|m4a|wav|flac|aac|ogg|opus|pdf|epub|zip|rar|7z|tar|gz|bz2|xz|iso|dmg|apk|aab|exe|msi|deb|rpm|jpg|jpeg|png|webp|gif|bmp|svg|tif|tiff|txt|csv|json|xml|html|docx?|xlsx?|pptx?|odt|ods|odp|srt|vtt|ass|ssa|ttf|otf|woff2?)$', caseSensitive: false).hasMatch(path);
 
   String? _filename(Uri uri) => uri.pathSegments.isEmpty ? null : Uri.decodeComponent(uri.pathSegments.last);
 
