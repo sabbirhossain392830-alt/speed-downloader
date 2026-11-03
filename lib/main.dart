@@ -51,7 +51,6 @@ void main() async {
     (Config.runInForeground, Config.always),
     (Config.useCacheDir, Config.never),
   ]);
-  await FileDownloader().start(autoCleanDatabase: true);
   final prefs = await SharedPreferences.getInstance();
   _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? false, bangla: prefs.getBool('drox_language_bangla_v2') ?? false);
 
@@ -620,11 +619,23 @@ class _DownloadHomeState extends State<DownloadHome> {
     super.initState();
     _loadWifiOnly();
     _loadNotificationSetting();
+    // Register the update listener BEFORE starting the downloader. The
+    // start() call restores background events and reschedules interrupted
+    // native tasks, including notification Pause/Resume actions.
     subscription = FileDownloader().updates.listen(_onUpdate);
     _shareSubscription = _shareEvents.receiveBroadcastStream().listen((value) => _acceptSharedText(value?.toString()));
     _shareMethod.invokeMethod<String>('getInitialSharedText').then(_acceptSharedText).catchError((_) {});
-    FileDownloader().resumeFromBackground();
-    _loadHistory();
+    _initializeDownloader();
+  }
+
+  Future<void> _initializeDownloader() async {
+    try {
+      // Must run after the updates listener is registered.
+      await FileDownloader().start(autoCleanDatabase: true);
+    } catch (_) {
+      // Keep the local download history visible if native startup is delayed.
+    }
+    await _loadHistory();
   }
 
   void _onUpdate(TaskUpdate update) {
@@ -1061,14 +1072,42 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   Future<void> _redownload(DownloadEntry entry) async {
     if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status)) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_tr('This download is already running', 'এই ডাউনলোডটি ইতিমধ্যে চলছে'))));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_tr('This download is already running', 'এই ডাউনলোডটি ইতিমধ্যে চলছে'))),
+      );
       return;
     }
-    final details = await _downloadDetails(entry.task.url);
-    final taskId = entry.task.taskId;
+
+    final oldTask = entry.task;
+    final oldSharedPath = entry.sharedPath;
+    final details = await _downloadDetails(oldTask.url);
+
+    // Stop and forget the old native task before creating a fresh task ID.
+    // Reusing the previous ID can reconnect to stale pause/range state.
     try {
-      await FileDownloader().database.deleteRecordWithId(taskId);
+      await FileDownloader().cancelTaskWithId(oldTask.taskId);
     } catch (_) {}
+    try {
+      await FileDownloader().database.deleteRecordWithId(oldTask.taskId);
+    } catch (_) {}
+
+    // Remove the old completed/partial destination so this is a true 0% restart.
+    final pathsToDelete = <String>{};
+    try {
+      pathsToDelete.add(await oldTask.filePath());
+    } catch (_) {}
+    if (oldSharedPath != null && oldSharedPath.isNotEmpty) {
+      pathsToDelete.add(oldSharedPath);
+    }
+    for (final path in pathsToDelete) {
+      try {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      } catch (_) {
+        // A missing or already-cleaned file must not block a fresh download.
+      }
+    }
+
     final task = DownloadTask(
       url: details.$1,
       filename: details.$2,
@@ -1078,24 +1117,32 @@ class _DownloadHomeState extends State<DownloadHome> {
       allowPause: true,
       transferHints: {TransferHint.userInitiated, TransferHint.largeFile},
       retries: 10,
-      taskId: taskId,
     );
-    setState(() {
-      entry.task = task;
-      entry.progress = 0;
-      entry.expectedFileSize = -1;
-      entry.status = 'কিউতে আছে';
-      entry.error = null;
-      entry.sharedPath = null;
-      entry.lastDownloadedBytes = 0;
-      entry.lastSpeedSampleAt = null;
-      entry.speedBytesPerSecond = 0;
-    });
+
+    if (mounted) {
+      setState(() {
+        entry.task = task; // Fresh ID prevents reusing the old native resume state.
+        entry.progress = 0;
+        entry.expectedFileSize = -1;
+        entry.status = 'কিউতে আছে';
+        entry.error = null;
+        entry.sharedPath = null;
+        entry.lastDownloadedBytes = 0;
+        entry.lastSpeedSampleAt = null;
+        entry.speedBytesPerSecond = 0;
+      });
+    }
     await _saveHistory();
+
     try {
       await FileDownloader().transfers.start(task);
-    } catch (_) {
-      if (mounted) setState(() => entry.status = 'কিউতে যোগ করা যায়নি');
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          entry.status = 'কিউতে যোগ করা যায়নি';
+          entry.error = error.toString();
+        });
+      }
     }
     await _saveHistory();
   }
@@ -1386,8 +1433,8 @@ class _DownloadHomeState extends State<DownloadHome> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   AnimatedSize(
-                    duration: const Duration(milliseconds: 320),
-                    curve: Curves.easeOutBack,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
                     child: _fabExpanded
                         ? Column(
                             mainAxisSize: MainAxisSize.min,
@@ -1415,16 +1462,20 @@ class _DownloadHomeState extends State<DownloadHome> {
                           )
                         : const SizedBox.shrink(),
                   ),
-                  FloatingActionButton(
-                    tooltip: _fabExpanded ? 'Close actions' : 'Add download',
-                    backgroundColor: widget.isDark ? const Color(0xFF4FC3F7) : const Color(0xFF6B351B),
-                    foregroundColor: widget.isDark ? const Color(0xFF101820) : Colors.white,
-                    onPressed: () => setState(() => _fabExpanded = !_fabExpanded),
-                    child: AnimatedRotation(
-                      turns: _fabExpanded ? 0.125 : 0,
-                      duration: const Duration(milliseconds: 360),
-                      curve: Curves.easeInOutBack,
-                      child: const Icon(Icons.add_rounded, size: 30),
+                  SizedBox(
+                    width: 66,
+                    height: 66,
+                    child: FloatingActionButton(
+                      tooltip: _fabExpanded ? 'Close actions' : 'Add download',
+                      backgroundColor: widget.isDark ? const Color(0xFF4FC3F7) : const Color(0xFF6B351B),
+                      foregroundColor: widget.isDark ? const Color(0xFF101820) : Colors.white,
+                      onPressed: () => setState(() => _fabExpanded = !_fabExpanded),
+                      child: AnimatedRotation(
+                        turns: _fabExpanded ? 0.125 : 0,
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        child: const Icon(Icons.add_rounded, size: 36),
+                      ),
                     ),
                   ),
                 ],
