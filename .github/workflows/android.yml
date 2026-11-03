@@ -350,9 +350,8 @@ jobs:
               ("    private val timeRemainingRegEx = Regex(\"\"\"\\{timeRemaining\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val metaDataRegEx",
                "    private val timeRemainingRegEx = Regex(\"\"\"\\{timeRemaining\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val downloadedBytesRegEx = Regex(\"\"\"\\{downloaded\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val totalBytesRegEx = Regex(\"\"\"\\{total\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val metaDataRegEx"),
               ("        timeRemaining: Long? = null,\n        groupNotification: GroupNotification? = null\n    ): String {",
-               "        timeRemaining: Long? = null,\n        groupNotification: GroupNotification? = null,\n        downloadedBytes: Long = -1L,\n        totalBytes: Long = -1L\n    ): String {"),
+               "        timeRemaining: Long? = null,\n        groupNotification: GroupNotification? = null,\n        downloadedBytes: Long = -1L,\n        totalBytes: Long = -1L\n    ): String {")
           ])
-          # Patch the token function by its boundaries, avoiding fragile whitespace anchors.
           notification_file = root / "Notifications.kt"
           source = notification_file.read_text()
           start = source.index("    private fun replaceTokens(")
@@ -367,10 +366,8 @@ jobs:
           function = function.replace("numTotalRegEx.replace(output4,", "numTotalRegEx.replace(output6,", 1)
           function = function.replace("\n            output4\n", "\n            output6\n", 1)
           source = source[:start] + function + source[end:]
-          notification_file.write_text(source)
-          print("Patched Notifications.kt token replacement")
-          ])
-          source = source[:end] + """
+          end = source.index("\n    /** Add display notification", start)
+          helper = """
 
     private fun formatNotificationBytes(bytes: Long): String {
         if (bytes < 0L) return "--"
@@ -380,9 +377,10 @@ jobs:
         while (value >= 1024.0 && unit < units.lastIndex) { value /= 1024.0; unit++ }
         return if (unit == 0) bytes.toString() + " B" else String.format(Locale.US, "%.1f %s", value, units[unit])
     }
-""" + source[end:]
+"""
+          source = source[:end] + helper + source[end:]
           notification_file.write_text(source)
-          print("Patched Notifications.kt token replacement")
+          print("Patched Notifications.kt")
           PY
           flutter analyze lib/main.dart
           flutter build apk --release
