@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../controllers/download_controller.dart';
 import '../core/download_item.dart';
 import '../services/youtube_metadata_service.dart';
+import '../services/link_resolver.dart';
 import '../youtube/youtube_link_info.dart';
 
 /// Standalone v2 download screen. It does not modify BrowserPage.
@@ -17,6 +18,9 @@ class DownloadCenterScreen extends StatefulWidget {
 class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   final DownloadController _downloads = DownloadController();
   final YoutubeMetadataService _youtube = YoutubeMetadataService();
+  final DroxLinkResolver _resolver = DroxLinkResolver();
+  DroxLinkResolution? _resolution;
+  bool _checkingLink = false;
   final TextEditingController _url = TextEditingController();
   YoutubePreview? _preview;
   YoutubeLinkInfo? _youtubeLink;
@@ -149,7 +153,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
             keyboardType: TextInputType.url,
             decoration: InputDecoration(
               labelText: 'Paste a link',
-              hintText: 'YouTube URL or direct media URL',
+              hintText: 'Paste a cloud share or file link',
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
                 tooltip: 'Paste',
@@ -174,7 +178,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: OutlinedButton.icon(
-              onPressed: _checkingPreview ? null : _inspectLink,
+              onPressed: _checkingLink ? null : _inspectLink,
               icon: const Icon(Icons.preview_outlined),
               label: const Text('Check link'),
             )),
@@ -184,10 +188,10 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                   ? () => _openExternal(_youtubeLink!.canonicalUrl, 'YouTube')
                   : _addDirectMedia,
               icon: Icon(isYouTube ? Icons.open_in_new_rounded : Icons.download_rounded),
-              label: Text(_adding ? 'Adding…' : isYouTube ? 'Open YouTube' : 'Download direct link'),
+              label: Text(_adding ? 'Adding…' : isYouTube ? 'Open YouTube' : 'Download'),
             )),
           ]),
-          if (_checkingPreview) const LinearProgressIndicator(),
+          if (_checkingLink || _checkingPreview) const LinearProgressIndicator(),\n          if (_resolution != null && !isYouTube)\n            Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [\n              Text('Detected: ${_resolution!.provider}', style: const TextStyle(fontWeight: FontWeight.bold)),\n              const SizedBox(height: 4), Text(_resolution!.message),\n              if (_resolution!.contentType != null) Text('Type: ${_resolution!.contentType}'),\n              if (_resolution!.contentLength != null) Text('Size: ${(_resolution!.contentLength! / 1048576).toStringAsFixed(2)} MB'),\n            ]))),
           if (_preview != null) _youtubePreviewCard(_preview!),
           if (_youtubeLink != null)
             Card(
