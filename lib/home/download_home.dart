@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../browser/browser_page.dart';
 import '../downloads/download_models.dart';
+import '../downloads/screens/download_center_screen.dart';
 import '../notifications/download_notifications.dart';
 import '../shared/widgets/drox_widgets.dart';
 
@@ -137,11 +138,8 @@ class _DownloadHomeState extends State<DownloadHome> {
       );
       return;
     }
-    setState(() {
-      selectedTab = 0;
-      controller.text = shared;
-    });
-    await _add();
+    setState(() => selectedTab = 0);
+    await downloadCenterKey.currentState?.acceptSharedUrl(shared);
   }
 
   final controller = TextEditingController();
@@ -159,6 +157,7 @@ class _DownloadHomeState extends State<DownloadHome> {
   bool notificationsEnabled = false;
   int selectedTab = 0;
   final GlobalKey<BrowserPageState> browserKey = GlobalKey<BrowserPageState>();
+  final GlobalKey<DownloadCenterScreenState> downloadCenterKey = GlobalKey<DownloadCenterScreenState>();
   static const _historyKey = 'drox_download_history';
 
   Future<void> _loadNotificationSetting() async {
@@ -1111,48 +1110,8 @@ class _DownloadHomeState extends State<DownloadHome> {
         ),
         body: Stack(children: [
           IndexedStack(index: selectedTab, children: [
-          Column(children: [
-            Material(
-              color: widget.isDark ? const Color(0xFF151A22) : const Color(0xFF6B351B),
-              child: Row(children: [
-                _homeCategory(_tr('ALL', 'সব'), entries.length, DownloadFilter.all, Icons.all_inbox_rounded),
-                _homeCategory(_tr('DOWNLOADING', 'চলমান'), active, DownloadFilter.active, Icons.downloading_rounded),
-                _homeCategory(_tr('FINISHED', 'সম্পন্ন'), done, DownloadFilter.completed, Icons.check_circle_outline_rounded),
-                _homeCategory(_tr('ERROR', 'ত্রুটি'), failed, DownloadFilter.failed, Icons.error_outline_rounded),
-              ]),
-            ),
-            if (searching)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 9, 10, 5),
-                child: TextField(
-                  controller: searchController,
-                  autofocus: true,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: _tr('Search downloaded files', 'ডাউনলোড করা ফাইল খুঁজুন'),
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    suffixIcon: IconButton(
-                      tooltip: _tr('Clear search', 'সার্চ মুছুন'),
-                      onPressed: () { searchController.clear(); setState(() {}); },
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                    isDense: true,
-                    filled: true,
-                    border: const OutlineInputBorder(borderSide: BorderSide.none),
-                  ),
-                ),
-              ),
-            Expanded(
-              child: visible.isEmpty
-                  ? const SizedBox.expand()
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 100),
-                      itemCount: visible.length,
-                      itemBuilder: (_, i) => _downloadCard(visible[i]),
-                    ),
-            ),
-          ]),
-          BrowserPage(key: browserKey, isDark: widget.isDark, isBangla: widget.isBangla, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { controller.text = url; _add(); }),
+          DownloadCenterScreen(key: downloadCenterKey),
+          BrowserPage(key: browserKey, isDark: widget.isDark, isBangla: widget.isBangla, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { downloadCenterKey.currentState?.acceptSharedUrl(url); setState(() => selectedTab = 0); }),
           ListView(padding: const EdgeInsets.all(12), children: [
             Row(children: [
               Text('Downloads', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
