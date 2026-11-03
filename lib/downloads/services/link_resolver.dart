@@ -65,7 +65,10 @@ class DroxLinkResolver {
       return DroxLinkResolution(originalUrl: input, downloadUrl: input, provider: 'Direct file', kind: DroxLinkKind.directFile, canQueue: true, message: 'Direct file link detected.', filename: _filename(uri));
     }
     if (host == 'drive.google.com' || host == 'drive.usercontent.google.com') {
-      final segments = uri.pathSegments;\n      final dIndex = segments.indexOf('d');\n      final pathId = dIndex >= 0 && dIndex + 1 < segments.length ? segments[dIndex + 1] : null;\n      final id = uri.queryParameters['id'] ?? pathId;
+      final segments = uri.pathSegments;
+      final dIndex = segments.indexOf('d');
+      final pathId = dIndex >= 0 && dIndex + 1 < segments.length ? segments[dIndex + 1] : null;
+      final id = uri.queryParameters['id'] ?? pathId;
       final url = id == null ? input : 'https://drive.google.com/uc?export=download&id=${Uri.encodeQueryComponent(id)}';
       return DroxLinkResolution(originalUrl: input, downloadUrl: url, provider: 'Google Drive', kind: DroxLinkKind.googleDrive, canQueue: id != null, message: id == null ? 'Could not identify a public Drive file ID.' : 'Public Drive download URL prepared. Access permissions may still be required.');
     }
