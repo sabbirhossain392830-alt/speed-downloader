@@ -43,6 +43,20 @@ void main() {
     expect(result.kind, DroxLinkKind.directFile);
   });
 
+  test('recognizes Nextcloud public share download links', () {
+    final result = resolver.recognize('https://cloud.example.com/s/AbCdEf');
+    expect(result.provider, 'Nextcloud');
+    expect(result.canQueue, isTrue);
+    expect(result.downloadUrl, 'https://cloud.example.com/s/AbCdEf/download');
+  });
+
+  test('recognizes additional archive and document file types', () {
+    final result = resolver.recognize('https://cdn.example.com/ebook.epub');
+    expect(result.canQueue, isTrue);
+    expect(result.kind, DroxLinkKind.directFile);
+    expect(result.filename, 'ebook.epub');
+  });
+
   test('does not claim protected video platform pages are downloadable', () {
     final result = resolver.recognize('https://www.youtube.com/watch?v=abcdefghijk');
     expect(result.provider, 'YouTube');
