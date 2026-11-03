@@ -10,10 +10,10 @@ import '../youtube/youtube_link_info.dart';
 class DownloadCenterScreen extends StatefulWidget {
   const DownloadCenterScreen({super.key});
   @override
-  State<DownloadCenterScreen> createState() => _DownloadCenterScreenState();
+  DownloadCenterScreenState createState() => DownloadCenterScreenState();
 }
 
-class _DownloadCenterScreenState extends State<DownloadCenterScreen> {
+class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   final DownloadController _downloads = DownloadController();
   final YoutubeMetadataService _youtube = YoutubeMetadataService();
   final TextEditingController _url = TextEditingController();
@@ -21,6 +21,18 @@ class _DownloadCenterScreenState extends State<DownloadCenterScreen> {
   YoutubeLinkInfo? _youtubeLink;
   bool _checkingPreview = false;
   bool _adding = false;
+
+  /// Accepts a URL shared from Android or detected by the built-in browser.
+  Future<void> acceptSharedUrl(String value) async {
+    _url.text = value.trim();
+    if (!mounted) return;
+    setState(() {});
+    if (YoutubeLinkInfo.parse(_url.text) != null) {
+      await _inspectLink();
+    } else {
+      _message('Link added. Review it, then choose Download direct link.');
+    }
+  }
 
   @override
   void initState() {
@@ -105,9 +117,7 @@ class _DownloadCenterScreenState extends State<DownloadCenterScreen> {
   @override
   Widget build(BuildContext context) {
     final items = _downloads.items;
-    return Scaffold(
-      appBar: AppBar(title: const Text('DROX Downloads')),
-      body: ListView(
+    return ListView(
         padding: const EdgeInsets.all(16),
         children: [
           TextField(
@@ -174,7 +184,6 @@ class _DownloadCenterScreenState extends State<DownloadCenterScreen> {
             ),
           ...items.map(_downloadCard),
         ],
-      ),
     );
   }
 
