@@ -39,7 +39,10 @@ void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FileDownloader().configure(androidConfig: [\n    (Config.runInForeground, Config.always),\n    (Config.useCacheDir, Config.never),\n  ]);\n  await FileDownloader().start(autoCleanDatabase: true);
+  await FileDownloader().configure(androidConfig: [
+    (Config.runInForeground, Config.always),
+    (Config.useCacheDir, Config.never),
+  ]);\n  await FileDownloader().start(autoCleanDatabase: true);
   final prefs = await SharedPreferences.getInstance();
   _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? true, bangla: prefs.getBool('drox_language_bangla_v2') ?? false);
 
