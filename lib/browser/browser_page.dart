@@ -13,7 +13,7 @@ class BrowserPage extends StatefulWidget {
   final bool isDark, isBangla;
   final VoidCallback onThemeTap, onReturn, onSettings;
   @override
-  State<BrowserPage> createState() => _BrowserPageState();
+  State<BrowserPage> createState() => BrowserPageState();
 }
 class _DroxTab {
   _DroxTab(this.controller, this.url);
