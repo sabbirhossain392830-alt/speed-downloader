@@ -29,6 +29,8 @@ patch("TaskRunner.kt", [
      "        progress: Double = 2.0,\n        timeRemaining: Long = -1000,\n        expectedFileSize: Long = -1,\n        downloadedBytes: Long = -1\n    )"),
     ("            progress, timeRemaining\n        )\n        lastProgressUpdate",
      "            progress, timeRemaining, expectedFileSize, bytesTotal\n        )\n        lastProgressUpdate"),
+    ("            BDPlugin.localResumeData[resumeData.task.taskId] = resumeData\n            postOnBackgroundChannel(",
+     "            BDPlugin.localResumeData[resumeData.task.taskId] = resumeData\n            // Keep resume data available to native notification actions after process death.\n            storeLocally(\n                BDPlugin.keyResumeDataMap,\n                resumeData.task.taskId,\n                bdJson.encodeToString<ResumeData>(resumeData),\n                prefs\n            )\n            postOnBackgroundChannel("),
 ])
 
 patch("TaskWorker.kt", [
