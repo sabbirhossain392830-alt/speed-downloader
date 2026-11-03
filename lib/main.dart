@@ -1001,6 +1001,119 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
   }
 
+  Future<void> _copyDownloadLink(DownloadEntry entry) async {
+    await Clipboard.setData(ClipboardData(text: entry.task.url));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_tr('Download link copied', 'ডাউনলোড লিংক কপি হয়েছে'))),
+    );
+  }
+
+  Future<void> _refreshLink(DownloadEntry entry) async {
+    try {
+      final details = await _downloadDetails(entry.task.url);
+      entry.task = DownloadTask(
+        url: details.$1,
+        filename: entry.task.filename,
+        directory: 'DROX',
+        baseDirectory: BaseDirectory.applicationSupport,
+        updates: Updates.statusAndProgress,
+        allowPause: true,
+        transferHints: {TransferHint.userInitiated, TransferHint.largeFile},
+        retries: 10,
+        taskId: entry.task.taskId,
+      );
+      await _saveHistory();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_tr('Link checked. Starting download again…', 'লিংক যাচাই হয়েছে। আবার ডাউনলোড শুরু হচ্ছে…'))),
+      );
+      await _redownload(entry);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_tr('Could not refresh link: ${e.toString().replaceFirst('Exception: ', '')}', 'লিংক রিফ্রেশ করা যায়নি: ${e.toString().replaceFirst('Exception: ', '')}'))),
+      );
+    }
+  }
+
+  Future<void> _renameDownload(DownloadEntry entry) async {
+    if (entry.status != 'সম্পন্ন') {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_tr('Finish the download before renaming', 'নাম পরিবর্তনের আগে ডাউনলোড সম্পন্ন করুন'))),
+      );
+      return;
+    }
+    final nameController = TextEditingController(text: entry.task.filename);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_tr('Rename file', 'ফাইলের নাম পরিবর্তন')),
+        content: TextField(controller: nameController, autofocus: true, decoration: InputDecoration(labelText: _tr('File name', 'ফাইলের নাম'))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_tr('Cancel', 'বাতিল'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, nameController.text.trim()), child: Text(_tr('Save', 'সেভ'))),
+        ],
+      ),
+    );
+    nameController.dispose();
+    if (newName == null) return;
+    final safeName = _safeFileName(newName);
+    if (safeName == entry.task.filename) return;
+    try {
+      final oldPath = entry.sharedPath ?? await entry.task.filePath();
+      final oldFile = File(oldPath);
+      if (!await oldFile.exists()) throw Exception('File not found');
+      final directory = oldFile.parent.path;
+      final targetPath = '$directory/$safeName';
+      if (await File(targetPath).exists()) throw Exception('A file with that name already exists');
+      final renamed = await oldFile.rename(targetPath);
+      entry.task = DownloadTask(
+        url: entry.task.url,
+        filename: safeName,
+        directory: 'DROX',
+        baseDirectory: BaseDirectory.applicationSupport,
+        updates: Updates.statusAndProgress,
+        allowPause: true,
+        retries: 10,
+        taskId: entry.task.taskId,
+      );
+      entry.sharedPath = renamed.path;
+      await _saveHistory();
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_tr('Rename failed: ${e.toString().replaceFirst('Exception: ', '')}', 'নাম পরিবর্তন হয়নি: ${e.toString().replaceFirst('Exception: ', '')}'))),
+      );
+    }
+  }
+
+  Future<void> _showDownloadActions(DownloadEntry entry) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(title: Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(_localizedStatus(entry.status))),
+          const Divider(height: 1),
+          ListTile(leading: const Icon(Icons.refresh_rounded), title: Text(_tr('Redownload', 'আবার ডাউনলোড')), onTap: () => Navigator.pop(ctx, 'redownload')),
+          ListTile(leading: const Icon(Icons.copy_rounded), title: Text(_tr('Copy download link', 'ডাউনলোড লিংক কপি')), onTap: () => Navigator.pop(ctx, 'copy')),
+          ListTile(leading: const Icon(Icons.link_rounded), title: Text(_tr('Refresh link', 'লিংক রিফ্রেশ')), onTap: () => Navigator.pop(ctx, 'refresh')),
+          ListTile(leading: const Icon(Icons.drive_file_rename_outline_rounded), title: Text(_tr('Rename file', 'ফাইলের নাম পরিবর্তন')), onTap: () => Navigator.pop(ctx, 'rename')),
+          if (entry.status == 'সম্পন্ন')
+            ListTile(leading: const Icon(Icons.open_in_new_rounded), title: Text(_tr('Open file', 'ফাইল খুলুন')), onTap: () => Navigator.pop(ctx, 'open')),
+          ListTile(leading: const Icon(Icons.delete_outline_rounded, color: Colors.red), title: Text(_tr('Remove', 'মুছে ফেলুন')), onTap: () => Navigator.pop(ctx, 'remove')),
+        ],
+      )),
+    );
+    switch (selected) {
+      case 'redownload': await _redownload(entry); break;
+      case 'copy': await _copyDownloadLink(entry); break;
+      case 'refresh': await _refreshLink(entry); break;
+      case 'rename': await _renameDownload(entry); break;
+      case 'open': await _open(entry); break;
+      case 'remove': await _remove(entry); break;
+    }
+  }
+
   Future<void> _redownload(DownloadEntry entry) async {
     if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status)) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_tr('This download is already running', 'এই ডাউনলোডটি ইতিমধ্যে চলছে'))));
@@ -1456,7 +1569,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
 
     return GestureDetector(
-      onLongPress: () => _toggleSelection(entry),
+      onLongPress: () => _showDownloadActions(entry),
       onTap: _selectedTaskIds.isNotEmpty ? () => _toggleSelection(entry) : null,
       child: Container(
       height: 90,
@@ -1589,25 +1702,29 @@ class _DownloadHomeState extends State<DownloadHome> {
                     onPressed: () => _open(entry),
                     icon: Icon(Icons.folder_open_rounded, size: 28, color: ink),
                   ),
-                PopupMenuButton<String>(
-                  padding: EdgeInsets.zero,
-                  iconSize: 21,
-                  iconColor: ink,
-                  tooltip: _tr('More options', 'আরও অপশন'),
-                  onSelected: (value) {
-                    if (value == 'open') _open(entry);
-                    if (value == 'redownload') _redownload(entry);
-                    if (value == 'remove') _remove(entry);
-                    if (value == 'cancel') _cancel(entry);
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(value: 'open', enabled: completed, child: ListTile(dense: true, leading: const Icon(Icons.open_in_new), title: const Text('Open'))),
-                    PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: const Icon(Icons.refresh), title: const Text('Redownload'))),
-                    if (running || paused || queued)
-                      PopupMenuItem(value: 'cancel', child: ListTile(dense: true, leading: const Icon(Icons.close), title: const Text('Cancel'))),
-                    PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: const Icon(Icons.delete_outline), title: const Text('Remove'))),
-                  ],
-                ),
+                if (completed && !_selectedTaskIds.isNotEmpty)
+                  PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    iconSize: 21,
+                    iconColor: ink,
+                    tooltip: _tr('More options', 'আরও অপশন'),
+                    onSelected: (value) {
+                      if (value == 'open') _open(entry);
+                      if (value == 'redownload') _redownload(entry);
+                      if (value == 'copy') _copyDownloadLink(entry);
+                      if (value == 'refresh') _refreshLink(entry);
+                      if (value == 'rename') _renameDownload(entry);
+                      if (value == 'remove') _remove(entry);
+                    },
+                    itemBuilder: (_) => [
+                      PopupMenuItem(value: 'open', child: ListTile(dense: true, leading: const Icon(Icons.open_in_new), title: Text(_tr('Open', 'খুলুন')))),
+                      PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: const Icon(Icons.refresh), title: Text(_tr('Redownload', 'আবার ডাউনলোড')))),
+                      PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: const Icon(Icons.copy), title: Text(_tr('Copy download link', 'লিংক কপি')))),
+                      PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: const Icon(Icons.link), title: Text(_tr('Refresh link', 'লিংক রিফ্রেশ')))),
+                      PopupMenuItem(value: 'rename', child: ListTile(dense: true, leading: const Icon(Icons.drive_file_rename_outline), title: Text(_tr('Rename file', 'নাম পরিবর্তন')))),
+                      PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: const Icon(Icons.delete_outline), title: Text(_tr('Remove', 'মুছুন')))),
+                    ],
+                  ),
               ],
             ),
           ),
