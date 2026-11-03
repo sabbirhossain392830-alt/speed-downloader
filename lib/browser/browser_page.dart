@@ -301,35 +301,92 @@ class BrowserPageState extends State<BrowserPage> {
     if (!mounted) return;
     final approved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const DroxLogoMark(size: 50),
-        title: const Center(child: Text('File Details', style: TextStyle(fontWeight: FontWeight.w800))),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: double.infinity, padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
-            child: Row(children: [
-              Icon(statusNote.isEmpty ? Icons.insert_drive_file_rounded : Icons.info_outline_rounded, color: Theme.of(ctx).colorScheme.primary, size: 28),
-              const SizedBox(width: 10),
-              Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w700), maxLines: 3, overflow: TextOverflow.ellipsis)),
-            ]),
+      barrierDismissible: false,
+      builder: (ctx) {
+        final colors = Theme.of(ctx).colorScheme;
+        final dot = name.lastIndexOf('.');
+        final baseName = dot > 0 ? name.substring(0, dot) : name;
+        final extension = dot > 0 ? name.substring(dot + 1) : (type.contains('/') ? type.split('/').last : 'file');
+        return AlertDialog(
+          backgroundColor: Theme.of(ctx).brightness == Brightness.dark ? colors.surface : Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+          titlePadding: const EdgeInsets.fromLTRB(24, 20, 20, 8),
+          contentPadding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
+          actionsPadding: const EdgeInsets.fromLTRB(12, 0, 14, 12),
+          title: Row(children: [
+            const Expanded(child: Text('Download file!', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700))),
+            Icon(Icons.dns_outlined, color: colors.onSurfaceVariant, size: 30),
+          ]),
+          content: SingleChildScrollView(
+            child: SizedBox(width: 520, child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Expanded(child: Text('Link (Resume: N/A)', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 14))),
+                  IconButton(tooltip: 'Copy link', visualDensity: VisualDensity.compact,
+                    onPressed: () => Clipboard.setData(ClipboardData(text: finalUrl)),
+                    icon: const Icon(Icons.content_copy_rounded)),
+                  IconButton(tooltip: 'Open link in browser', visualDensity: VisualDensity.compact,
+                    onPressed: () async { await tab?.controller.loadRequest(Uri.parse(finalUrl)); Navigator.pop(ctx, false); },
+                    icon: const Icon(Icons.play_circle_outline_rounded)),
+                  Icon(Icons.remove_red_eye_outlined, color: colors.onSurfaceVariant),
+                ]),
+                const SizedBox(height: 2),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.only(bottom: 8),
+                  decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFBDBDBD), style: BorderStyle.solid))),
+                  child: Text(finalUrl, maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13)),
+                ),
+                const SizedBox(height: 14),
+                Text('Save as:', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 14)),
+                const SizedBox(height: 5),
+                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Expanded(child: Text(baseName, maxLines: 3, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 15, height: 1.35))),
+                  const SizedBox(width: 12),
+                  Text(extension, style: const TextStyle(color: Color(0xFFFF7043), fontWeight: FontWeight.w700, fontSize: 14)),
+                ]),
+                const Divider(height: 18),
+                Text(size, style: TextStyle(color: colors.onSurfaceVariant, fontSize: 14)),
+                if (type != 'অজানা') ...[
+                  const SizedBox(height: 5),
+                  Text(type, style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+                ],
+                if (statusNote.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Container(width: double.infinity, padding: const EdgeInsets.all(10),
+                    color: colors.errorContainer,
+                    child: Text(statusNote, style: TextStyle(color: colors.onErrorContainer, fontSize: 12))),
+                ],
+                const SizedBox(height: 12),
+                Row(children: [
+                  Icon(Icons.folder_open_outlined, color: colors.onSurfaceVariant, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('/storage/emulated/0/Download/DROX',
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14))),
+                  Icon(Icons.folder_outlined, color: colors.onSurfaceVariant),
+                ]),
+                const Divider(height: 16),
+                Text('DROX Download Manager', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+                const SizedBox(height: 3),
+                Text('ফাইলটি ডাউনলোড কিউতে যোগ হবে।', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+              ],
+            )),
           ),
-          const SizedBox(height: 14),
-          _detailRow('ধরন', type),
-          _detailRow('সাইজ', size),
-          _detailRow('সাইট', uri.host),
-          if (statusNote.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(width: double.infinity, padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.errorContainer, borderRadius: BorderRadius.circular(10)),
-              child: Text(statusNote, style: TextStyle(color: Theme.of(ctx).colorScheme.onErrorContainer, fontSize: 12))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('CANCEL', style: TextStyle(color: Color(0xFF8054C7)))),
+            TextButton(
+              onPressed: statusNote.isEmpty ? () => Navigator.pop(ctx, true) : null,
+              child: const Text('START', style: TextStyle(color: Color(0xFF8054C7), fontWeight: FontWeight.w600)),
+            ),
           ],
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('বাতিল')),
-          FilledButton.icon(onPressed: statusNote.isEmpty ? () => Navigator.pop(ctx, true) : null, icon: const Icon(Icons.download_rounded), label: const Text('Download')),
-        ],
-      ),
+        );
+      },
     );
     _promptedDownloadUrls.remove(url);
     if (approved == true && mounted) widget.onDownload(finalUrl);
