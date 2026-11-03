@@ -21,6 +21,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   YoutubeLinkInfo? _youtubeLink;
   bool _checkingPreview = false;
   bool _adding = false;
+  String? _previewVideoId;
 
   /// Accepts a URL shared from Android or detected by the built-in browser.
   Future<void> acceptSharedUrl(String value) async {
@@ -38,7 +39,9 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   void initState() {
     super.initState();
     _downloads.addListener(_refresh);
-    _downloads.initialize();
+    _downloads.initialize().catchError((error) {
+      _message('Download manager could not start: $error');
+    });
   }
 
   void _refresh() {
@@ -49,12 +52,15 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
     final value = _url.text.trim();
     final link = YoutubeLinkInfo.parse(value);
     if (link == null) {
+      _previewVideoId = null;
       setState(() {
         _youtubeLink = null;
         _preview = null;
       });
       return;
     }
+    if (_previewVideoId == link.videoId && (_preview != null || _checkingPreview)) return;
+    _previewVideoId = link.videoId;
     setState(() {
       _checkingPreview = true;
       _youtubeLink = link;
@@ -72,6 +78,14 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       }
     } finally {
       if (mounted) setState(() => _checkingPreview = false);
+    }
+  }
+
+  Future<void> _runAction(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (error) {
+      _message('Action failed: $error');
     }
   }
 
@@ -137,7 +151,14 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
               ),
             ),
             onChanged: (value) {
-              if (YoutubeLinkInfo.parse(value) != null) _inspectLink();
+              final link = YoutubeLinkInfo.parse(value);
+              if (link == null) {
+                if (_youtubeLink != null) {
+                  setState(() { _youtubeLink = null; _preview = null; _previewVideoId = null; });
+                }
+              } else if (link.videoId != _previewVideoId) {
+                _inspectLink();
+              }
             },
           ),
           const SizedBox(height: 10),
@@ -221,10 +242,10 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
           Row(children: [
             Expanded(child: Text('$state • $percent%')),
             if (item.state == DroxDownloadState.running)
-              IconButton(onPressed: () => _downloads.pause(item), icon: const Icon(Icons.pause_rounded)),
+              IconButton(onPressed: () => _runAction(() => _downloads.pause(item)), icon: const Icon(Icons.pause_rounded)),
             if (item.state == DroxDownloadState.paused || item.state == DroxDownloadState.failed)
-              IconButton(onPressed: () => _downloads.resume(item), icon: const Icon(Icons.play_arrow_rounded)),
-            IconButton(onPressed: () => _downloads.remove(item), icon: const Icon(Icons.delete_outline_rounded)),
+              IconButton(onPressed: () => _runAction(() => _downloads.resume(item)), icon: const Icon(Icons.play_arrow_rounded)),
+            IconButton(onPressed: () => _runAction(() => _downloads.remove(item)), icon: const Icon(Icons.delete_outline_rounded)),
           ]),
           if (item.error != null) Text(item.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
         ]),
