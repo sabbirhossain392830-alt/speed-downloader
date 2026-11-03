@@ -33,7 +33,7 @@ class BrowserPageState extends State<BrowserPage> {
   final history = <Map<String,String>>[];
   final shortcuts = <Map<String,String>>[];
   int active = 0;
-  bool showHistory = false, showTrail = false, adBlockEnabled = true, desktopMode = false;
+  bool showHistory = false, showTrail = false, showTabOverview = false, adBlockEnabled = true, desktopMode = false;
   _DroxTab? get tab => tabs.isEmpty ? null : tabs[active];
   @override
   void initState() {
@@ -102,7 +102,7 @@ class BrowserPageState extends State<BrowserPage> {
   }
   Future<void> _newTab([String url = '']) async {
     final t = _DroxTab(WebViewController(), url);
-    tabs.add(t); active = tabs.length - 1; showHistory = false; showTrail = false; address.text = url;
+    tabs.add(t); active = tabs.length - 1; showHistory = false; showTrail = false; showTabOverview = false; address.text = url;
     final ctrl = t.controller;
     await ctrl.setJavaScriptMode(JavaScriptMode.unrestricted);
     await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) => _downloadPrompt(m.message));
@@ -612,19 +612,100 @@ class BrowserPageState extends State<BrowserPage> {
   Future<bool> handleSystemBack() async {
     if (showTrail) { setState(() => showTrail = false); return true; }
     if (showHistory) { setState(() => showHistory = false); return true; }
+    if (showTabOverview) { setState(() => showTabOverview = false); return true; }
     if (tab != null && await tab!.controller.canGoBack()) { await _goBack(); return true; }
     return false;
   }
-  void _select(int i) { setState(() { active = i; address.text = tab?.url ?? ''; showHistory = false; showTrail = false; }); }
+  void _select(int i) { setState(() { active = i; address.text = tab?.url ?? ''; showHistory = false; showTrail = false; showTabOverview = false; }); }
   void _close(int i) {
     if (tabs.length == 1) { setState(() { tabs.first.url = ''; tabs.first.title = 'Google'; tabs.first.back = false; tabs.first.forward = false; address.clear(); }); return; }
     setState(() { tabs.removeAt(i); if (active >= tabs.length) active = tabs.length - 1; else if (i < active) active--; address.text = tab?.url ?? ''; });
   }
   void _showTabs() {
-    showModalBottomSheet<void>(context: context, showDragHandle: true, builder: (ctx) => SafeArea(child: SizedBox(height: 350, child: Column(children: [
-      ListTile(title: Text('Open pages (' + tabs.length.toString() + ')'), trailing: IconButton(onPressed: () { Navigator.pop(ctx); _newTab(); }, icon: const Icon(Icons.add))),
-      Expanded(child: ListView.builder(itemCount: tabs.length, itemBuilder: (_, i) => ListTile(selected: i == active, leading: const Icon(Icons.language), title: Text(tabs[i].title, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(tabs[i].url, maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () { Navigator.pop(ctx); _select(i); }, trailing: IconButton(onPressed: () { Navigator.pop(ctx); _close(i); }, icon: const Icon(Icons.close))))),
-    ]))));
+    setState(() {
+      showTabOverview = true;
+      showHistory = false;
+      showTrail = false;
+    });
+  }
+
+  Widget _buildTabOverview() {
+    final cs = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: cs.surface,
+      child: SafeArea(
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
+            child: Row(children: [
+              const Expanded(child: Text('Tabs', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800))),
+              Text('${tabs.length} open', style: TextStyle(color: cs.onSurfaceVariant)),
+              const SizedBox(width: 8),
+              IconButton(tooltip: 'Close tab overview', onPressed: () => setState(() => showTabOverview = false), icon: const Icon(Icons.close_rounded)),
+            ]),
+          ),
+          Expanded(child: GridView.builder(
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: .88,
+            ),
+            itemCount: tabs.length,
+            itemBuilder: (_, i) {
+              final item = tabs[i];
+              final selected = i == active;
+              return Material(
+                color: cs.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(18),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () => _select(i),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: selected ? cs.primary : cs.outlineVariant, width: selected ? 2 : 1),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 5, 4, 2),
+                        child: Row(children: [
+                          Icon(Icons.language_rounded, size: 17, color: cs.onSurfaceVariant),
+                          const SizedBox(width: 5),
+                          Expanded(child: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            tooltip: 'Close tab',
+                            onPressed: () => _close(i),
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                          ),
+                        ]),
+                      ),
+                      Expanded(child: Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(12)),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Icon(item.url.isEmpty ? Icons.home_rounded : Icons.public_rounded, color: cs.primary, size: 24),
+                          const SizedBox(height: 8),
+                          Text(item.url.isEmpty ? 'Google Start Page' : item.url, maxLines: 4, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                        ]),
+                      )),
+                    ]),
+                  ),
+                ),
+              );
+            },
+          )),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(onPressed: () => _newTab(), icon: const Icon(Icons.add_rounded), label: const Text('New Tab')),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
   Future<void> _action(String v) async {
     switch (v) {
@@ -700,7 +781,19 @@ class BrowserPageState extends State<BrowserPage> {
                     decoration: InputDecoration(
                       hintText: 'Search or enter website',
                       prefixIcon: Icon(isHome ? Icons.search_rounded : Icons.lock_outline_rounded, size: 19),
-                      suffixIcon: IconButton(onPressed: () => current?.url.isNotEmpty == true ? current!.controller.reload() : go(), tooltip: 'Go / Reload', icon: const Icon(Icons.refresh_rounded, size: 20)),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          if (current?.loading == true) {
+                            current?.controller.runJavaScript('window.stop();');
+                          } else if (current?.url.isNotEmpty == true) {
+                            current!.controller.reload();
+                          } else {
+                            go();
+                          }
+                        },
+                        tooltip: current?.loading == true ? 'Stop loading' : 'Go / Reload',
+                        icon: Icon(current?.loading == true ? Icons.close_rounded : Icons.refresh_rounded, size: 20),
+                      ),
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(vertical: 12),
                       border: InputBorder.none,
@@ -736,6 +829,7 @@ class BrowserPageState extends State<BrowserPage> {
                 IndexedStack(index: active, children: tabs.map((item) => WebViewWidget(controller: item.controller)).toList()),
                 if (isHome && !showHistory) Positioned.fill(child: _buildStartPage()),
                 if (showHistory) Positioned.fill(child: _buildHistoryPage()),
+                if (showTabOverview) Positioned.fill(child: _buildTabOverview()),
               ]),
             ),
             if (showTrail)
