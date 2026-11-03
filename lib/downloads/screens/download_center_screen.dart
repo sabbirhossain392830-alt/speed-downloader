@@ -29,6 +29,38 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   String? _previewVideoId;
   int _selectedFilter = 0;
 
+  /// Starts a browser-detected direct file/media download and shows it in the home queue.
+  Future<void> downloadDetectedUrl(String value) async {
+    final clean = value.trim();
+    if (clean.isEmpty) return;
+    final existing = _downloads.items.where((item) => item.url == clean &&
+        (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued ||
+         item.state == DroxDownloadState.paused)).firstOrNull;
+    if (existing != null) {
+      _message('This download is already in the list.');
+      return;
+    }
+    try {
+      final result = await _resolver.resolve(clean);
+      if (!result.canQueue) {
+        _message(result.message);
+        return;
+      }
+      final uri = Uri.tryParse(result.downloadUrl);
+      final filename = result.filename ??
+          (uri == null || uri.pathSegments.isEmpty || !uri.pathSegments.last.contains('.')
+              ? 'drox_${DateTime.now().millisecondsSinceEpoch}.bin'
+              : Uri.decodeComponent(uri.pathSegments.last));
+      await _downloads.addDirectMedia(url: result.downloadUrl, filename: filename);
+      if (mounted) {
+        setState(() => _selectedFilter = 0);
+        _message('Download started.');
+      }
+    } catch (error) {
+      _message('Could not start download: $error');
+    }
+  }
+
   /// Accepts a URL shared from Android or detected by the built-in browser.
   Future<void> acceptSharedUrl(String value) async {
     _url.text = value.trim();
@@ -160,7 +192,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
     return Column(
       children: [
         Material(
-          color: const Color(0xFF6B351B),
+          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF151A22) : const Color(0xFF6B351B),
           child: Row(children: [
             _categoryTab('ALL', allCount, 0),
             _categoryTab('DOWNLOADING', activeCount, 1),
@@ -200,7 +232,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: selected ? Colors.white : Colors.white70,
+              color: selected ? Colors.white : (Theme.of(context).brightness == Brightness.dark ? Colors.white60 : Colors.white70),
               fontSize: 12,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             ),
@@ -255,7 +287,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                 child: FractionallySizedBox(
                   widthFactor: item.progress.clamp(0.0, 1.0),
                   heightFactor: 0.30,
-                  child: Container(color: const Color(0xFF8A5636).withValues(alpha: .12)),
+                  child: Container(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF4FC3F7) : const Color(0xFF8A5636)).withValues(alpha: .18)),
                 ),
               ),
             ),
