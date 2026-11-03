@@ -195,7 +195,14 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
               label: Text(_adding ? 'Adding…' : isYouTube ? 'Open YouTube' : 'Download'),
             )),
           ]),
-          if (_checkingLink || _checkingPreview) const LinearProgressIndicator(),\n          if (_resolution != null && !isYouTube)\n            Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [\n              Text('Detected: ${_resolution!.provider}', style: const TextStyle(fontWeight: FontWeight.bold)),\n              const SizedBox(height: 4), Text(_resolution!.message),\n              if (_resolution!.contentType != null) Text('Type: ${_resolution!.contentType}'),\n              if (_resolution!.contentLength != null) Text('Size: ${(_resolution!.contentLength! / 1048576).toStringAsFixed(2)} MB'),\n            ]))),
+          if (_checkingLink || _checkingPreview) const LinearProgressIndicator(),
+          if (_resolution != null && !isYouTube)
+            Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Detected: ${_resolution!.provider}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4), Text(_resolution!.message),
+              if (_resolution!.contentType != null) Text('Type: ${_resolution!.contentType}'),
+              if (_resolution!.contentLength != null) Text('Size: ${(_resolution!.contentLength! / 1048576).toStringAsFixed(2)} MB'),
+            ]))),
           if (_preview != null) _youtubePreviewCard(_preview!),
           if (_youtubeLink != null)
             Card(
