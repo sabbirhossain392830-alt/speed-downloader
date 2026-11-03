@@ -1738,7 +1738,6 @@ class _DownloadHomeState extends State<DownloadHome> {
                       PopupMenuItem(value: 'open', child: ListTile(dense: true, leading: const Icon(Icons.open_in_new), title: Text(_tr('Open', 'খুলুন')))),
                       PopupMenuItem(value: 'redownload', child: ListTile(dense: true, leading: const Icon(Icons.refresh), title: Text(_tr('Redownload', 'আবার ডাউনলোড')))),
                       PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: const Icon(Icons.copy), title: Text(_tr('Copy download link', 'লিংক কপি')))),
-                      PopupMenuItem(value: 'refresh', child: ListTile(dense: true, leading: const Icon(Icons.link), title: Text(_tr('Refresh link', 'লিংক রিফ্রেশ')))),
                       PopupMenuItem(value: 'rename', child: ListTile(dense: true, leading: const Icon(Icons.drive_file_rename_outline), title: Text(_tr('Rename file', 'নাম পরিবর্তন')))),
                       PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: const Icon(Icons.delete_outline), title: Text(_tr('Remove', 'মুছুন')))),
                     ],
