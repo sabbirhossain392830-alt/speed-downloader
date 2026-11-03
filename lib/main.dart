@@ -13,27 +13,15 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
+  // Use only DROX's native notification channel. The downloader plugin's
+  // notification is intentionally disabled to prevent duplicate alerts.
   FileDownloader().configureNotification(
-    running: enabled
-        ? TaskNotification(
-            bangla ? 'DROX • ডাউনলোড চলছে' : 'DROX • Download in progress',
-            bangla ? '{filename}\nঅগ্রগতি: {progress}' : '{filename}\nProgress: {progress}',
-          )
-        : null,
-    paused: enabled
-        ? TaskNotification(
-            bangla ? 'DROX • ডাউনলোড বিরতিতে' : 'DROX • Download paused',
-            bangla ? '{filename}\nসর্বশেষ অগ্রগতি: {progress}' : '{filename}\nLast progress: {progress}',
-          )
-        : null,
-    complete: enabled
-        ? TaskNotification(bangla ? 'DROX • ডাউনলোড সম্পন্ন' : 'DROX • Download complete', '{filename}')
-        : null,
-    error: enabled
-        ? TaskNotification(bangla ? 'DROX • ডাউনলোড ব্যর্থ' : 'DROX • Download failed', '{filename}')
-        : null,
-    progressBar: enabled,
-    tapOpensFile: true,
+    running: null,
+    paused: null,
+    complete: null,
+    error: null,
+    progressBar: false,
+    tapOpensFile: false,
   );
 }
 
@@ -45,7 +33,7 @@ void main() async {
   ]);
   await FileDownloader().start(autoCleanDatabase: true);
   final prefs = await SharedPreferences.getInstance();
-  _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? true, bangla: prefs.getBool('drox_language_bangla_v2') ?? false);
+  _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? false, bangla: prefs.getBool('drox_language_bangla_v2') ?? false);
 
   runApp(const DroxApp());
 }
@@ -306,7 +294,7 @@ class _DroxDownloadStripePainter extends CustomPainter {
 
 class DownloadEntry {
   DownloadEntry(this.task);
-  final DownloadTask task;
+  DownloadTask task;
   double progress = 0;
   int expectedFileSize = -1;
   String status = 'কিউতে আছে';
@@ -458,14 +446,14 @@ class _DownloadHomeState extends State<DownloadHome> {
   final TextEditingController searchController = TextEditingController();
   bool adding = false;
   bool wifiOnly = false;
-  bool notificationsEnabled = true;
+  bool notificationsEnabled = false;
   int selectedTab = 0;
   final GlobalKey<_BrowserPageState> browserKey = GlobalKey<_BrowserPageState>();
   static const _historyKey = 'drox_download_history';
 
   Future<void> _loadNotificationSetting() async {
     final prefs = await SharedPreferences.getInstance();
-    final enabled = prefs.getBool('drox_notifications_enabled') ?? true;
+    final enabled = prefs.getBool('drox_notifications_enabled') ?? false;
     if (mounted) setState(() => notificationsEnabled = enabled);
     _configureDroxNotifications(enabled, bangla: widget.isBangla);
   }
@@ -894,6 +882,17 @@ class _DownloadHomeState extends State<DownloadHome> {
       }
       return;
     }
+    final existing = entries.where((e) => e.task.url == details.$1).firstOrNull;
+    if (existing != null) {
+      controller.clear();
+      if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(existing.status)) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_tr('This download is already in your list', 'এই ডাউনলোডটি আগে থেকেই তালিকায় আছে'))));
+      } else {
+        await _redownload(existing);
+      }
+      if (mounted) setState(() => adding = false);
+      return;
+    }
     final task = DownloadTask(
       url: details.$1,
       filename: details.$2,
@@ -1003,7 +1002,15 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   Future<void> _redownload(DownloadEntry entry) async {
+    if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_tr('This download is already running', 'এই ডাউনলোডটি ইতিমধ্যে চলছে'))));
+      return;
+    }
     final details = await _downloadDetails(entry.task.url);
+    final taskId = entry.task.taskId;
+    try {
+      await FileDownloader().database.deleteRecordWithId(taskId);
+    } catch (_) {}
     final task = DownloadTask(
       url: details.$1,
       filename: details.$2,
@@ -1013,17 +1020,26 @@ class _DownloadHomeState extends State<DownloadHome> {
       allowPause: true,
       transferHints: {TransferHint.userInitiated, TransferHint.largeFile},
       retries: 10,
+      taskId: taskId,
     );
-    setState(() => entries.insert(0, DownloadEntry(task)));
-    _saveHistory();
+    setState(() {
+      entry.task = task;
+      entry.progress = 0;
+      entry.expectedFileSize = -1;
+      entry.status = 'কিউতে আছে';
+      entry.error = null;
+      entry.sharedPath = null;
+      entry.lastDownloadedBytes = 0;
+      entry.lastSpeedSampleAt = null;
+      entry.speedBytesPerSecond = 0;
+    });
+    await _saveHistory();
     try {
       await FileDownloader().transfers.start(task);
     } catch (_) {
-      if (mounted) {
-        final index = entries.indexWhere((e) => e.task.taskId == task.taskId);
-        if (index >= 0) setState(() => entries[index].status = 'কিউতে যোগ করা যায়নি');
-      }
+      if (mounted) setState(() => entry.status = 'কিউতে যোগ করা যায়নি');
     }
+    await _saveHistory();
   }
 
   void _toggleSelection(DownloadEntry entry) {
