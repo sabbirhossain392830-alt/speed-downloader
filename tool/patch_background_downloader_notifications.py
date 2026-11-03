@@ -1,7 +1,7 @@
 from pathlib import Path
 
 cache = Path.home() / ".pub-cache" / "hosted" / "pub.dev"
-packages = sorted(cache.glob("background_downloader-*"))
+packages = sorted(cache.glob("background_downloader-9.6.5"))
 if not packages:
     raise SystemExit("background_downloader package was not found in pub cache")
 package = packages[-1]
