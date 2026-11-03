@@ -351,9 +351,6 @@ jobs:
                "    private val timeRemainingRegEx = Regex(\"\"\"\\{timeRemaining\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val downloadedBytesRegEx = Regex(\"\"\"\\{downloaded\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val totalBytesRegEx = Regex(\"\"\"\\{total\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val metaDataRegEx"),
               ("        timeRemaining: Long? = null,\n        groupNotification: GroupNotification? = null\n    ): String {",
                "        timeRemaining: Long? = null,\n        groupNotification: GroupNotification? = null,\n        downloadedBytes: Long = -1L,\n        totalBytes: Long = -1L\n    ): String {"),
-              ("        return if (groupNotification != null) {", "        val output5 = downloadedBytesRegEx.replace(output4, formatNotificationBytes(downloadedBytes))\n        val output6 = totalBytesRegEx.replace(output5, formatNotificationBytes(totalBytes))\n        return if (groupNotification != null) {"),
-              ("numTotalRegEx.replace(output4,", "numTotalRegEx.replace(output6,"),
-              # output4 is transformed below within replaceTokens() using scoped edits.
           ])
           # Patch the token function by its boundaries, avoiding fragile whitespace anchors.
           notification_file = root / "Notifications.kt"
@@ -373,6 +370,19 @@ jobs:
           notification_file.write_text(source)
           print("Patched Notifications.kt token replacement")
           ])
+          source = source[:end] + """
+
+    private fun formatNotificationBytes(bytes: Long): String {
+        if (bytes < 0L) return "--"
+        val units = arrayOf("B", "KB", "MB", "GB", "TB")
+        var value = bytes.toDouble()
+        var unit = 0
+        while (value >= 1024.0 && unit < units.lastIndex) { value /= 1024.0; unit++ }
+        return if (unit == 0) bytes.toString() + " B" else String.format(Locale.US, "%.1f %s", value, units[unit])
+    }
+""" + source[end:]
+          notification_file.write_text(source)
+          print("Patched Notifications.kt token replacement")
           PY
           flutter analyze lib/main.dart
           flutter build apk --release
