@@ -29,7 +29,13 @@ jobs:
           tree = ET.parse(path)
           root = tree.getroot()
 
-          for permission in ("android.permission.INTERNET", "android.permission.POST_NOTIFICATIONS"):
+          for permission in (
+              "android.permission.INTERNET",
+              "android.permission.POST_NOTIFICATIONS",
+              "android.permission.FOREGROUND_SERVICE",
+              "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+              "android.permission.RUN_USER_INITIATED_JOBS",
+          ):
               if not any(node.get(ns + "name") == permission for node in root.findall("uses-permission")):
                   ET.SubElement(root, "uses-permission", {ns + "name": permission})
 
@@ -50,6 +56,14 @@ jobs:
                   ns + "name": "android.support.FILE_PROVIDER_PATHS",
                   ns + "resource": "@xml/drox_file_paths",
               })
+
+          # Allow long-running downloads to use Android's foreground worker.
+          service_name = "androidx.work.impl.foreground.SystemForegroundService"
+          service = next((node for node in app.findall("service")
+                          if node.get(ns + "name") == service_name), None)
+          if service is None:
+              service = ET.SubElement(app, "service", {ns + "name": service_name})
+          service.set(ns + "foregroundServiceType", "dataSync")
 
           activity = next((node for node in app.findall("activity")
                            if node.get(ns + "name", "").endswith("MainActivity")), None)
