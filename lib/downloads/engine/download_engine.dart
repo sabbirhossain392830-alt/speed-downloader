@@ -32,7 +32,7 @@ class DownloadEngine {
     );
   }
 
-  Future<void> enqueue(DownloadTask task) => _downloader.enqueue(task);
+  Future<void> enqueue(DownloadTask task) async { await _downloader.enqueue(task); }
   Future<bool> pause(DownloadTask task) => _downloader.pause(task);
   Future<bool> resume(DownloadTask task) => _downloader.resume(task);
   Future<void> cancel(DownloadTask task) => _downloader.cancelTaskWithId(task.taskId);
