@@ -561,6 +561,21 @@ class _DownloadHomeState extends State<DownloadHome> {
       }
     }
 
+    // Completed downloads may not have received a Content-Length header.
+    // Read the actual saved file size so history never shows "Size unknown".
+    for (final entry in restored) {
+      if (entry.status != 'সম্পন্ন' || entry.expectedFileSize > 0) continue;
+      try {
+        final file = File(await entry.task.filePath());
+        if (await file.exists()) {
+          entry.expectedFileSize = await file.length();
+          entry.progress = 1;
+        }
+      } catch (_) {
+        // Keep the saved history entry if the file is not currently accessible.
+      }
+    }
+
     if (mounted) {
       setState(() {
         entries
@@ -635,9 +650,9 @@ class _DownloadHomeState extends State<DownloadHome> {
       if (actualSize <= 0) {
         throw Exception('ফাইলটি খালি—ডাউনলোড সম্পূর্ণ হয়নি');
       }
-      if (entry.expectedFileSize > 0 && actualSize != entry.expectedFileSize) {
-        throw Exception('ফাইলের সাইজ অসম্পূর্ণ');
-      }
+      // The actual on-disk length is authoritative, including servers that
+      // omit Content-Length and leave expectedFileSize unset.
+      entry.expectedFileSize = actualSize;
       if (!mounted) return;
       setState(() {
         entry.status = 'সম্পন্ন';
@@ -1159,9 +1174,9 @@ class _DownloadHomeState extends State<DownloadHome> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 15,
-              letterSpacing: .1,
-              fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+              fontSize: 13,
+              letterSpacing: .05,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               color: Colors.white,
             ),
           ),
