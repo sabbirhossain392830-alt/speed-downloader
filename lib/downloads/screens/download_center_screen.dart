@@ -33,11 +33,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
     _url.text = value.trim();
     if (!mounted) return;
     setState(() {});
-    if (YoutubeLinkInfo.parse(_url.text) != null) {
-      await _inspectLink();
-    } else {
-      _message('Link added. Review it, then choose Download direct link.');
-    }
+    await _inspectLink();
   }
 
   @override
