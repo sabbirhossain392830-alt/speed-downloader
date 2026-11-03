@@ -84,42 +84,28 @@ patch("Notifications.kt", [
 """),
     ("                val resumeData = BDPlugin.localResumeData[taskId]",
      "                val resumeData = loadResumeData(context, taskId)"),
-    ("""                } else {
-                    BDPlugin.cancelActiveTaskWithId(
-                        context, taskId, WorkManager.getInstance(context)
-                    )
-                }
-            } else {
-                BDPlugin.cancelActiveTaskWithId(
-                    context, taskId, WorkManager.getInstance(context)
-                )
-            }
-
-            else -> {}""",
+    ("                    } else {\n                        BDPlugin.cancelActiveTaskWithId(\n                            context, taskId, WorkManager.getInstance(context)\n                        )\n                    }",
+     "                    } else {\n                        Log.e(TAG, \"Missing notification config for resume action on taskId $taskId\")\n                    }"),
+    ("                } else {\n                    BDPlugin.cancelActiveTaskWithId(\n                        context, taskId, WorkManager.getInstance(context)\n                    )\n                }",
      """                } else {
-                    Log.e(TAG, "Missing notification config for resume action on taskId $taskId")
-                }
-            } else {
-                // The app process may have been killed before resume data was persisted.
-                // In that case restart the same task from byte zero instead of treating
-                // the Resume action as Cancel.
-                val taskJsonString = bundle.getString(keyTask)
-                val notificationConfigJsonString = bundle.getString(keyNotificationConfig)
-                if (taskJsonString != null && notificationConfigJsonString != null) {
-                    try {
-                        val task = bdJson.decodeFromString<Task>(taskJsonString)
-                        if (!BDPlugin.doEnqueue(context, task, notificationConfigJsonString, null)) {
-                            Log.e(TAG, "Could not restart taskId $taskId from notification")
+                    // The app process may have been killed before resume data was persisted.
+                    // In that case restart the same task from byte zero instead of treating
+                    // the Resume action as Cancel.
+                    val taskJsonString = bundle.getString(keyTask)
+                    val notificationConfigJsonString = bundle.getString(keyNotificationConfig)
+                    if (taskJsonString != null && notificationConfigJsonString != null) {
+                        try {
+                            val task = bdJson.decodeFromString<Task>(taskJsonString)
+                            if (!BDPlugin.doEnqueue(context, task, notificationConfigJsonString, null)) {
+                                Log.e(TAG, "Could not restart taskId $taskId from notification")
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error restarting taskId $taskId from notification: ${e.message}", e)
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error restarting taskId $taskId from notification: ${e.message}", e)
+                    } else {
+                        Log.e(TAG, "Missing task or notification config for resume action on taskId $taskId")
                     }
-                } else {
-                    Log.e(TAG, "Missing task or notification config for resume action on taskId $taskId")
-                }
-            }
-
-            else -> {}""")
+                }""")
 
 ])
 
