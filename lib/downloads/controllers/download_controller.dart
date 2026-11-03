@@ -35,6 +35,7 @@ class DownloadController extends ChangeNotifier {
       _updates ??= _engine.updates.listen(_onTaskUpdate);
       await _engine.initialize();
       var saved = await _repository.load();
+      var legacyImported = false;
       if (saved.isEmpty) {
         // Import the previous manager's history once. Keep the legacy key
         // until the migrated v2 snapshot has been persisted successfully.
@@ -63,6 +64,7 @@ class DownloadController extends ChangeNotifier {
                 'error': entry['error'],
               };
             }).where((entry) => entry['url'] is String && entry['filename'] is String).toList();
+            legacyImported = true;
           } catch (_) {
             // Preserve unreadable legacy data for manual recovery.
           }
@@ -91,8 +93,10 @@ class DownloadController extends ChangeNotifier {
       }
       _initialized = true;
       await _persist();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('drox_download_history');
+      if (legacyImported) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('drox_download_history');
+      }
     } finally {
       _busy = false;
       notifyListeners();
