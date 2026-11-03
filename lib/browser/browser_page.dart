@@ -127,7 +127,7 @@ class BrowserPageState extends State<BrowserPage> {
 
   bool _downloadable(String url) {
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
-    return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|m4v|mkv|mov|avi|webm|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|jpg|jpeg|png|gif|webp|bmp|tif|tiff|docx?|xlsx?|pptx?)$').hasMatch(path);
+    return RegExp(r'\.(pdf|epub|zip|rar|7z|tar|gz|bz2|xz|iso|dmg|apk|aab|exe|msi|deb|rpm|mp4|m4v|mkv|mov|avi|webm|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|jpg|jpeg|png|gif|webp|bmp|svg|tif|tiff|txt|csv|json|xml|html|docx?|xlsx?|pptx?|odt|ods|odp|srt|vtt|ass|ssa|ttf|otf|woff2?)$').hasMatch(path);
   }
   Future<void> _newTab([String url = '']) async {
     final t = _DroxTab(WebViewController(), url);
@@ -175,7 +175,7 @@ class BrowserPageState extends State<BrowserPage> {
         await ctrl.runJavaScript(r'''(function(){
           if(window.__droxMediaDetector)return;window.__droxMediaDetector=true;
           var seen={};
-          var exts=/\.(mp4|m4v|webm|mov|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd)(?:$|[?#])/i;
+          var exts=/\.(mp4|m4v|mkv|avi|webm|mov|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|pdf|epub|zip|rar|7z|tar|gz|bz2|xz|iso|dmg|apk|aab|exe|msi|deb|rpm|jpg|jpeg|png|webp|gif|bmp|svg|tif|tiff|txt|csv|json|xml|docx?|xlsx?|pptx?|odt|ods|odp|srt|vtt|ass|ssa|ttf|otf|woff2?)(?:$|[?#])/i;
           var mediaTypes=/^(video\/|audio\/|application\/(vnd\.apple\.mpegurl|x-mpegurl|dash\+xml))/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
           function send(raw){var u=valid(raw);if(!u||seen[u])return;seen[u]=1;DroxDownload.postMessage(u)}
