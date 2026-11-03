@@ -65,6 +65,17 @@ jobs:
               service = ET.SubElement(app, "service", {ns + "name": service_name})
           service.set(ns + "foregroundServiceType", "dataSync")
 
+          # User Initiated Data Transfer (Android 14+) service required by
+          # TransferHint.userInitiated tasks and their native notification actions.
+          uidt_name = "com.bbflight.background_downloader.UIDTJobService"
+          uidt_service = next((node for node in app.findall("service")
+                               if node.get(ns + "name") == uidt_name), None)
+          if uidt_service is None:
+              uidt_service = ET.SubElement(app, "service", {ns + "name": uidt_name})
+          uidt_service.set(ns + "permission", "android.permission.BIND_JOB_SERVICE")
+          uidt_service.set(ns + "exported", "true")
+          uidt_service.set(ns + "foregroundServiceType", "dataSync")
+
           activity = next((node for node in app.findall("activity")
                            if node.get(ns + "name", "").endswith("MainActivity")), None)
           if activity is None:
