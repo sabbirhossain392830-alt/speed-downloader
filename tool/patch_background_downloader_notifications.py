@@ -24,39 +24,39 @@ def patch(file_name, replacements):
 
 patch("TaskRunner.kt", [
     ("    var notificationProgress: Double\n    var networkSpeed: Double",
-     "    var notificationProgress: Double\n    var notificationExpectedFileSize: Long\n    var networkSpeed: Double"),
+     "    var notificationProgress: Double\n    var notificationExpectedFileSize: Long\n    var notificationDownloadedBytes: Long\n    var networkSpeed: Double"),
     ("        progress: Double = 2.0,\n        timeRemaining: Long = -1000\n    )",
-     "        progress: Double = 2.0,\n        timeRemaining: Long = -1000,\n        expectedFileSize: Long = -1\n    )"),
+     "        progress: Double = 2.0,\n        timeRemaining: Long = -1000,\n        expectedFileSize: Long = -1,\n        downloadedBytes: Long = -1\n    )"),
     ("            progress, timeRemaining\n        )\n        lastProgressUpdate",
-     "            progress, timeRemaining, expectedFileSize\n        )\n        lastProgressUpdate"),
+     "            progress, timeRemaining, expectedFileSize, bytesTotal\n        )\n        lastProgressUpdate"),
 ])
 
 patch("TaskWorker.kt", [
     ("    override var notificationProgress: Double = 2.0 // indeterminate\n    override var networkSpeed: Double",
-     "    override var notificationProgress: Double = 2.0 // indeterminate\n    override var notificationExpectedFileSize: Long = -1\n    override var networkSpeed: Double"),
+     "    override var notificationProgress: Double = 2.0 // indeterminate\n    override var notificationExpectedFileSize: Long = -1\n    override var notificationDownloadedBytes: Long = -1\n    override var networkSpeed: Double"),
     ("        progress: Double,\n        timeRemaining: Long\n    ) {\n        NotificationService.updateNotification(this, status, progress, timeRemaining)",
-     "        progress: Double,\n        timeRemaining: Long,\n        expectedFileSize: Long\n    ) {\n        NotificationService.updateNotification(this, status, progress, timeRemaining, expectedFileSize)"),
+     "        progress: Double,\n        timeRemaining: Long,\n        expectedFileSize: Long,\n        downloadedBytes: Long\n    ) {\n        NotificationService.updateNotification(this, status, progress, timeRemaining, expectedFileSize, downloadedBytes)"),
 ])
 
 patch("UIDTJobService.kt", [
-    ("        override var notificationProgress: Double = 2.0\n        override var networkSpeed: Double",
-     "        override var notificationProgress: Double = 2.0\n        override var notificationExpectedFileSize: Long = -1\n        override var networkSpeed: Double"),
+    ("        override var notificationProgress: Double = 2.0\n        override var notificationExpectedFileSize: Long = -1\n        override var networkSpeed: Double",
+     "        override var notificationProgress: Double = 2.0\n        override var notificationExpectedFileSize: Long = -1\n        override var notificationDownloadedBytes: Long = -1\n        override var networkSpeed: Double"),
     ("            progress: Double,\n            timeRemaining: Long\n        ) {\n            NotificationService.updateNotification(this, status, progress, timeRemaining)",
-     "            progress: Double,\n            timeRemaining: Long,\n            expectedFileSize: Long\n        ) {\n            NotificationService.updateNotification(this, status, progress, timeRemaining, expectedFileSize)"),
+     "            progress: Double,\n            timeRemaining: Long,\n            expectedFileSize: Long,\n            downloadedBytes: Long\n        ) {\n            NotificationService.updateNotification(this, status, progress, timeRemaining, expectedFileSize, downloadedBytes)"),
 ])
 
 patch("Notifications.kt", [
-    ("        progress: Double = 2.0,\n        timeRemaining: Long = -1000\n    ) {\n        val notificationType",
+    ("        progress: Double = 2.0,\n        timeRemaining: Long = -1000,\n        expectedFileSize: Long = -1,\n        downloadedBytes: Long = -1\n    ) {\n        val notificationType",
      "        progress: Double = 2.0,\n        timeRemaining: Long = -1000,\n        expectedFileSize: Long = -1\n    ) {\n        val notificationType"),
-    ("        taskWorker.notificationProgress =\n            if (notificationType == NotificationType.paused) taskWorker.notificationProgress else progress\n        // title and body interpolation",
+    ("        if (expectedFileSize > 0) taskWorker.notificationExpectedFileSize = expectedFileSize\n        if (downloadedBytes >= 0) taskWorker.notificationDownloadedBytes = downloadedBytes\n        if (taskStatus == TaskStatus.complete && taskWorker.notificationExpectedFileSize > 0) {\n            taskWorker.notificationDownloadedBytes = taskWorker.notificationExpectedFileSize\n        }\n        taskWorker.notificationProgress = when {\n            notificationType == NotificationType.paused -> taskWorker.notificationProgress\n            taskStatus == TaskStatus.complete -> 1.0\n            progress == 2.0 && notificationType != NotificationType.running -> taskWorker.notificationProgress\n            else -> progress\n        }\n        val effectiveExpectedFileSize = taskWorker.notificationExpectedFileSize\n        val effectiveDownloadedBytes = taskWorker.notificationDownloadedBytes\n        // title and body interpolation",
      "        if (expectedFileSize > 0) taskWorker.notificationExpectedFileSize = expectedFileSize\n        taskWorker.notificationProgress = when {\n            notificationType == NotificationType.paused -> taskWorker.notificationProgress\n            taskStatus == TaskStatus.complete -> 1.0\n            progress == 2.0 && notificationType != NotificationType.running -> taskWorker.notificationProgress\n            else -> progress\n        }\n        val effectiveExpectedFileSize = taskWorker.notificationExpectedFileSize\n        // title and body interpolation"),
-    ("            networkSpeed = taskWorker.networkSpeed,\n            timeRemaining = timeRemaining\n        )",
+    ("            networkSpeed = taskWorker.networkSpeed,\n            timeRemaining = timeRemaining,\n            expectedFileSize = effectiveExpectedFileSize,\n            downloadedBytes = effectiveDownloadedBytes\n        )",
      "            networkSpeed = taskWorker.networkSpeed,\n            timeRemaining = timeRemaining,\n            expectedFileSize = effectiveExpectedFileSize\n        )", 2),
     ("    private val progressRegEx = Regex(\"\"\"\\{progress\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val networkSpeedRegEx",
      "    private val progressRegEx = Regex(\"\"\"\\{progress\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val downloadedRegEx = Regex(\"\"\"\\{downloaded\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val totalRegEx = Regex(\"\"\"\\{total\\}\"\"\", RegexOption.IGNORE_CASE)\n    private val networkSpeedRegEx"),
-    ("        timeRemaining: Long? = null,\n        groupNotification: GroupNotification? = null\n    ): String {",
+    ("        timeRemaining: Long? = null,\n        expectedFileSize: Long = -1,\n        downloadedBytes: Long = -1,\n        groupNotification: GroupNotification? = null\n    ): String {",
      "        timeRemaining: Long? = null,\n        expectedFileSize: Long = -1,\n        groupNotification: GroupNotification? = null\n    ): String {"),
-    ("        val progressString =\n            if (progress in 0.0..1.0) (progress * 100).roundToInt().toString() + \"%\"\n            else \"\"\n        val output2 = progressRegEx.replace(output, progressString)\n        // download speed",
+    ("        val progressString =\n            if (progress in 0.0..1.0) (progress * 100).roundToInt().toString() + \"%\"\n            else \"--%\"\n        val output2 = progressRegEx.replace(output, progressString)\n        fun formatBytes(bytes: Long): String = when {\n            bytes < 0 -> \"--\"\n            bytes < 1024 -> \"$bytes B\"\n            bytes < 1024L * 1024L -> String.format(Locale.US, \"%.1f KB\", bytes / 1024.0)\n            bytes < 1024L * 1024L * 1024L -> String.format(Locale.US, \"%.1f MB\", bytes / (1024.0 * 1024.0))\n            else -> String.format(Locale.US, \"%.2f GB\", bytes / (1024.0 * 1024.0 * 1024.0))\n        }\n        val output2WithSizes = downloadedRegEx.replace(\n            totalRegEx.replace(output2, formatBytes(expectedFileSize)),\n            formatBytes(downloadedBytes)\n        )\n        // download speed",
      "        val progressString =\n            if (progress in 0.0..1.0) (progress * 100).roundToInt().toString() + \"%\"\n            else \"--%\"\n        val output2 = progressRegEx.replace(output, progressString)\n        val downloadedBytes = if (expectedFileSize > 0 && progress in 0.0..1.0)\n            (progress * expectedFileSize).toLong() else -1L\n        fun formatMegabytes(bytes: Long): String = if (bytes < 0) \"-- MB\"\n            else String.format(Locale.US, \"%.1f MB\", bytes / (1024.0 * 1024.0))\n        val output2WithSizes = downloadedRegEx.replace(\n            totalRegEx.replace(output2, formatMegabytes(expectedFileSize)),\n            formatMegabytes(downloadedBytes)\n        )\n        // download speed"),
     ("        val output3 = networkSpeedRegEx.replace(output2, networkSpeedString)",
      "        val output3 = networkSpeedRegEx.replace(output2WithSizes, networkSpeedString)"),
