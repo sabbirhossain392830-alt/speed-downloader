@@ -519,7 +519,7 @@ class BrowserPageState extends State<BrowserPage> {
                 hintText: 'Search or type a URL',
                 hintStyle: TextStyle(color: cs.onSurfaceVariant),
                 prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF5F6368)),
-                suffixIcon: IconButton(onPressed: () => _searchHome(homeSearch.text), icon: const Icon(Icons.mic_none_rounded, color: Color(0xFF4285F4))),
+                suffixIcon: IconButton(tooltip: 'Search', onPressed: () => _searchHome(homeSearch.text), icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFF4285F4))),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 17),
               ),
@@ -563,13 +563,7 @@ class BrowserPageState extends State<BrowserPage> {
                     borderRadius: BorderRadius.circular(14),
                     onTap: () => _loadUrl(item['url'] ?? ''),
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Container(
-                        width: 48, height: 48,
-                        decoration: BoxDecoration(color: widget.isDark ? const Color(0xFF3C4043) : const Color(0xFFF1F3F4), shape: BoxShape.circle),
-                        alignment: Alignment.center,
-                        child: Text((item['title'] ?? 'W').characters.first.toUpperCase(),
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Color(0xFF4285F4))),
-                      ),
+                      _siteIcon(item['url'] ?? '', size: 42),
                       const SizedBox(height: 7),
                       Text(item['title'] ?? host, maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 11, color: cs.onSurface)),
