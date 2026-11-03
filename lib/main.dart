@@ -16,12 +16,15 @@ void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
   FileDownloader().configureNotification(
     running: enabled
         ? TaskNotification(
-            bangla ? 'DROX • ডাউনলোড হচ্ছে {progress}' : 'DROX • Downloading {progress}',
-            '{filename}',
+            bangla ? 'DROX • ডাউনলোড চলছে' : 'DROX • Download in progress',
+            bangla ? '{filename}\\nঅগ্রগতি: {progress}' : '{filename}\\nProgress: {progress}',
           )
         : null,
     paused: enabled
-        ? TaskNotification(bangla ? 'DROX • বিরতি' : 'DROX • Paused', '{filename} • {progress}')
+        ? TaskNotification(
+            bangla ? 'DROX • ডাউনলোড বিরতিতে' : 'DROX • Download paused',
+            bangla ? '{filename}\\nসর্বশেষ অগ্রগতি: {progress}' : '{filename}\\nLast progress: {progress}',
+          )
         : null,
     complete: enabled
         ? TaskNotification(bangla ? 'DROX • ডাউনলোড সম্পন্ন' : 'DROX • Download complete', '{filename}')
@@ -30,12 +33,13 @@ void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
         ? TaskNotification(bangla ? 'DROX • ডাউনলোড ব্যর্থ' : 'DROX • Download failed', '{filename}')
         : null,
     progressBar: enabled,
+    tapOpensFile: true,
   );
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FileDownloader().start();
+  await FileDownloader().configure(androidConfig: [\n    (Config.runInForeground, Config.always),\n    (Config.useCacheDir, Config.never),\n  ]);\n  await FileDownloader().start(autoCleanDatabase: true);
   final prefs = await SharedPreferences.getInstance();
   _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? true, bangla: prefs.getBool('drox_language_bangla_v2') ?? false);
 
@@ -838,7 +842,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
-      transferHints: {TransferHint.largeFile},
+      transferHints: {TransferHint.userInitiated, TransferHint.largeFile},
       retries: 10,
     );
     setState(() {
@@ -886,6 +890,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         baseDirectory: BaseDirectory.applicationSupport,
         updates: Updates.statusAndProgress,
         allowPause: true,
+        transferHints: {TransferHint.userInitiated, TransferHint.largeFile},
         retries: 10,
       );
       final replacement = DownloadEntry(retryTask);
@@ -947,7 +952,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
-      transferHints: {TransferHint.largeFile},
+      transferHints: {TransferHint.userInitiated, TransferHint.largeFile},
       retries: 10,
     );
     setState(() => entries.insert(0, DownloadEntry(task)));
