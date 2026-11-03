@@ -460,6 +460,8 @@ class _DownloadHomeState extends State<DownloadHome> {
   final List<DownloadEntry> entries = [];
   final Set<String> _selectedTaskIds = <String>{};
   StreamSubscription<TaskUpdate>? subscription;
+  Timer? _historySaveTimer;
+  DateTime? _lastProgressUiUpdateAt;
   DownloadFilter filter = DownloadFilter.all;
   bool searching = false;
   final TextEditingController searchController = TextEditingController();
@@ -685,43 +687,64 @@ class _DownloadHomeState extends State<DownloadHome> {
   void _onUpdate(TaskUpdate update) {
     final index = entries.indexWhere((e) => e.task.taskId == update.task.taskId);
     if (index < 0) return;
-    setState(() {
-      final entry = entries[index];
-      if (update is TaskProgressUpdate) {
-        entry.progress = update.progress.clamp(0.0, 1.0);
-        if (update.hasExpectedFileSize) entry.expectedFileSize = update.expectedFileSize;
-        if (entry.expectedFileSize > 0) {
-          final now = DateTime.now();
-          final downloaded = (entry.progress * entry.expectedFileSize).round();
-          final previousAt = entry.lastSpeedSampleAt;
-          if (previousAt != null) {
-            final elapsed = now.difference(previousAt).inMilliseconds / 1000;
-            if (elapsed >= 0.5) {
-              entry.speedBytesPerSecond = ((downloaded - entry.lastDownloadedBytes) / elapsed).clamp(0, double.infinity);
-              entry.lastDownloadedBytes = downloaded;
-              entry.lastSpeedSampleAt = now;
-            }
-          } else {
+    final entry = entries[index];
+    var rebuild = false;
+
+    if (update is TaskProgressUpdate) {
+      // Keep the newest values in memory, but limit expensive widget rebuilds
+      // while several downloads are producing frequent progress events.
+      entry.progress = update.progress.clamp(0.0, 1.0);
+      if (update.hasExpectedFileSize) entry.expectedFileSize = update.expectedFileSize;
+      if (entry.expectedFileSize > 0) {
+        final now = DateTime.now();
+        final downloaded = (entry.progress * entry.expectedFileSize).round();
+        final previousAt = entry.lastSpeedSampleAt;
+        if (previousAt != null) {
+          final elapsed = now.difference(previousAt).inMilliseconds / 1000;
+          if (elapsed >= 0.5) {
+            entry.speedBytesPerSecond = ((downloaded - entry.lastDownloadedBytes) / elapsed).clamp(0, double.infinity);
             entry.lastDownloadedBytes = downloaded;
             entry.lastSpeedSampleAt = now;
           }
-        }
-      } else if (update is TaskStatusUpdate) {
-        if (update.status == TaskStatus.complete) {
-          entry.status = 'ফাইল যাচাই হচ্ছে';
-          entry.progress = 1;
-          entry.error = null;
-          _verifyCompletedFile(entry);
         } else {
-          entry.status = _statusText(update.status);
-          if (update.status != TaskStatus.running) entry.speedBytesPerSecond = 0;
-          if (update.status == TaskStatus.failed) {
-            entry.error = update.exception?.description ?? 'ডাউনলোড ব্যর্থ';
-          }
+          entry.lastDownloadedBytes = downloaded;
+          entry.lastSpeedSampleAt = now;
         }
       }
+      final now = DateTime.now();
+      if (_lastProgressUiUpdateAt == null ||
+          now.difference(_lastProgressUiUpdateAt!).inMilliseconds >= 300) {
+        _lastProgressUiUpdateAt = now;
+        rebuild = true;
+      }
+    } else if (update is TaskStatusUpdate) {
+      rebuild = true;
+      if (update.status == TaskStatus.complete) {
+        entry.status = 'ফাইল যাচাই হচ্ছে';
+        entry.progress = 1;
+        entry.error = null;
+        _verifyCompletedFile(entry);
+      } else {
+        entry.status = _statusText(update.status);
+        if (update.status != TaskStatus.running) entry.speedBytesPerSecond = 0;
+        if (update.status == TaskStatus.failed) {
+          entry.error = update.exception?.description ?? 'ডাউনলোড ব্যর্থ';
+        }
+      }
+    }
+
+    if (rebuild && mounted) setState(() {});
+    _scheduleHistorySave();
+  }
+
+  void _scheduleHistorySave() {
+    // Progress events can arrive many times per second. Persist the latest
+    // snapshot in batches instead of writing SharedPreferences on every event.
+    _historySaveTimer?.cancel();
+    _historySaveTimer = Timer(const Duration(milliseconds: 1200), () {
+      _historySaveTimer = null;
+      _saveHistory();
     });
-    _saveHistory();
   }
 
   Future<void> _verifyCompletedFile(DownloadEntry entry) async {
@@ -1276,6 +1299,9 @@ class _DownloadHomeState extends State<DownloadHome> {
     searchController.dispose();
     subscription?.cancel();
     _shareSubscription?.cancel();
+    _historySaveTimer?.cancel();
+    _historySaveTimer = null;
+    _saveHistory();
     super.dispose();
   }
 
