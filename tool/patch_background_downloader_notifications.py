@@ -12,11 +12,13 @@ if not root.is_dir():
 def patch(file_name, replacements):
     path = root / file_name
     source = path.read_text()
-    for old, new in replacements:
+    for item in replacements:
+        old, new = item[0], item[1]
+        expected_count = item[2] if len(item) == 3 else 1
         count = source.count(old)
-        if count != 1:
-            raise SystemExit(f"{file_name}: expected one patch anchor, found {count}: {old[:90]!r}")
-        source = source.replace(old, new, 1)
+        if count != expected_count:
+            raise SystemExit(f"{file_name}: expected {expected_count} patch anchor(s), found {count}: {old[:90]!r}")
+        source = source.replace(old, new)
     path.write_text(source)
     print(f"Patched {file_name}")
 
