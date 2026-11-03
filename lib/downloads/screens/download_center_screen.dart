@@ -27,6 +27,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   bool _checkingPreview = false;
   bool _adding = false;
   String? _previewVideoId;
+  int _selectedFilter = 0;
 
   /// Accepts a URL shared from Android or detected by the built-in browser.
   Future<void> acceptSharedUrl(String value) async {
@@ -144,100 +145,68 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   @override
   Widget build(BuildContext context) {
     final items = _downloads.items;
-    final isYouTube = _youtubeLink != null;
-    return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            controller: _url,
-            keyboardType: TextInputType.url,
-            decoration: InputDecoration(
-              labelText: 'Paste a link',
-              hintText: 'Paste a cloud share or file link',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                tooltip: 'Paste',
-                icon: const Icon(Icons.content_paste_rounded),
-                onPressed: () async {
-                  final data = await Clipboard.getData(Clipboard.kTextPlain);
-                  if (data?.text != null) _url.text = data!.text!.trim();
-                },
-              ),
-            ),
-            onChanged: (value) {
-              final link = YoutubeLinkInfo.parse(value);
-              if (link == null) {
-                if (_youtubeLink != null) {
-                  setState(() { _youtubeLink = null; _preview = null; _previewVideoId = null; });
-                }
-              } else if (link.videoId != _previewVideoId) {
-                _inspectLink();
-              }
-            },
+    final allCount = items.length;
+    final activeCount = items.where((e) => e.state == DroxDownloadState.running || e.state == DroxDownloadState.queued || e.state == DroxDownloadState.paused).length;
+    final finishedCount = items.where((e) => e.state == DroxDownloadState.complete).length;
+    final errorCount = items.where((e) => e.state == DroxDownloadState.failed || e.state == DroxDownloadState.cancelled).length;
+    final filtered = items.where((item) {
+      switch (_selectedFilter) {
+        case 1: return item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued || item.state == DroxDownloadState.paused;
+        case 2: return item.state == DroxDownloadState.complete;
+        case 3: return item.state == DroxDownloadState.failed || item.state == DroxDownloadState.cancelled;
+        default: return true;
+      }
+    }).toList();
+    return Column(
+      children: [
+        Material(
+          color: const Color(0xFF6B351B),
+          child: Row(children: [
+            _categoryTab('ALL', allCount, 0),
+            _categoryTab('DOWNLOADING', activeCount, 1),
+            _categoryTab('FINISHED', finishedCount, 2),
+            _categoryTab('ERROR', errorCount, 3),
+          ]),
+        ),
+        Expanded(
+          child: filtered.isEmpty
+              ? const SizedBox.expand()
+              : ListView.separated(
+                  padding: EdgeInsets.zero,
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1, thickness: 1),
+                  itemBuilder: (_, index) => _downloadCard(filtered[index]),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _categoryTab(String label, int count, int index) {
+    final selected = _selectedFilter == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedFilter = index),
+        child: Container(
+          height: 58,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(
+              color: selected ? Colors.white : Colors.transparent,
+              width: 3,
+            )),
           ),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(
-              onPressed: _checkingLink ? null : _inspectLink,
-              icon: const Icon(Icons.preview_outlined),
-              label: Text(_checkingLink ? 'Checking…' : 'Check link'),
-            )),
-            const SizedBox(width: 10),
-            Expanded(child: FilledButton.icon(
-              onPressed: _adding ? null : isYouTube
-                  ? () => _openExternal(_youtubeLink!.canonicalUrl, 'YouTube')
-                  : _addDirectMedia,
-              icon: Icon(isYouTube ? Icons.open_in_new_rounded : Icons.download_rounded),
-              label: Text(_adding ? 'Adding…' : isYouTube ? 'Open YouTube' : 'Download'),
-            )),
-          ]),
-          if (_checkingLink || _checkingPreview) const LinearProgressIndicator(),
-          if (_resolution != null && !isYouTube)
-            Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Detected: ${_resolution!.provider}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4), Text(_resolution!.message),
-              if (_resolution!.contentType != null) Text('Type: ${_resolution!.contentType}'),
-              if (_resolution!.contentLength != null) Text('Size: ${(_resolution!.contentLength! / 1048576).toStringAsFixed(2)} MB'),
-            ]))),
-          if (_preview != null) _youtubePreviewCard(_preview!),
-          if (_youtubeLink != null)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('YouTube options', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  const Text('Open this video in YouTube and use the official Download option when it is available. If this is your own upload, manage or download it through YouTube Studio. DROX does not bypass YouTube download restrictions.'),
-                  TextButton.icon(
-                    onPressed: () => Clipboard.setData(ClipboardData(text: _youtubeLink!.canonicalUrl)),
-                    icon: const Icon(Icons.copy_rounded),
-                    label: const Text('Copy YouTube link'),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => _openExternal(_youtubeLink!.canonicalUrl, 'YouTube'),
-                    icon: const Icon(Icons.play_circle_outline_rounded),
-                    label: const Text('Open video'),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => _openExternal('https://studio.youtube.com/', 'YouTube Studio'),
-                    icon: const Icon(Icons.video_library_outlined),
-                    label: const Text('YouTube Studio'),
-                  ),
-                ]),
-              ),
+          child: Text('$label ($count)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: selected ? Colors.white : Colors.white70,
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             ),
-          const SizedBox(height: 20),
-          Row(children: [
-            const Expanded(child: Text('Download queue', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800))),
-            Text('${items.length} items'),
-          ]),
-          if (items.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 36),
-              child: Center(child: Text('Your download queue is empty.')),
-            ),
-          ...items.map(_downloadCard),
-        ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -261,28 +230,95 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   );
 
   Widget _downloadCard(DroxDownloadItem item) {
-    final state = item.state.name;
-    final percent = (item.progress * 100).toStringAsFixed(0);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(item.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(value: item.state == DroxDownloadState.complete ? 1 : item.progress),
-          const SizedBox(height: 5),
-          Row(children: [
-            Expanded(child: Text('$state • $percent%')),
-            if (item.state == DroxDownloadState.running)
-              IconButton(onPressed: () => _runAction(() => _downloads.pause(item)), icon: const Icon(Icons.pause_rounded)),
-            if (item.state == DroxDownloadState.paused || item.state == DroxDownloadState.failed)
-              IconButton(onPressed: () => _runAction(() => _downloads.resume(item)), icon: const Icon(Icons.play_arrow_rounded)),
-            IconButton(onPressed: () => _runAction(() => _downloads.remove(item)), icon: const Icon(Icons.delete_outline_rounded)),
-          ]),
-          if (item.error != null) Text(item.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        ]),
+    final running = item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued;
+    final paused = item.state == DroxDownloadState.paused;
+    final failed = item.state == DroxDownloadState.failed || item.state == DroxDownloadState.cancelled;
+    final complete = item.state == DroxDownloadState.complete;
+    final percent = complete ? 100 : (item.progress * 100).round();
+    final bytes = item.expectedBytes > 0 ? item.expectedBytes : 0;
+    String sizeLabel() {
+      if (bytes <= 0) return 'Size unknown';
+      final value = bytes / (1024 * 1024);
+      return value >= 1024 ? '${(value / 1024).toStringAsFixed(2)}GB' : '${value.toStringAsFixed(1)}MB';
+    }
+    final status = complete ? 'Finished' : failed ? 'Error' : paused ? 'Paused' : item.state == DroxDownloadState.queued ? 'Queued' : 'Downloading';
+    final ink = Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF202020);
+    return Container(
+      height: 98,
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: Stack(
+        children: [
+          if (running || paused)
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: FractionallySizedBox(
+                  widthFactor: item.progress.clamp(0.0, 1.0),
+                  heightFactor: 0.30,
+                  child: Container(color: const Color(0xFF8A5636).withValues(alpha: .12)),
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 5, 7),
+            child: Row(children: [
+              SizedBox(
+                width: 42,
+                child: Icon(
+                  item.filename.toLowerCase().endsWith('.mkv') || item.filename.toLowerCase().endsWith('.mp4')
+                      ? Icons.movie_creation_outlined : Icons.insert_drive_file_outlined,
+                  size: 34,
+                  color: ink.withValues(alpha: .8),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: ink)),
+                    const SizedBox(height: 7),
+                    Row(children: [
+                      Expanded(child: Text('$percent% | ${sizeLabel()}',
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: ink))),
+                      Text(status, style: TextStyle(fontSize: 12, color: ink.withValues(alpha: .85))),
+                    ]),
+                    if (item.error != null)
+                      Text(item.error!, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.error)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              if (running)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Pause',
+                  onPressed: () => _runAction(() => _downloads.pause(item)),
+                  icon: Icon(Icons.pause_circle_outline_rounded, size: 32, color: ink),
+                )
+              else if (paused || failed)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Resume',
+                  onPressed: () => _runAction(() => _downloads.resume(item)),
+                  icon: Icon(Icons.play_circle_outline_rounded, size: 32, color: ink),
+                )
+              else
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Remove',
+                  onPressed: () => _runAction(() => _downloads.remove(item)),
+                  icon: Icon(Icons.check_circle_outline_rounded, size: 29, color: ink),
+                ),
+            ]),
+          ),
+        ],
       ),
     );
   }
+
 }
