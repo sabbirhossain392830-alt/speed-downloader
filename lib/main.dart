@@ -19,19 +19,19 @@ void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
     running: enabled
         ? TaskNotification(
             bangla ? 'DROX • ডাউনলোড হচ্ছে' : 'DROX • Downloading',
-            '{filename} • {downloaded} / {total} ({progress})',
+            '{filename} • {downloaded} / {total} • {progress} • {networkSpeed}',
           )
         : null,
     paused: enabled
         ? TaskNotification(
-            bangla ? 'DROX • ডাউনলোড বিরতিতে' : 'DROX • Paused',
-            '{filename} • {downloaded} / {total} ({progress})',
+            bangla ? 'DROX • বিরতিতে' : 'DROX • Paused',
+            '{filename} • {downloaded} / {total} • {progress}',
           )
         : null,
     complete: enabled
         ? TaskNotification(
-            bangla ? 'DROX • ডাউনলোড সম্পন্ন' : 'DROX • Download Complete',
-            '{filename}',
+            bangla ? 'DROX • সম্পন্ন' : 'DROX • Complete',
+            '{filename} • {total} • 100%',
           )
         : null,
     error: enabled
@@ -473,7 +473,18 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   Future<void> _loadNotificationSetting() async {
     final prefs = await SharedPreferences.getInstance();
-    final enabled = prefs.getBool('drox_notifications_enabled') ?? false;
+    final hasSavedChoice = prefs.containsKey('drox_notifications_enabled');
+    var enabled = prefs.getBool('drox_notifications_enabled') ?? true;
+    // Enable per-download notifications on first launch, asking Android for
+    // permission once. Respect an explicit previous user choice thereafter.
+    if (enabled) {
+      var status = await FileDownloader().permissions.status(PermissionType.notifications);
+      if (status != PermissionStatus.granted) {
+        status = await FileDownloader().permissions.request();
+      }
+      if (status != PermissionStatus.granted) enabled = false;
+    }
+    if (!hasSavedChoice) await prefs.setBool('drox_notifications_enabled', enabled);
     if (mounted) setState(() => notificationsEnabled = enabled);
     _configureDroxNotifications(enabled, bangla: widget.isBangla);
   }
@@ -905,7 +916,13 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   Future<void> _pause(DownloadEntry entry) async {
     final ok = await FileDownloader().pause(entry.task);
-    if (!ok && mounted) {
+    if (ok && mounted) {
+      setState(() {
+        entry.status = 'বিরতি';
+        entry.speedBytesPerSecond = 0;
+      });
+      await _saveHistory();
+    } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_tr('This server may not support Pause/Resume', 'এই সার্ভার Pause/Resume সমর্থন নাও করতে পারে'))));
     }
   }
@@ -1699,16 +1716,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                               ),
                             ),
                           ),
-                          Text(' (Resume: ', style: TextStyle(fontSize: 11, color: ink)),
-                          Text(
-                            'Yes',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF72B52D),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Text(')', style: TextStyle(fontSize: 11, color: ink)),
+
                         ],
                       ),
                       const SizedBox(height: 10),
