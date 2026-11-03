@@ -491,7 +491,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('drox_notifications_enabled', enabled);
-    _configureDroxNotifications(enabled);
+    _configureDroxNotifications(enabled, bangla: widget.isBangla);
     if (mounted) setState(() => notificationsEnabled = enabled);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(enabled ? _tr('Download notifications enabled', 'ডাউনলোড নোটিফিকেশন চালু হয়েছে') : _tr('Download notifications disabled', 'ডাউনলোড নোটিফিকেশন বন্ধ হয়েছে'))));
   }
@@ -623,6 +623,8 @@ class _DownloadHomeState extends State<DownloadHome> {
     // start() call restores background events and reschedules interrupted
     // native tasks, including notification Pause/Resume actions.
     subscription = FileDownloader().updates.listen(_onUpdate);
+    // Deliver native updates queued while the app process was suspended.
+    FileDownloader().resumeFromBackground();
     _shareSubscription = _shareEvents.receiveBroadcastStream().listen((value) => _acceptSharedText(value?.toString()));
     _shareMethod.invokeMethod<String>('getInitialSharedText').then(_acceptSharedText).catchError((_) {});
     _initializeDownloader();
@@ -1071,13 +1073,6 @@ class _DownloadHomeState extends State<DownloadHome> {
   }
 
   Future<void> _redownload(DownloadEntry entry) async {
-    if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status)) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('This download is already running', 'এই ডাউনলোডটি ইতিমধ্যে চলছে'))),
-      );
-      return;
-    }
-
     final oldTask = entry.task;
     final oldSharedPath = entry.sharedPath;
     final details = await _downloadDetails(oldTask.url);
@@ -1433,7 +1428,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   AnimatedSize(
-                    duration: const Duration(milliseconds: 220),
+                    duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOutCubic,
                     child: _fabExpanded
                         ? Column(
@@ -1443,6 +1438,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                               _fabAction(
                                 label: _tr('Add Link', 'লিংক যোগ করুন'),
                                 icon: Icons.link_rounded,
+                                color: const Color(0xFF1976D2),
                                 onTap: () {
                                   setState(() => _fabExpanded = false);
                                   _quickDownloadDialog();
@@ -1452,6 +1448,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                               _fabAction(
                                 label: _tr('Open Browser', 'ব্রাউজার খুলুন'),
                                 icon: Icons.language_rounded,
+                                color: const Color(0xFFEF6C00),
                                 onTap: () => setState(() {
                                   _fabExpanded = false;
                                   selectedTab = 1;
@@ -1463,8 +1460,8 @@ class _DownloadHomeState extends State<DownloadHome> {
                         : const SizedBox.shrink(),
                   ),
                   SizedBox(
-                    width: 66,
-                    height: 66,
+                    width: 54,
+                    height: 54,
                     child: FloatingActionButton(
                       tooltip: _fabExpanded ? 'Close actions' : 'Add download',
                       backgroundColor: widget.isDark ? const Color(0xFF4FC3F7) : const Color(0xFF6B351B),
@@ -1472,9 +1469,9 @@ class _DownloadHomeState extends State<DownloadHome> {
                       onPressed: () => setState(() => _fabExpanded = !_fabExpanded),
                       child: AnimatedRotation(
                         turns: _fabExpanded ? 0.125 : 0,
-                        duration: const Duration(milliseconds: 220),
+                        duration: const Duration(milliseconds: 180),
                         curve: Curves.easeOutCubic,
-                        child: const Icon(Icons.add_rounded, size: 36),
+                        child: const Icon(Icons.add_rounded, size: 29),
                       ),
                     ),
                   ),
@@ -1544,10 +1541,10 @@ class _DownloadHomeState extends State<DownloadHome> {
     );
   }
 
-  Widget _fabAction({required String label, required IconData icon, required VoidCallback onTap}) {
+  Widget _fabAction({required String label, required IconData icon, required Color color, required VoidCallback onTap}) {
     return Material(
-      elevation: 4,
-      color: Theme.of(context).colorScheme.surface,
+      elevation: 5,
+      color: color,
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
@@ -1555,9 +1552,9 @@ class _DownloadHomeState extends State<DownloadHome> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 20),
+            Icon(icon, size: 20, color: Colors.white),
             const SizedBox(width: 9),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
           ]),
         ),
       ),
