@@ -52,7 +52,7 @@ void main() async {
     (Config.useCacheDir, Config.never),
   ]);
   final prefs = await SharedPreferences.getInstance();
-  _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? false, bangla: prefs.getBool('drox_language_bangla_v2') ?? false);
+  _configureDroxNotifications(prefs.getBool('drox_notifications_enabled') ?? true, bangla: prefs.getBool('drox_language_bangla_v2') ?? false);
 
   runApp(const DroxApp());
 }
@@ -634,8 +634,7 @@ class _DownloadHomeState extends State<DownloadHome> {
     // start() call restores background events and reschedules interrupted
     // native tasks, including notification Pause/Resume actions.
     subscription = FileDownloader().updates.listen(_onUpdate);
-    // Deliver native updates queued while the app process was suspended.
-    FileDownloader().resumeFromBackground();
+    // FileDownloader.start() replays background updates after database tracking is ready.
     _shareSubscription = _shareEvents.receiveBroadcastStream().listen((value) => _acceptSharedText(value?.toString()));
     _shareMethod.invokeMethod<String>('getInitialSharedText').then(_acceptSharedText).catchError((_) {});
     _initializeDownloader();
