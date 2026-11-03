@@ -650,8 +650,12 @@ class _DownloadHomeState extends State<DownloadHome> {
       if (actualSize <= 0) {
         throw Exception('ফাইলটি খালি—ডাউনলোড সম্পূর্ণ হয়নি');
       }
-      // The actual on-disk length is authoritative, including servers that
-      // omit Content-Length and leave expectedFileSize unset.
+      // Preserve integrity checks when the server reports a size.
+      // If it does not, use the actual saved file length for the UI.
+      final reportedSize = entry.expectedFileSize;
+      if (reportedSize > 0 && actualSize != reportedSize) {
+        throw Exception('ফাইলের সাইজ অসম্পূর্ণ');
+      }
       entry.expectedFileSize = actualSize;
       if (!mounted) return;
       setState(() {
