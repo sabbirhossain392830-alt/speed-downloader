@@ -37,10 +37,10 @@ class DownloadController extends ChangeNotifier {
         final url = data['url'] as String?;
         final filename = data['filename'] as String?;
         if (url == null || filename == null) continue;
-        final task = await _engine.createTask(url: url, filename: filename);
+        final task = await _engine.createTask(url: url, filename: filename, taskId: data['id'] as String?);
         final item = DroxDownloadItem(task: task);
         final progress = data['progress'];
-        if (progress is num) item.progress = progress.toDouble().clamp(0, 1);
+        if (progress is num) item.progress = progress.toDouble().clamp(0, 1).toDouble();
         final expected = data['expectedBytes'];
         if (expected is num) item.expectedBytes = expected.toInt();
         final savedState = data['state'] as String?;
@@ -120,7 +120,7 @@ class DownloadController extends ChangeNotifier {
     if (index < 0) return;
     final item = _items[index];
     if (update is TaskProgressUpdate) {
-      item.progress = update.progress.clamp(0, 1);
+      item.progress = update.progress.clamp(0, 1).toDouble();
       if (update.hasExpectedFileSize) item.expectedBytes = update.expectedFileSize;
     } else if (update is TaskStatusUpdate) {
       switch (update.status) {
