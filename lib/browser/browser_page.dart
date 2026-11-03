@@ -415,73 +415,92 @@ class BrowserPageState extends State<BrowserPage> {
     final cs = Theme.of(context).colorScheme;
     const googleColors = [Color(0xFF4285F4), Color(0xFFEA4335), Color(0xFFFBBC05), Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFEA4335)];
     const letters = ['G', 'o', 'o', 'g', 'l', 'e'];
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(22, 44, 22, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          const SizedBox(height: 28),
-          Row(mainAxisSize: MainAxisSize.min, children: List.generate(letters.length, (i) => Text(letters[i], style: TextStyle(fontSize: 42, fontWeight: FontWeight.w600, color: googleColors[i], letterSpacing: -2)))),
-          const SizedBox(height: 28),
-          Container(
-            decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(30), border: Border.all(color: cs.outlineVariant.withValues(alpha: .55))),
+    final tile = widget.isDark ? const Color(0xFF303134) : Colors.white;
+    return Container(
+      color: widget.isDark ? const Color(0xFF202124) : const Color(0xFFFFFFFF),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(22, 34, 22, 28),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          const SizedBox(height: 54),
+          Row(mainAxisSize: MainAxisSize.min, children: List.generate(letters.length, (i) => Text(
+            letters[i], style: TextStyle(fontSize: 43, fontWeight: FontWeight.w600, color: googleColors[i], letterSpacing: -2),
+          ))),
+          const SizedBox(height: 30),
+          Material(
+            color: tile,
+            elevation: widget.isDark ? 0 : 1,
+            borderRadius: BorderRadius.circular(30),
             child: TextField(
               controller: homeSearch,
               textInputAction: TextInputAction.search,
               onSubmitted: _searchHome,
               decoration: InputDecoration(
-                hintText: 'Search Google or enter address',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: IconButton(onPressed: () => _searchHome(homeSearch.text), icon: const Icon(Icons.arrow_forward_rounded)),
+                hintText: 'Search or type a URL',
+                hintStyle: TextStyle(color: cs.onSurfaceVariant),
+                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF5F6368)),
+                suffixIcon: IconButton(onPressed: () => _searchHome(homeSearch.text), icon: const Icon(Icons.mic_none_rounded, color: Color(0xFF4285F4))),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                contentPadding: const EdgeInsets.symmetric(vertical: 17),
               ),
             ),
           ),
           const SizedBox(height: 34),
           Row(children: [
-            Text('Shortcuts', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            Text('Shortcuts', style: TextStyle(color: cs.onSurface, fontSize: 16, fontWeight: FontWeight.w600)),
             const Spacer(),
-            TextButton.icon(onPressed: _addShortcut, icon: const Icon(Icons.add_rounded, size: 18), label: const Text('Add')),
+            TextButton.icon(
+              onPressed: _addShortcut,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Add shortcut'),
+              style: TextButton.styleFrom(foregroundColor: const Color(0xFF4285F4)),
+            ),
           ]),
           const SizedBox(height: 12),
           if (shortcuts.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20),
+              padding: const EdgeInsets.symmetric(vertical: 22),
               child: Column(children: [
-                Icon(Icons.add_link_rounded, size: 34, color: cs.onSurfaceVariant),
+                Icon(Icons.add_circle_outline_rounded, size: 32, color: cs.onSurfaceVariant),
                 const SizedBox(height: 8),
-                Text('Add your favourite websites here', style: TextStyle(color: cs.onSurfaceVariant)),
+                Text('Add your favourite websites', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
               ]),
             )
           else
-            Wrap(
-              spacing: 12,
-              runSpacing: 14,
-              children: shortcuts.map((item) => GestureDetector(
-                onLongPress: () => _removeShortcut(item),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () => _loadUrl(item['url'] ?? ''),
-                  child: Container(
-                    width: 92,
-                    padding: const EdgeInsets.fromLTRB(8, 11, 8, 10),
-                    decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(19), border: Border.all(color: cs.outlineVariant.withValues(alpha: .55)), boxShadow: [BoxShadow(color: cs.shadow.withValues(alpha: .05), blurRadius: 9, offset: const Offset(0, 3))]),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Container(width: 48, height: 48, decoration: BoxDecoration(gradient: LinearGradient(colors: [cs.primaryContainer, cs.surfaceContainerHighest]), borderRadius: BorderRadius.circular(16)), alignment: Alignment.center,
-                        child: Text((item['title'] ?? 'W').characters.first.toUpperCase(), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: cs.onPrimaryContainer))),
-                      const SizedBox(height: 8),
-                      Text(item['title'] ?? 'Website', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text(Uri.tryParse(item['url'] ?? '')?.host ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: shortcuts.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4, mainAxisSpacing: 14, crossAxisSpacing: 8, childAspectRatio: .82,
+              ),
+              itemBuilder: (_, i) {
+                final item = shortcuts[i];
+                final host = Uri.tryParse(item['url'] ?? '')?.host ?? '';
+                return GestureDetector(
+                  onLongPress: () => _removeShortcut(item),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => _loadUrl(item['url'] ?? ''),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Container(
+                        width: 48, height: 48,
+                        decoration: BoxDecoration(color: widget.isDark ? const Color(0xFF3C4043) : const Color(0xFFF1F3F4), shape: BoxShape.circle),
+                        alignment: Alignment.center,
+                        child: Text((item['title'] ?? 'W').characters.first.toUpperCase(),
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Color(0xFF4285F4))),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(item['title'] ?? host, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: cs.onSurface)),
                     ]),
                   ),
-                ),
-              )).toList(),
+                );
+              },
             ),
-          const SizedBox(height: 28),
-          Text('Browse the web with DROX', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        ],
+          const SizedBox(height: 34),
+          Text('Discover the web', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+        ]),
       ),
     );
   }
@@ -497,58 +516,63 @@ class BrowserPageState extends State<BrowserPage> {
 
   Widget _buildHistoryPage() {
     final cs = Theme.of(context).colorScheme;
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
-        child: Row(children: [
-          const Icon(Icons.history_rounded),
-          const SizedBox(width: 10),
-          const Expanded(child: Text('Browsing History', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
-          if (history.isNotEmpty) TextButton.icon(
-            onPressed: () async {
-              final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-                title: const Text('Delete all history?'),
-                content: const Text('This will remove all saved browsing history.'),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                  FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete all')),
-                ],
-              ));
-              if (ok == true) {
-                history.clear();
-                await _saveHistory();
-                if (mounted) setState(() {});
-              }
-            },
-            icon: const Icon(Icons.delete_sweep_outlined),
-            label: const Text('Delete all'),
-          ),
-        ]),
-      ),
-      const Divider(height: 1),
-      Expanded(child: history.isEmpty
-        ? Center(child: Text('No browsing history yet', style: TextStyle(color: cs.onSurfaceVariant)))
-        : ListView.builder(
-            itemCount: history.length,
-            itemBuilder: (_, i) {
-              final item = history[i];
-              return ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.language_rounded)),
-                title: Text(item['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text('${item['url'] ?? ''}${(item['visitedAt'] ?? '').isNotEmpty ? '\n${_formatHistoryTime(item['visitedAt']!)}' : ''}', maxLines: 2, overflow: TextOverflow.ellipsis),
-                onTap: () => _loadUrl(item['url'] ?? ''),
-                trailing: IconButton(
-                  tooltip: 'Delete',
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  onPressed: () async {
-                    setState(() => history.remove(item));
-                    await _saveHistory();
-                  },
-                ),
-              );
-            },
-          )),
-    ]);
+    return Container(
+      color: widget.isDark ? const Color(0xFF202124) : const Color(0xFFF1F3F4),
+      child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
+          child: Row(children: [
+            const Expanded(child: Text('History', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600))),
+            if (history.isNotEmpty) IconButton(
+              tooltip: 'Delete all history',
+              onPressed: () async {
+                final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+                  title: const Text('Delete all history?'),
+                  content: const Text('This will remove all saved browsing history.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+                  ],
+                ));
+                if (ok == true) {
+                  history.clear();
+                  await _saveHistory();
+                  if (mounted) setState(() {});
+                }
+              },
+              icon: const Icon(Icons.delete_sweep_outlined),
+            ),
+            IconButton(tooltip: 'Close history', onPressed: () => setState(() => showHistory = false), icon: const Icon(Icons.close_rounded)),
+          ]),
+        ),
+        Expanded(child: history.isEmpty
+          ? Center(child: Text('No browsing history', style: TextStyle(color: cs.onSurfaceVariant)))
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
+              itemCount: history.length,
+              itemBuilder: (_, i) {
+                final item = history[i];
+                return Card(
+                  elevation: 0,
+                  color: widget.isDark ? const Color(0xFF303134) : Colors.white,
+                  margin: const EdgeInsets.only(bottom: 7),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  child: ListTile(
+                    leading: const CircleAvatar(backgroundColor: Color(0xFFE8F0FE), child: Icon(Icons.language_rounded, color: Color(0xFF4285F4))),
+                    title: Text(item['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text('${item['url'] ?? ''}${(item['visitedAt'] ?? '').isNotEmpty ? '\\n${_formatHistoryTime(item['visitedAt']!)}' : ''}', maxLines: 2, overflow: TextOverflow.ellipsis),
+                    onTap: () => _loadUrl(item['url'] ?? ''),
+                    trailing: IconButton(
+                      tooltip: 'Delete',
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () async { setState(() => history.remove(item)); await _saveHistory(); },
+                    ),
+                  ),
+                );
+              },
+            )),
+      ]),
+    );
   }
 
   Widget _buildTrailPanel() {
@@ -734,6 +758,143 @@ class BrowserPageState extends State<BrowserPage> {
   }
   @override
   void dispose() { address.dispose(); homeSearch.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final current = tab;
+    final isHome = current == null || current.url.isEmpty;
+    final chromeBg = widget.isDark ? const Color(0xFF202124) : const Color(0xFFF1F3F4);
+    final chromeSurface = widget.isDark ? const Color(0xFF303134) : Colors.white;
+    return Container(
+      color: chromeBg,
+      child: SafeArea(
+        top: true,
+        bottom: false,
+        child: Column(children: [
+          Material(
+            color: chromeBg,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+              child: Row(children: [
+                Expanded(
+                  child: Container(
+                    height: 46,
+                    decoration: BoxDecoration(color: chromeSurface, borderRadius: BorderRadius.circular(28)),
+                    child: Row(children: [
+                      const SizedBox(width: 13),
+                      Icon(isHome ? Icons.search_rounded : Icons.tune_rounded, size: 20, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 9),
+                      Expanded(child: TextField(
+                        controller: address,
+                        onTap: () => address.selection = TextSelection(baseOffset: 0, extentOffset: address.text.length),
+                        onSubmitted: (_) => go(),
+                        textInputAction: TextInputAction.go,
+                        keyboardType: TextInputType.url,
+                        style: const TextStyle(fontSize: 14),
+                        decoration: const InputDecoration(
+                          hintText: 'Search or type URL',
+                          isDense: true,
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      )),
+                      IconButton(
+                        tooltip: current?.loading == true ? 'Stop' : 'Reload',
+                        onPressed: () {
+                          if (current?.loading == true) {
+                            current?.controller.runJavaScript('window.stop();');
+                          } else if (current?.url.isNotEmpty == true) {
+                            current!.controller.reload();
+                          } else {
+                            go();
+                          }
+                        },
+                        icon: Icon(current?.loading == true ? Icons.close_rounded : Icons.refresh_rounded, size: 20, color: cs.onSurfaceVariant),
+                      ),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Smart Navigation Trail',
+                  onPressed: () => setState(() { showTrail = !showTrail; showHistory = false; showTabOverview = false; }),
+                  icon: Icon(Icons.route_rounded, color: showTrail ? const Color(0xFF4285F4) : cs.onSurfaceVariant),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: 'More options',
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onSelected: _action,
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: 'new', child: const ListTile(dense: true, leading: Icon(Icons.add_rounded), title: Text('New tab'))),
+                    PopupMenuItem(value: 'history', child: const ListTile(dense: true, leading: Icon(Icons.history_rounded), title: Text('History'))),
+                    PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: const Icon(Icons.shield_outlined), title: const Text('Block ads'), trailing: Icon(adBlockEnabled ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: adBlockEnabled ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
+                    PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop site'), trailing: Icon(desktopMode ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: desktopMode ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
+                    PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: const Icon(Icons.dark_mode_outlined), title: const Text('Dark mode'), trailing: Icon(widget.isDark ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: widget.isDark ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
+                    PopupMenuItem(value: 'settings', child: const ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
+                    PopupMenuItem(value: 'return', child: const ListTile(dense: true, leading: Icon(Icons.download_rounded), title: Text('DROX downloads'))),
+                    PopupMenuItem(value: 'exit', child: const ListTile(dense: true, leading: Icon(Icons.exit_to_app_rounded), title: Text('Exit browser'))),
+                    PopupMenuItem(value: 'about', child: const ListTile(dense: true, leading: Icon(Icons.info_outline_rounded), title: Text('About'))),
+                  ],
+                ),
+              ]),
+            ),
+          ),
+          if (current?.loading == true) const LinearProgressIndicator(minHeight: 2, color: Color(0xFF4285F4), backgroundColor: Colors.transparent),
+          Expanded(
+            child: Stack(children: [
+              Positioned.fill(
+                child: Stack(children: [
+                  IndexedStack(index: active, children: tabs.map((item) => WebViewWidget(controller: item.controller)).toList()),
+                  if (isHome && !showHistory && !showTabOverview) Positioned.fill(child: _buildStartPage()),
+                  if (showHistory) Positioned.fill(child: _buildHistoryPage()),
+                  if (showTabOverview) Positioned.fill(child: _buildTabOverview()),
+                ]),
+              ),
+              if (showTrail)
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: () => setState(() => showTrail = false),
+                    child: Container(color: Colors.black.withValues(alpha: .30)),
+                  ),
+                ),
+              _buildTrailPanel(),
+            ]),
+          ),
+          Material(
+            color: chromeBg,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 3, 8, 5),
+                child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                  IconButton(tooltip: 'Back', onPressed: current?.back == true ? _goBack : null, icon: const Icon(Icons.arrow_back_rounded)),
+                  IconButton(tooltip: 'Forward', onPressed: current?.forward == true ? _goForward : null, icon: const Icon(Icons.arrow_forward_rounded)),
+                  IconButton(tooltip: 'Home', onPressed: () {
+                    setState(() {
+                      if (current != null) { current.url = ''; current.title = 'Google'; current.loading = false; current.back = false; current.forward = false; }
+                      address.clear(); homeSearch.clear(); showHistory = false; showTrail = false; showTabOverview = false;
+                    });
+                  }, icon: const Icon(Icons.home_outlined)),
+                  IconButton(tooltip: 'Downloads', onPressed: widget.onReturn, icon: const Icon(Icons.download_outlined)),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: _showTabs,
+                    child: Container(
+                      width: 31, height: 29,
+                      decoration: BoxDecoration(border: Border.all(color: cs.onSurfaceVariant, width: 1.5), borderRadius: BorderRadius.circular(7)),
+                      alignment: Alignment.center,
+                      child: Text('${tabs.length}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface)),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
