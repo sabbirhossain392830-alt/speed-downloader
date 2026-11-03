@@ -446,7 +446,17 @@ class BrowserPageState extends State<BrowserPage> {
     const googleColors = [Color(0xFF4285F4), Color(0xFFEA4335), Color(0xFFFBBC05), Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFEA4335)];
     const letters = ['G', 'o', 'o', 'g', 'l', 'e'];
     final tile = widget.isDark ? const Color(0xFF303134) : Colors.white;
-    return Container(
+    return RefreshIndicator(
+      color: const Color(0xFF4285F4),
+      onRefresh: () async {
+        final current = tab;
+        if (current != null && current.url.isNotEmpty) {
+          await current.controller.reload();
+        } else if (mounted) {
+          setState(() {});
+        }
+      },
+      child: Container(
       color: widget.isDark ? const Color(0xFF202124) : const Color(0xFFFFFFFF),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -532,7 +542,7 @@ class BrowserPageState extends State<BrowserPage> {
           Text('Discover the web', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
         ]),
       ),
-    );
+    ));
   }
 
   String _formatHistoryTime(String raw) {
