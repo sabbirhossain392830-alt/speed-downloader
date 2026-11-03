@@ -1,4 +1,6 @@
-import 'dart:convert';\n\nimport 'package:dio/dio.dart';
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
 
 enum DroxLinkKind { directFile, googleDrive, dropbox, oneDrive, mega, mediaFire, box, pCloud, terabox, weTransfer, videoPlatform, webPage, unknown }
 
