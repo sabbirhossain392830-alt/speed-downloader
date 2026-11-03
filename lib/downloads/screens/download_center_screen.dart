@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/download_controller.dart';
 import '../core/download_item.dart';
@@ -89,6 +90,13 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
     }
   }
 
+  Future<void> _openExternal(String value, String label) async {
+    final uri = Uri.tryParse(value);
+    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _message('Could not open $label. Please check your internet connection.');
+    }
+  }
+
   Future<void> _addDirectMedia() async {
     final value = _url.text.trim();
     final uri = Uri.tryParse(value);
@@ -97,7 +105,8 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       return;
     }
     if (YoutubeLinkInfo.parse(value) != null) {
-      _message('YouTube links are previewed here. Use YouTube’s official offline feature where available.');
+      _message('Opening YouTube. Use its official Download option where available.');
+      await _openExternal(_youtubeLink?.canonicalUrl ?? value, 'YouTube');
       return;
     }
     setState(() => _adding = true);
@@ -131,6 +140,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   @override
   Widget build(BuildContext context) {
     final items = _downloads.items;
+    final isYouTube = _youtubeLink != null;
     return ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -170,9 +180,11 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
             )),
             const SizedBox(width: 10),
             Expanded(child: FilledButton.icon(
-              onPressed: _adding ? null : _addDirectMedia,
-              icon: const Icon(Icons.download_rounded),
-              label: Text(_adding ? 'Adding…' : 'Download direct link'),
+              onPressed: _adding ? null : isYouTube
+                  ? () => _openExternal(_youtubeLink!.canonicalUrl, 'YouTube')
+                  : _addDirectMedia,
+              icon: Icon(isYouTube ? Icons.open_in_new_rounded : Icons.download_rounded),
+              label: Text(_adding ? 'Adding…' : isYouTube ? 'Open YouTube' : 'Download direct link'),
             )),
           ]),
           if (_checkingPreview) const LinearProgressIndicator(),
@@ -182,13 +194,23 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('YouTube download options', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('YouTube options', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  const Text('DROX can identify the link and show its public preview. It does not extract YouTube video/audio streams or bypass YouTube download restrictions. Where available, use YouTube’s official Download / offline feature in the YouTube app.'),
+                  const Text('Open this video in YouTube and use the official Download option when it is available. If this is your own upload, manage or download it through YouTube Studio. DROX does not bypass YouTube download restrictions.'),
                   TextButton.icon(
                     onPressed: () => Clipboard.setData(ClipboardData(text: _youtubeLink!.canonicalUrl)),
                     icon: const Icon(Icons.copy_rounded),
                     label: const Text('Copy YouTube link'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _openExternal(_youtubeLink!.canonicalUrl, 'YouTube'),
+                    icon: const Icon(Icons.play_circle_outline_rounded),
+                    label: const Text('Open video'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _openExternal('https://studio.youtube.com/', 'YouTube Studio'),
+                    icon: const Icon(Icons.video_library_outlined),
+                    label: const Text('YouTube Studio'),
                   ),
                 ]),
               ),
