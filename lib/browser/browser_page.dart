@@ -102,7 +102,7 @@ class BrowserPageState extends State<BrowserPage> {
   }
   Future<void> _newTab([String url = '']) async {
     final t = _DroxTab(WebViewController(), url);
-    tabs.add(t); active = tabs.length - 1; showHistory = false;
+    tabs.add(t); active = tabs.length - 1; showHistory = false; showTrail = false; address.text = url;
     final ctrl = t.controller;
     await ctrl.setJavaScriptMode(JavaScriptMode.unrestricted);
     await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) => _downloadPrompt(m.message));
@@ -116,10 +116,10 @@ class BrowserPageState extends State<BrowserPage> {
         t.url = u;
         t.loading = true;
         if (t.pendingTraversal < 0) {
-          t.trailIndex = (t.trailIndex - 1).clamp(0, t.trail.length - 1);
+          t.trailIndex = (t.trailIndex - 1).clamp(0, t.trail.length - 1).toInt();
           t.pendingTraversal++;
         } else if (t.pendingTraversal > 0) {
-          t.trailIndex = (t.trailIndex + 1).clamp(0, t.trail.length - 1);
+          t.trailIndex = (t.trailIndex + 1).clamp(0, t.trail.length - 1).toInt();
           t.pendingTraversal--;
         } else {
           if (t.trailIndex >= 0 && t.trailIndex < t.trail.length - 1) {
@@ -590,7 +590,7 @@ class BrowserPageState extends State<BrowserPage> {
   }
   void _select(int i) { setState(() { active = i; address.text = tab?.url ?? ''; showHistory = false; showTrail = false; }); }
   void _close(int i) {
-    if (tabs.length == 1) { tabs.first.controller.loadRequest(Uri.parse('https://www.google.com')); return; }
+    if (tabs.length == 1) { setState(() { tabs.first.url = ''; tabs.first.title = 'Google'; tabs.first.back = false; tabs.first.forward = false; address.clear(); }); return; }
     setState(() { tabs.removeAt(i); if (active >= tabs.length) active = tabs.length - 1; else if (i < active) active--; address.text = tab?.url ?? ''; });
   }
   void _showTabs() {
@@ -705,11 +705,11 @@ class BrowserPageState extends State<BrowserPage> {
         Expanded(
           child: Stack(children: [
             Positioned.fill(
-              child: showHistory
-                ? _buildHistoryPage()
-                : isHome
-                  ? _buildStartPage()
-                  : IndexedStack(index: active, children: tabs.map((item) => item.url.isEmpty ? _buildStartPage() : WebViewWidget(controller: item.controller)).toList()),
+              child: Stack(children: [
+                IndexedStack(index: active, children: tabs.map((item) => WebViewWidget(controller: item.controller)).toList()),
+                if (isHome && !showHistory) Positioned.fill(child: _buildStartPage()),
+                if (showHistory) Positioned.fill(child: _buildHistoryPage()),
+              ]),
             ),
             if (showTrail)
               Positioned.fill(
