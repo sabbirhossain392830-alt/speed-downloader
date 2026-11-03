@@ -62,7 +62,7 @@ class BrowserPageState extends State<BrowserPage> {
     final p = await SharedPreferences.getInstance();
     try {
       final raw = p.getString('drox_browser_history');
-      if (raw != null) history.addAll((jsonDecode(raw) as List).cast<Map<String,dynamic>>().map((e) => <String,String>{'title': (e['title'] ?? '').toString(), 'url': (e['url'] ?? '').toString()}));
+      if (raw != null) history.addAll((jsonDecode(raw) as List).cast<Map<String,dynamic>>().map((e) => <String,String>{'title': (e['title'] ?? '').toString(), 'url': (e['url'] ?? '').toString(), 'visitedAt': (e['visitedAt'] ?? '').toString()}));
       if (mounted) setState(() {});
     } catch (_) {}
   }
@@ -158,6 +158,9 @@ class BrowserPageState extends State<BrowserPage> {
           function scanFrames(){document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument){f.contentDocument.querySelectorAll('video,audio').forEach(function(v){mediaSources(v)})}}catch(_){}})}
           if(window.fetch){var originalFetch=window.fetch;window.fetch=function(){var p=originalFetch.apply(this,arguments);try{var u=typeof arguments[0]==='string'?arguments[0]:arguments[0].url; p.then(function(r){var ct=r.headers.get('content-type')||'';var target=r.url||u;if(mediaTypes.test(ct)||exts.test(target||''))send(target)})}catch(_){}return p}}
           if(window.XMLHttpRequest){var originalOpen=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){this.__droxUrl=u;return originalOpen.apply(this,arguments)};var originalSend=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){this.addEventListener('load',function(){var ct=this.getResponseHeader('content-type')||'';if(mediaTypes.test(ct)||exts.test(this.__droxUrl||''))send(this.responseURL||this.__droxUrl)});return originalSend.apply(this,arguments)}}
+          var droxTouchStartY=0;var droxAtTop=false;
+          window.addEventListener('touchstart',function(e){if(e.touches&&e.touches.length===1){droxTouchStartY=e.touches[0].clientY;droxAtTop=(window.scrollY<=0);}}, {passive:true});
+          window.addEventListener('touchend',function(e){if(!droxAtTop||!e.changedTouches||!e.changedTouches.length)return;var delta=e.changedTouches[0].clientY-droxTouchStartY;if(delta>95&&window.scrollY<=0){window.location.reload();}droxAtTop=false;}, {passive:true});
           scan();new MutationObserver(function(){scan();scanResources();scanFrames()}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
           setInterval(function(){scan();scanResources();scanFrames()},2500);
           document.addEventListener('play',function(e){if(e.target&&(e.target.tagName==='VIDEO'||e.target.tagName==='AUDIO'))mediaSources(e.target)},true);
@@ -169,8 +172,8 @@ class BrowserPageState extends State<BrowserPage> {
         if (!mounted) return;
         setState(() { if (tab == t) address.text = u; });
         if (u.startsWith('http')) {
-          history.removeWhere((e) => e['url'] == u);
-          history.insert(0, {'title': t.title, 'url': u});
+          history.insert(0, {'title': t.title, 'url': u, 'visitedAt': DateTime.now().toIso8601String()});
+          if (history.length > 500) history.removeLast();
           if (history.length > 100) history.removeLast();
           _saveHistory();
         }
@@ -373,6 +376,21 @@ class BrowserPageState extends State<BrowserPage> {
     if (mounted) setState(() {});
   }
 
+  void _removeTrailItem(int index) {
+    final current = tab;
+    if (current == null || index < 0 || index >= current.trail.length) return;
+    setState(() {
+      current.trail.removeAt(index);
+      if (current.trail.isEmpty) {
+        current.trailIndex = -1;
+      } else if (index < current.trailIndex) {
+        current.trailIndex--;
+      } else if (index == current.trailIndex) {
+        current.trailIndex = current.trailIndex.clamp(0, current.trail.length - 1).toInt();
+      }
+    });
+  }
+
   Future<void> _jumpToTrail(int index) async {
     final current = tab;
     if (current == null || index < 0 || index >= current.trail.length) return;
@@ -445,17 +463,17 @@ class BrowserPageState extends State<BrowserPage> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
                   onTap: () => _loadUrl(item['url'] ?? ''),
-                  child: SizedBox(
-                    width: 82,
-                    child: Column(children: [
-                      Container(
-                        width: 54, height: 54,
-                        decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(17), border: Border.all(color: cs.outlineVariant.withValues(alpha: .45))),
-                        alignment: Alignment.center,
-                        child: Text((item['title'] ?? 'W').characters.first.toUpperCase(), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: cs.primary)),
-                      ),
-                      const SizedBox(height: 7),
-                      Text(item['title'] ?? 'Website', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  child: Container(
+                    width: 92,
+                    padding: const EdgeInsets.fromLTRB(8, 11, 8, 10),
+                    decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(19), border: Border.all(color: cs.outlineVariant.withValues(alpha: .55)), boxShadow: [BoxShadow(color: cs.shadow.withValues(alpha: .05), blurRadius: 9, offset: const Offset(0, 3))]),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Container(width: 48, height: 48, decoration: BoxDecoration(gradient: LinearGradient(colors: [cs.primaryContainer, cs.surfaceContainerHighest]), borderRadius: BorderRadius.circular(16)), alignment: Alignment.center,
+                        child: Text((item['title'] ?? 'W').characters.first.toUpperCase(), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: cs.onPrimaryContainer))),
+                      const SizedBox(height: 8),
+                      Text(item['title'] ?? 'Website', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 2),
+                      Text(Uri.tryParse(item['url'] ?? '')?.host ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)),
                     ]),
                   ),
                 ),
@@ -466,6 +484,15 @@ class BrowserPageState extends State<BrowserPage> {
         ],
       ),
     );
+  }
+
+  String _formatHistoryTime(String raw) {
+    final date = DateTime.tryParse(raw)?.toLocal();
+    if (date == null) return '';
+    final h = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    final ampm = date.hour >= 12 ? 'PM' : 'AM';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}  $h:$minute $ampm';
   }
 
   Widget _buildHistoryPage() {
@@ -508,7 +535,7 @@ class BrowserPageState extends State<BrowserPage> {
               return ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.language_rounded)),
                 title: Text(item['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(item['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('${item['url'] ?? ''}${(item['visitedAt'] ?? '').isNotEmpty ? '\n${_formatHistoryTime(item['visitedAt']!)}' : ''}', maxLines: 2, overflow: TextOverflow.ellipsis),
                 onTap: () => _loadUrl(item['url'] ?? ''),
                 trailing: IconButton(
                   tooltip: 'Delete',
@@ -544,7 +571,7 @@ class BrowserPageState extends State<BrowserPage> {
               child: Row(children: [
                 const Icon(Icons.route_rounded),
                 const SizedBox(width: 10),
-                const Expanded(child: Text('Navigation Trail', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+                const Expanded(child: Text('Smart Navigation Trail', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
                 IconButton(onPressed: () => setState(() => showTrail = false), icon: const Icon(Icons.close_rounded)),
               ]),
             ),
@@ -567,7 +594,7 @@ class BrowserPageState extends State<BrowserPage> {
                         ),
                         title: Text(host, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w500)),
                         subtitle: Text(url, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        trailing: selected ? Icon(Icons.my_location_rounded, color: cs.primary, size: 18) : null,
+                        trailing: IconButton(tooltip: 'Remove from trail', visualDensity: VisualDensity.compact, icon: Icon(Icons.close_rounded, size: 19, color: cs.onSurfaceVariant), onPressed: () => _removeTrailItem(i)),
                         onTap: () => _jumpToTrail(i),
                       );
                     },
@@ -609,7 +636,7 @@ class BrowserPageState extends State<BrowserPage> {
         break;
       case 'refresh': tab?.controller.reload(); break;
       case 'history': setState(() { showHistory = true; showTrail = false; }); break;
-      case 'exit': SystemNavigator.pop(); break;
+      case 'exit': widget.onReturn(); break;
       case 'return': widget.onReturn(); break;
       case 'settings': widget.onSettings(); break;
       case 'dark': widget.onThemeTap(); break;
