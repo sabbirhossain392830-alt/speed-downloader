@@ -13,14 +13,19 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
-  // Use only DROX's native notification channel. The downloader plugin's
-  // notification is intentionally disabled to prevent duplicate alerts.
+  // Use the downloader's per-task notification as the single source of truth.
+  // Do not post a second custom native notification for the same transfer.
   FileDownloader().configureNotification(
-    running: null,
+    running: enabled
+        ? TaskNotification(
+            bangla ? 'DROX • ডাউনলোড হচ্ছে' : 'DROX • Downloading',
+            '{filename} • {progress}%',
+          )
+        : null,
     paused: null,
     complete: null,
     error: null,
-    progressBar: false,
+    progressBar: true,
     tapOpensFile: false,
   );
 }
@@ -645,60 +650,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         }
       }
     });
-    _syncNativeNotification(entries[index]);
     _saveHistory();
-  }
-
-  String _notificationSize(int bytes) {
-    if (bytes < 0) return '—';
-    if (bytes < 1024) return '${bytes} B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
-
-  Future<void> _syncNativeNotification(DownloadEntry entry) async {
-    if (!Platform.isAndroid || !notificationsEnabled) return;
-    final total = entry.expectedFileSize;
-    final downloaded = total > 0 ? (entry.progress * total).round() : 0;
-    final speed = entry.speedBytesPerSecond;
-    final remaining = total > 0 && speed > 0
-        ? ((total - downloaded) / speed).ceil()
-        : -1;
-    final eta = remaining < 0
-        ? '—'
-        : remaining >= 3600
-            ? '${remaining ~/ 3600}h ${(remaining % 3600) ~/ 60}m'
-            : remaining >= 60
-                ? '${remaining ~/ 60}m ${remaining % 60}s'
-                : '${remaining}s';
-    final bangla = widget.isBangla;
-    final status = entry.status;
-    final title = status == 'সম্পন্ন'
-        ? (bangla ? 'DROX • ডাউনলোড সম্পন্ন' : 'DROX • Download complete')
-        : status == 'বিরতি'
-            ? (bangla ? 'DROX • ডাউনলোড বিরতিতে' : 'DROX • Download paused')
-            : status == 'ব্যর্থ' || status == 'যাচাই ব্যর্থ'
-                ? (bangla ? 'DROX • ডাউনলোড ব্যর্থ' : 'DROX • Download failed')
-                : (bangla ? 'DROX • ডাউনলোড চলছে' : 'DROX • Downloading');
-    final details = [
-      '${(entry.progress * 100).round()}%',
-      '${_notificationSize(downloaded)} / ${_notificationSize(total)}',
-      speed > 0 ? '${_notificationSize(speed.round())}/s' : (bangla ? 'স্পিড হিসাব হচ্ছে' : 'Calculating speed'),
-      '${bangla ? 'সময় বাকি' : 'ETA'}: $eta',
-    ].join('  •  ');
-    try {
-      await _notificationMethod.invokeMethod<void>('updateDownload', {
-        'id': entry.task.taskId.hashCode & 0x7fffffff,
-        'title': title,
-        'filename': entry.task.filename,
-        'details': details,
-        'progress': (entry.progress * 100).round().clamp(0, 100),
-        'ongoing': !['সম্পন্ন', 'বিরতি', 'ব্যর্থ', 'যাচাই ব্যর্থ', 'বাতিল'].contains(status),
-      });
-    } catch (_) {
-      // The plugin's own background notification remains the fallback.
-    }
   }
 
   Future<void> _verifyCompletedFile(DownloadEntry entry) async {
@@ -1008,32 +960,6 @@ class _DownloadHomeState extends State<DownloadHome> {
     );
   }
 
-  Future<void> _refreshLink(DownloadEntry entry) async {
-    try {
-      final details = await _downloadDetails(entry.task.url);
-      entry.task = DownloadTask(
-        url: details.$1,
-        filename: entry.task.filename,
-        directory: 'DROX',
-        baseDirectory: BaseDirectory.applicationSupport,
-        updates: Updates.statusAndProgress,
-        allowPause: true,
-        transferHints: {TransferHint.userInitiated, TransferHint.largeFile},
-        retries: 10,
-        taskId: entry.task.taskId,
-      );
-      await _saveHistory();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('Link checked. Starting download again…', 'লিংক যাচাই হয়েছে। আবার ডাউনলোড শুরু হচ্ছে…'))),
-      );
-      await _redownload(entry);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('Could not refresh link: ${e.toString().replaceFirst('Exception: ', '')}', 'লিংক রিফ্রেশ করা যায়নি: ${e.toString().replaceFirst('Exception: ', '')}'))),
-      );
-    }
-  }
-
   Future<void> _renameDownload(DownloadEntry entry) async {
     if (entry.status != 'সম্পন্ন') {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -1112,7 +1038,6 @@ class _DownloadHomeState extends State<DownloadHome> {
       case 'cancel': await _cancel(entry); break;
       case 'redownload': await _redownload(entry); break;
       case 'copy': await _copyDownloadLink(entry); break;
-      case 'refresh': await _refreshLink(entry); break;
       case 'rename': await _renameDownload(entry); break;
       case 'open': await _open(entry); break;
       case 'remove': await _remove(entry); break;
@@ -1247,9 +1172,13 @@ class _DownloadHomeState extends State<DownloadHome> {
     final failed = entries.where((e) => ['ব্যর্থ', 'বাতিল', 'কিউতে যোগ করা যায়নি', 'যাচাই ব্যর্থ'].contains(e.status)).length;
     final visible = entries.where(_matches).toList();
     return PopScope(
-      canPop: selectedTab == 0,
+      canPop: selectedTab == 0 && _selectedTaskIds.isEmpty,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+        if (_selectedTaskIds.isNotEmpty) {
+          setState(() => _selectedTaskIds.clear());
+          return;
+        }
         if (selectedTab == 1) {
           final handled = await browserKey.currentState?.handleSystemBack() ?? false;
           if (handled || !mounted) return;
@@ -1707,7 +1636,7 @@ class _DownloadHomeState extends State<DownloadHome> {
                     onPressed: () => _open(entry),
                     icon: Icon(Icons.folder_open_rounded, size: 28, color: ink),
                   ),
-                if (completed && !_selectedTaskIds.isNotEmpty)
+                if (completed && _selectedTaskIds.isEmpty)
                   PopupMenuButton<String>(
                     padding: EdgeInsets.zero,
                     iconSize: 21,
@@ -1717,7 +1646,6 @@ class _DownloadHomeState extends State<DownloadHome> {
                       if (value == 'open') _open(entry);
                       if (value == 'redownload') _redownload(entry);
                       if (value == 'copy') _copyDownloadLink(entry);
-                      if (value == 'refresh') _refreshLink(entry);
                       if (value == 'rename') _renameDownload(entry);
                       if (value == 'remove') _remove(entry);
                     },
