@@ -1094,6 +1094,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         children: [
           ListTile(title: Text(entry.task.filename, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(_localizedStatus(entry.status))),
           const Divider(height: 1),
+          ListTile(leading: const Icon(Icons.check_circle_outline_rounded), title: Text(_tr('Select for bulk actions', 'একসাথে কাজের জন্য নির্বাচন')), onTap: () => Navigator.pop(ctx, 'select')),
           ListTile(leading: const Icon(Icons.refresh_rounded), title: Text(_tr('Redownload', 'আবার ডাউনলোড')), onTap: () => Navigator.pop(ctx, 'redownload')),
           ListTile(leading: const Icon(Icons.copy_rounded), title: Text(_tr('Copy download link', 'ডাউনলোড লিংক কপি')), onTap: () => Navigator.pop(ctx, 'copy')),
           ListTile(leading: const Icon(Icons.link_rounded), title: Text(_tr('Refresh link', 'লিংক রিফ্রেশ')), onTap: () => Navigator.pop(ctx, 'refresh')),
@@ -1105,6 +1106,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       )),
     );
     switch (selected) {
+      case 'select': _toggleSelection(entry); break;
       case 'redownload': await _redownload(entry); break;
       case 'copy': await _copyDownloadLink(entry); break;
       case 'refresh': await _refreshLink(entry); break;
