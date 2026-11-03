@@ -838,6 +838,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
+      transferHints: {TransferHint.largeFile},
       retries: 10,
     );
     setState(() {
@@ -845,9 +846,15 @@ class _DownloadHomeState extends State<DownloadHome> {
       controller.clear();
     });
     _saveHistory();
-    final ok = await FileDownloader().enqueue(task);
-    if (!ok && mounted) {
-      setState(() => entries.firstWhere((e) => e.task.taskId == task.taskId).status = 'কিউতে যোগ করা যায়নি');
+    try {
+      // Transfer API hands offline tasks to Android's native scheduler so
+      // they can start when connectivity returns, even if DROX is closed.
+      await FileDownloader().transfers.start(task);
+    } catch (_) {
+      if (mounted) {
+        final index = entries.indexWhere((e) => e.task.taskId == task.taskId);
+        if (index >= 0) setState(() => entries[index].status = 'কিউতে যোগ করা যায়নি');
+      }
     }
     _saveHistory();
     if (mounted) setState(() => adding = false);
@@ -887,7 +894,12 @@ class _DownloadHomeState extends State<DownloadHome> {
         setState(() => entries[index] = replacement);
         await _saveHistory();
       }
-      ok = await FileDownloader().enqueue(retryTask);
+      try {
+        await FileDownloader().transfers.start(retryTask);
+        ok = true;
+      } catch (_) {
+        ok = false;
+      }
       if (!ok && mounted) {
         setState(() => replacement.status = 'ব্যর্থ');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -935,13 +947,18 @@ class _DownloadHomeState extends State<DownloadHome> {
       baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
+      transferHints: {TransferHint.largeFile},
       retries: 10,
     );
     setState(() => entries.insert(0, DownloadEntry(task)));
     _saveHistory();
-    final ok = await FileDownloader().enqueue(task);
-    if (!ok && mounted) {
-      setState(() => entries.firstWhere((e) => e.task.taskId == task.taskId).status = 'কিউতে যোগ করা যায়নি');
+    try {
+      await FileDownloader().transfers.start(task);
+    } catch (_) {
+      if (mounted) {
+        final index = entries.indexWhere((e) => e.task.taskId == task.taskId);
+        if (index >= 0) setState(() => entries[index].status = 'কিউতে যোগ করা যায়নি');
+      }
     }
   }
 
