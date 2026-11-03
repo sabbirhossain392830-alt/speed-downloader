@@ -88,7 +88,7 @@ class _DroxAppState extends State<DroxApp> {
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFF202020),
         colorScheme: ColorScheme.fromSeed(seedColor: liquidBrown, brightness: Brightness.dark, surface: const Color(0xFF303030)),
-        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF262626), foregroundColor: Color(0xFFF1F1F1), elevation: 0),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF6B351B), foregroundColor: Color(0xFFFFFFFF), elevation: 0),
       ),
       home: DownloadHome(
         isDark: mode == ThemeMode.dark,
@@ -985,7 +985,7 @@ class _DownloadHomeState extends State<DownloadHome> {
             ),
             PopupMenuButton<String>(
               tooltip: _tr('Menu', 'মেনু'),
-              icon: const Icon(Icons.menu_rounded),
+              icon: const Icon(Icons.more_vert_rounded),
               onSelected: (v) async {
                 switch (v) {
                   case 'settings':
@@ -1052,7 +1052,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         body: IndexedStack(index: selectedTab, children: [
           Column(children: [
             Material(
-              color: widget.isDark ? const Color(0xFF303030) : const Color(0xFF6B351B),
+              color: const Color(0xFF6B351B),
               child: Row(children: [
                 _homeCategory(_tr('ALL', 'সব'), entries.length, DownloadFilter.all, Icons.all_inbox_rounded),
                 _homeCategory(_tr('DOWNLOADING', 'চলমান'), active, DownloadFilter.active, Icons.downloading_rounded),
