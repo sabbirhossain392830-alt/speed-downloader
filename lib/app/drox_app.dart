@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home/download_home.dart';
+import '../notifications/download_notifications.dart';
 import '../shared/widgets/drox_widgets.dart';
 
 class DroxApp extends StatefulWidget {
@@ -41,7 +42,7 @@ class _DroxAppState extends State<DroxApp> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('drox_language_bangla_v2', value);
     final notifications = prefs.getBool('drox_notifications_enabled') ?? true;
-    _configureDroxNotifications(notifications, bangla: value);
+    configureDroxNotifications(notifications, bangla: value);
   }
 
   @override
