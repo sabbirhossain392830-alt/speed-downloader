@@ -1106,7 +1106,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         body: Stack(children: [
           IndexedStack(index: selectedTab, children: [
           DownloadCenterScreen(key: downloadCenterKey),
-          BrowserPage(key: browserKey, isDark: widget.isDark, isBangla: widget.isBangla, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { downloadCenterKey.currentState?.acceptSharedUrl(url); setState(() => selectedTab = 0); }),
+          BrowserPage(key: browserKey, isDark: widget.isDark, isBangla: widget.isBangla, onThemeTap: widget.onThemeTap, onReturn: () => setState(() => selectedTab = 0), onSettings: () => setState(() => selectedTab = 3), onDownload: (url) { setState(() => selectedTab = 0); downloadCenterKey.currentState?.downloadDetectedUrl(url); }),
           const SizedBox.shrink(), // Reserved legacy tab; the v2 Download Center is the only queue.
           ListView(padding: const EdgeInsets.all(16), children: [
             Text('Settings', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
