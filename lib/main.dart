@@ -74,6 +74,7 @@ class _DroxAppState extends State<DroxApp> {
   @override
   Widget build(BuildContext context) {
     const liquidBrown = Color(0xFF6B351B);
+    const darkAccent = Color(0xFF4FC3F7);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'DROX',
@@ -87,8 +88,11 @@ class _DroxAppState extends State<DroxApp> {
       darkTheme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFF202020),
-        colorScheme: ColorScheme.fromSeed(seedColor: liquidBrown, brightness: Brightness.dark, surface: const Color(0xFF303030)),
-        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF6B351B), foregroundColor: Color(0xFFFFFFFF), elevation: 0),
+        colorScheme: ColorScheme.fromSeed(seedColor: darkAccent, brightness: Brightness.dark, surface: const Color(0xFF303030)),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(backgroundColor: darkAccent, foregroundColor: Color(0xFF101820)),
+        snackBarTheme: const SnackBarThemeData(backgroundColor: Color(0xFF263238), contentTextStyle: TextStyle(color: Colors.white)),
+        
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF151A22), foregroundColor: Color(0xFFF5F7FA), elevation: 0),
       ),
       home: DownloadHome(
         isDark: mode == ThemeMode.dark,
@@ -107,8 +111,8 @@ class DroxAnimatedSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brown = const Color(0xFF6B351B);
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = dark ? const Color(0xFF4FC3F7) : const Color(0xFF6B351B);
     return Semantics(
       toggled: value,
       button: true,
@@ -121,7 +125,7 @@ class DroxAnimatedSwitch extends StatelessWidget {
           height: 32,
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            color: value ? brown : (dark ? const Color(0xFF555555) : const Color(0xFFD8D8D8)),
+            color: value ? activeColor : (dark ? const Color(0xFF555555) : const Color(0xFFD8D8D8)),
             borderRadius: BorderRadius.circular(20),
           ),
           child: AnimatedAlign(
@@ -1052,7 +1056,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         body: IndexedStack(index: selectedTab, children: [
           Column(children: [
             Material(
-              color: const Color(0xFF6B351B),
+              color: widget.isDark ? const Color(0xFF151A22) : const Color(0xFF6B351B),
               child: Row(children: [
                 _homeCategory(_tr('ALL', 'সব'), entries.length, DownloadFilter.all, Icons.all_inbox_rounded),
                 _homeCategory(_tr('DOWNLOADING', 'চলমান'), active, DownloadFilter.active, Icons.downloading_rounded),
@@ -1126,8 +1130,8 @@ class _DownloadHomeState extends State<DownloadHome> {
         floatingActionButton: selectedTab == 0
             ? FloatingActionButton(
                 tooltip: 'Add download',
-                backgroundColor: const Color(0xFF6B351B),
-                foregroundColor: Colors.white,
+                backgroundColor: widget.isDark ? const Color(0xFF4FC3F7) : const Color(0xFF6B351B),
+                foregroundColor: widget.isDark ? const Color(0xFF101820) : Colors.white,
                 onPressed: _quickDownloadDialog,
                 child: const Icon(Icons.add_rounded, size: 30),
               )
@@ -1146,7 +1150,7 @@ class _DownloadHomeState extends State<DownloadHome> {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(
-              color: selected ? const Color(0xFF6B351B) : Colors.transparent,
+              color: selected ? (widget.isDark ? const Color(0xFF4FC3F7) : const Color(0xFF6B351B)) : Colors.transparent,
               width: 3,
             )),
           ),
@@ -1247,7 +1251,7 @@ class _DownloadHomeState extends State<DownloadHome> {
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(13),
         border: Border.all(
-          color: const Color(0xFF8A5636).withValues(alpha: isDark ? .95 : .72),
+          color: (isDark ? const Color(0xFF455A64) : const Color(0xFF8A5636)).withValues(alpha: isDark ? .95 : .72),
           width: 1.15,
         ),
       ),
