@@ -912,16 +912,16 @@ class _DownloadHomeState extends State<DownloadHome> {
 
   Future<void> _resume(DownloadEntry entry) async {
     var ok = false;
+    var activeEntry = entry;
     try {
-      // First resume the exact persisted native task so its partial file and
-      // HTTP Range state are retained.
+      // Resume the same native task first so its partial file and HTTP Range
+      // state are retained.
       ok = await FileDownloader().resume(entry.task);
     } catch (_) {
       ok = false;
     }
     if (!ok) {
-      // If the OS removed the partial worker record, enqueue a fresh task
-      // rather than leaving a dead Resume button on screen.
+      // If Android removed the old worker record, start a fresh task.
       final retryTask = DownloadTask(
         url: entry.task.url,
         filename: entry.task.filename,
@@ -936,6 +936,7 @@ class _DownloadHomeState extends State<DownloadHome> {
       final index = entries.indexWhere((e) => e.task.taskId == entry.task.taskId);
       if (index >= 0 && mounted) {
         setState(() => entries[index] = replacement);
+        activeEntry = replacement;
         await _saveHistory();
       }
       try {
@@ -945,11 +946,19 @@ class _DownloadHomeState extends State<DownloadHome> {
         ok = false;
       }
       if (!ok && mounted) {
-        setState(() => replacement.status = 'ব্যর্থ');
+        setState(() => activeEntry.status = 'ব্যর্থ');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_tr('Could not restart this download. Check the link and try again.', 'ডাউনলোডটি আবার চালু করা যায়নি। লিংক যাচাই করে চেষ্টা করুন।'))),
         );
       }
+    }
+    if (ok && mounted) {
+      // Update immediately; do not leave the card showing Paused while the
+      // native running event is on its way.
+      setState(() {
+        activeEntry.status = 'ডাউনলোড হচ্ছে';
+        activeEntry.error = null;
+      });
     }
     await _saveHistory();
   }
