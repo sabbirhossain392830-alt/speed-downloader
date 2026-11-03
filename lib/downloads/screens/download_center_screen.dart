@@ -55,32 +55,30 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
 
   Future<void> _inspectLink() async {
     final value = _url.text.trim();
+    if (value.isEmpty) { _message('Paste a link first.'); return; }
+    setState(() => _checkingLink = true);
+    try {
+      final result = await _resolver.resolve(value);
+      if (mounted) setState(() => _resolution = result);
+    } catch (error) {
+      if (mounted) _message('Link check failed: $error');
+    } finally {
+      if (mounted) setState(() => _checkingLink = false);
+    }
     final link = YoutubeLinkInfo.parse(value);
     if (link == null) {
-      _previewVideoId = null;
-      setState(() {
-        _youtubeLink = null;
-        _preview = null;
-      });
+      if (mounted) setState(() { _youtubeLink = null; _preview = null; _previewVideoId = null; });
       return;
     }
     if (_previewVideoId == link.videoId && (_preview != null || _checkingPreview)) return;
     _previewVideoId = link.videoId;
-    setState(() {
-      _checkingPreview = true;
-      _youtubeLink = link;
-      _preview = null;
-    });
+    setState(() { _checkingPreview = true; _youtubeLink = link; _preview = null; });
     try {
       final preview = await _youtube.fetch(link);
       if (!mounted) return;
       setState(() => _preview = preview);
     } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not load YouTube preview: $error')),
-        );
-      }
+      if (mounted) _message('Could not load YouTube preview: $error');
     } finally {
       if (mounted) setState(() => _checkingPreview = false);
     }
@@ -105,7 +103,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
     final value = _url.text.trim();
     final uri = Uri.tryParse(value);
     if (uri == null || !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty) {
-      _message('Enter a valid direct media URL.');
+      _message('Enter a valid HTTP/HTTPS link.');
       return;
     }
     if (YoutubeLinkInfo.parse(value) != null) {
@@ -115,13 +113,19 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
     }
     setState(() => _adding = true);
     try {
-      final segment = uri.pathSegments.isEmpty ? '' : uri.pathSegments.last;
-      final filename = segment.isNotEmpty && segment.contains('.')
-          ? Uri.decodeComponent(segment)
-          : 'drox_${DateTime.now().millisecondsSinceEpoch}.bin';
-      await _downloads.addDirectMedia(url: value, filename: filename);
+      final result = _resolution?.originalUrl == value ? _resolution! : await _resolver.resolve(value);
+      if (!result.canQueue) {
+        _message(result.message);
+        await _openExternal(result.originalUrl, result.provider);
+        return;
+      }
+      final filename = result.filename ?? (uri.pathSegments.isEmpty || !uri.pathSegments.last.contains('.')
+          ? 'drox_${DateTime.now().millisecondsSinceEpoch}.bin'
+          : Uri.decodeComponent(uri.pathSegments.last));
+      await _downloads.addDirectMedia(url: result.downloadUrl, filename: filename);
       _url.clear();
-      _message('Added to download queue.');
+      setState(() => _resolution = null);
+      _message('Added ${result.provider} download to queue.');
     } catch (error) {
       _message('Could not add download: $error');
     } finally {
@@ -180,7 +184,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
             Expanded(child: OutlinedButton.icon(
               onPressed: _checkingLink ? null : _inspectLink,
               icon: const Icon(Icons.preview_outlined),
-              label: const Text('Check link'),
+              label: Text(_checkingLink ? 'Checking…' : 'Check link'),
             )),
             const SizedBox(width: 10),
             Expanded(child: FilledButton.icon(
