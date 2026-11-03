@@ -19,13 +19,13 @@ void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
     running: enabled
         ? TaskNotification(
             bangla ? 'DROX • ডাউনলোড হচ্ছে' : 'DROX • Downloading',
-            '{filename} • {progress}',
+            '{filename} • {downloaded} / {total} ({progress})',
           )
         : null,
     paused: enabled
         ? TaskNotification(
             bangla ? 'DROX • ডাউনলোড বিরতিতে' : 'DROX • Paused',
-            '{filename} • {progress}',
+            '{filename} • {downloaded} / {total} ({progress})',
           )
         : null,
     complete: enabled
