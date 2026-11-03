@@ -34,6 +34,8 @@ class BrowserPageState extends State<BrowserPage> {
   final shortcuts = <Map<String,String>>[];
   int active = 0;
   bool showHistory = false, showTrail = false, showTabOverview = false, adBlockEnabled = true, desktopMode = false;
+  bool historySelectionMode = false;
+  final Set<int> selectedHistory = <int>{};
   _DroxTab? get tab => tabs.isEmpty ? null : tabs[active];
   @override
   void initState() {
@@ -93,9 +95,36 @@ class BrowserPageState extends State<BrowserPage> {
   }
   bool _isKnownAdUrl(String url) {
     final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
-    const blocked = ['doubleclick.net', 'googlesyndication.com', 'googleadservices.com', 'adservice.google.com', 'googletagmanager.com', 'adnxs.com', 'taboola.com', 'outbrain.com'];
+    const blocked = ['doubleclick.net','googlesyndication.com','googleadservices.com','adservice.google.com','googletagmanager.com','googletagservices.com','adnxs.com','taboola.com','outbrain.com','adform.net','adroll.com','criteo.com','pubmatic.com','openx.net','rubiconproject.com','scorecardresearch.com','quantserve.com','amazon-adsystem.com','advertising.com','moatads.com','serving-sys.com','casalemedia.com','smartadserver.com','sharethrough.com','bidswitch.net','yieldmo.com','zedo.com','popads.net','propellerads.com'];
     return blocked.any((domain) => host == domain || host.endsWith('.' + domain));
   }
+  Widget _siteIcon(String url, {double size = 34}) {
+    final host = Uri.tryParse(url)?.host ?? '';
+    if (host.isEmpty) return Container(width: size, height: size, decoration: const BoxDecoration(color: Color(0xFFE8F0FE), shape: BoxShape.circle), child: Icon(Icons.language_rounded, color: const Color(0xFF4285F4), size: size * .58));
+    final iconUrl = 'https://www.google.com/s2/favicons?domain=${Uri.encodeComponent(host)}&sz=64';
+    return ClipRRect(borderRadius: BorderRadius.circular(size), child: Image.network(iconUrl, width: size, height: size, fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => Container(width: size, height: size, decoration: const BoxDecoration(color: Color(0xFFE8F0FE), shape: BoxShape.circle), child: Icon(Icons.language_rounded, color: const Color(0xFF4285F4), size: size * .58))));
+  }
+
+  Future<void> _deleteSelectedHistory() async {
+    if (selectedHistory.isEmpty) return;
+    final indices = selectedHistory.toList()..sort((a, b) => b.compareTo(a));
+    setState(() { for (final index in indices) { if (index >= 0 && index < history.length) history.removeAt(index); } selectedHistory.clear(); historySelectionMode = false; });
+    await _saveHistory();
+  }
+
+  static const String _droxAdBlockScript = r'''(function(){
+    if(window.__droxAdProtection)return;window.__droxAdProtection=true;
+    var hosts=['doubleclick.net','googlesyndication.com','googleadservices.com','googletagmanager.com','googletagservices.com','adnxs.com','taboola.com','outbrain.com','adform.net','adroll.com','criteo.com','pubmatic.com','openx.net','rubiconproject.com','scorecardresearch.com','quantserve.com','amazon-adsystem.com','advertising.com','moatads.com','serving-sys.com','casalemedia.com','smartadserver.com','sharethrough.com','bidswitch.net','yieldmo.com','zedo.com','popads.net','propellerads.com'];
+    function blocked(raw){try{var h=new URL(raw,location.href).hostname.toLowerCase();return hosts.some(function(d){return h===d||h.endsWith('.'+d)})}catch(_){return false}}
+    var originalFetch=window.fetch;if(originalFetch)window.fetch=function(input,init){var u=typeof input==='string'?input:(input&&input.url)||'';if(blocked(u))return Promise.resolve(new Response('',{status:204,statusText:'Blocked by DROX'}));return originalFetch.apply(this,arguments)};
+    var originalOpen=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(method,url){this.__droxBlocked=blocked(url);return originalOpen.apply(this,arguments)};
+    var originalSend=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){if(this.__droxBlocked){try{this.abort()}catch(_){}return}return originalSend.apply(this,arguments)};
+    var selectors=['iframe[src*="doubleclick"]','iframe[src*="googlesyndication"]','iframe[src*="adservice"]','iframe[src*="taboola"]','iframe[src*="outbrain"]','[id^="google_ads"]','[id*="_ad_container"]','[class~="ad-banner"]','[class*="ad-slot"]','[class*="adsbygoogle"]','[data-ad-client]','[data-ad-slot]'];
+    function clean(){document.querySelectorAll(selectors.join(',')).forEach(function(el){if(el&&el.parentNode)el.parentNode.removeChild(el)});document.querySelectorAll('iframe[src],script[src]').forEach(function(el){if(blocked(el.src))el.remove()})}
+    clean();new MutationObserver(clean).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
+  })();''';
+
   bool _downloadable(String url) {
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
     return RegExp(r'\.(pdf|zip|rar|7z|apk|mp4|m4v|mkv|mov|avi|webm|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|jpg|jpeg|png|gif|webp|bmp|tif|tiff|docx?|xlsx?|pptx?)$').hasMatch(path);
@@ -166,6 +195,7 @@ class BrowserPageState extends State<BrowserPage> {
           document.addEventListener('play',function(e){if(e.target&&(e.target.tagName==='VIDEO'||e.target.tagName==='AUDIO'))mediaSources(e.target)},true);
           document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;try{var u=new URL(a.href,location.href);if(a.hasAttribute('download')||exts.test(u.pathname)){e.preventDefault();e.stopImmediatePropagation();send(u.href)}}catch(_){}},true);
         })();''');
+        if (adBlockEnabled) await ctrl.runJavaScript(_droxAdBlockScript);
         final title = await ctrl.getTitle();
         t.title = title == null || title.isEmpty ? (Uri.tryParse(u)?.host ?? 'Website') : title;
         t.loading = false; t.back = await ctrl.canGoBack(); t.forward = await ctrl.canGoForward();
@@ -516,61 +546,46 @@ class BrowserPageState extends State<BrowserPage> {
 
   Widget _buildHistoryPage() {
     final cs = Theme.of(context).colorScheme;
+    final allSelected = history.isNotEmpty && selectedHistory.length == history.length;
     return Container(
       color: widget.isDark ? const Color(0xFF202124) : const Color(0xFFF1F3F4),
       child: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
-          child: Row(children: [
-            const Expanded(child: Text('History', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600))),
-            if (history.isNotEmpty) IconButton(
-              tooltip: 'Delete all history',
-              onPressed: () async {
-                final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-                  title: const Text('Delete all history?'),
-                  content: const Text('This will remove all saved browsing history.'),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
-                  ],
-                ));
-                if (ok == true) {
-                  history.clear();
-                  await _saveHistory();
-                  if (mounted) setState(() {});
-                }
-              },
-              icon: const Icon(Icons.delete_sweep_outlined),
-            ),
-            IconButton(tooltip: 'Close history', onPressed: () => setState(() => showHistory = false), icon: const Icon(Icons.close_rounded)),
-          ]),
-        ),
-        Expanded(child: history.isEmpty
-          ? Center(child: Text('No browsing history', style: TextStyle(color: cs.onSurfaceVariant)))
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
-              itemCount: history.length,
-              itemBuilder: (_, i) {
-                final item = history[i];
-                return Card(
-                  elevation: 0,
-                  color: widget.isDark ? const Color(0xFF303134) : Colors.white,
-                  margin: const EdgeInsets.only(bottom: 7),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  child: ListTile(
-                    leading: const CircleAvatar(backgroundColor: Color(0xFFE8F0FE), child: Icon(Icons.language_rounded, color: Color(0xFF4285F4))),
-                    title: Text(item['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text('${item['url'] ?? ''}${(item['visitedAt'] ?? '').isNotEmpty ? '\\n${_formatHistoryTime(item['visitedAt']!)}' : ''}', maxLines: 2, overflow: TextOverflow.ellipsis),
-                    onTap: () => _loadUrl(item['url'] ?? ''),
-                    trailing: IconButton(
-                      tooltip: 'Delete',
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () async { setState(() => history.remove(item)); await _saveHistory(); },
-                    ),
-                  ),
-                );
-              },
-            )),
+        Padding(padding: const EdgeInsets.fromLTRB(18, 12, 10, 10), child: Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('History', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+            Text(historySelectionMode ? '${selectedHistory.length} selected' : '${history.length} visited pages', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+          ])),
+          if (history.isNotEmpty && historySelectionMode) ...[
+            IconButton(tooltip: allSelected ? 'Deselect all' : 'Select all', onPressed: () => setState(() { if (allSelected) selectedHistory.clear(); else selectedHistory.addAll(List<int>.generate(history.length, (i) => i)); }), icon: Icon(allSelected ? Icons.deselect_rounded : Icons.select_all_rounded)),
+            IconButton(tooltip: 'Delete selected', onPressed: selectedHistory.isEmpty ? null : _deleteSelectedHistory, icon: const Icon(Icons.delete_outline_rounded)),
+          ] else if (history.isNotEmpty) ...[
+            IconButton(tooltip: 'Select pages', onPressed: () => setState(() { historySelectionMode = true; selectedHistory.clear(); }), icon: const Icon(Icons.checklist_rounded)),
+            IconButton(tooltip: 'Delete all history', onPressed: () async {
+              final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+                title: const Text('Delete all history?'), content: const Text('This will remove all saved browsing history.'),
+                actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete'))]));
+              if (ok == true) { history.clear(); selectedHistory.clear(); historySelectionMode = false; await _saveHistory(); if (mounted) setState(() {}); }
+            }, icon: const Icon(Icons.delete_sweep_outlined)),
+          ],
+          IconButton(tooltip: 'Close history', onPressed: () => setState(() { showHistory = false; historySelectionMode = false; selectedHistory.clear(); }), icon: const Icon(Icons.close_rounded)),
+        ])),
+        if (historySelectionMode && history.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Row(children: [
+          Text('Tap pages to select', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)), const Spacer(),
+          TextButton(onPressed: () => setState(() { historySelectionMode = false; selectedHistory.clear(); }), child: const Text('Cancel selection')),
+        ])),
+        Expanded(child: history.isEmpty ? Center(child: Text('No browsing history', style: TextStyle(color: cs.onSurfaceVariant))) :
+          ListView.builder(padding: const EdgeInsets.fromLTRB(12, 4, 12, 18), itemCount: history.length, itemBuilder: (_, i) {
+            final item = history[i]; final selected = selectedHistory.contains(i);
+            return Card(elevation: 0, color: selected ? cs.primaryContainer.withValues(alpha: .55) : (widget.isDark ? const Color(0xFF303134) : Colors.white),
+              margin: const EdgeInsets.only(bottom: 7), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: ListTile(
+                leading: historySelectionMode ? Checkbox(value: selected, onChanged: (v) => setState(() { if (v == true) selectedHistory.add(i); else selectedHistory.remove(i); })) : _siteIcon(item['url'] ?? '', size: 34),
+                title: Text(item['title']?.isNotEmpty == true ? item['title']! : (Uri.tryParse(item['url'] ?? '')?.host ?? 'Website'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text('${item['url'] ?? ''}${(item['visitedAt'] ?? '').isNotEmpty ? '\\n${_formatHistoryTime(item['visitedAt']!)}' : ''}', maxLines: 2, overflow: TextOverflow.ellipsis),
+                onTap: () { if (historySelectionMode) setState(() { if (selected) selectedHistory.remove(i); else selectedHistory.add(i); }); else _loadUrl(item['url'] ?? ''); },
+                trailing: historySelectionMode ? null : IconButton(tooltip: 'Delete', icon: const Icon(Icons.close_rounded), onPressed: () async { setState(() => history.removeAt(i)); await _saveHistory(); }),
+              ));
+          })),
       ]),
     );
   }
@@ -611,11 +626,7 @@ class BrowserPageState extends State<BrowserPage> {
                       final selected = i == current.trailIndex;
                       return ListTile(
                         selected: selected,
-                        leading: CircleAvatar(
-                          radius: 16,
-                          backgroundColor: selected ? cs.primaryContainer : cs.surfaceContainerHighest,
-                          child: Icon(selected ? Icons.radio_button_checked_rounded : Icons.language_rounded, size: 17, color: selected ? cs.onPrimaryContainer : cs.onSurfaceVariant),
-                        ),
+                        leading: _siteIcon(url, size: 34),
                         title: Text(host, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w500)),
                         subtitle: Text(url, maxLines: 1, overflow: TextOverflow.ellipsis),
                         trailing: IconButton(tooltip: 'Remove from trail', visualDensity: VisualDensity.compact, icon: Icon(Icons.close_rounded, size: 19, color: cs.onSurfaceVariant), onPressed: () => _removeTrailItem(i)),
@@ -738,6 +749,14 @@ class BrowserPageState extends State<BrowserPage> {
         setState(() => adBlockEnabled = !adBlockEnabled);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('drox_browser_adblock', adBlockEnabled);
+        if (tab?.url.isNotEmpty == true) await tab!.controller.reload();
+        break;
+      case 'adblock_info':
+        if (mounted) showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.shield_rounded, size: 38), title: const Text('DROX Ad Protection'),
+          content: const Text('DROX blocks a built-in list of known advertising and tracking domains, and hides common ad frames and page ad containers. Some ads may still appear because websites can change their ad systems or serve ads from the same domain as page content.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Got it'))],
+        ));
         break;
       case 'refresh': tab?.controller.reload(); break;
       case 'history': setState(() { showHistory = true; showTrail = false; }); break;
@@ -776,6 +795,7 @@ class BrowserPageState extends State<BrowserPage> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
               child: Row(children: [
+                IconButton(tooltip: 'Smart Navigation Trail', onPressed: () => setState(() { showTrail = !showTrail; showHistory = false; showTabOverview = false; }), icon: Icon(Icons.route_rounded, color: showTrail ? const Color(0xFF4285F4) : cs.onSurfaceVariant)),
                 Expanded(
                   child: Container(
                     height: 46,
@@ -814,12 +834,7 @@ class BrowserPageState extends State<BrowserPage> {
                     ]),
                   ),
                 ),
-                const SizedBox(width: 4),
-                IconButton(
-                  tooltip: 'Smart Navigation Trail',
-                  onPressed: () => setState(() { showTrail = !showTrail; showHistory = false; showTabOverview = false; }),
-                  icon: Icon(Icons.route_rounded, color: showTrail ? const Color(0xFF4285F4) : cs.onSurfaceVariant),
-                ),
+                const SizedBox(width: 2),
                 PopupMenuButton<String>(
                   tooltip: 'More options',
                   icon: const Icon(Icons.more_vert_rounded),
@@ -827,7 +842,8 @@ class BrowserPageState extends State<BrowserPage> {
                   itemBuilder: (_) => [
                     PopupMenuItem(value: 'new', child: const ListTile(dense: true, leading: Icon(Icons.add_rounded), title: Text('New tab'))),
                     PopupMenuItem(value: 'history', child: const ListTile(dense: true, leading: Icon(Icons.history_rounded), title: Text('History'))),
-                    PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: const Icon(Icons.shield_outlined), title: const Text('Block ads'), trailing: Icon(adBlockEnabled ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: adBlockEnabled ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
+                    PopupMenuItem(value: 'adblock', child: ListTile(dense: true, leading: const Icon(Icons.shield_rounded), title: const Text('Block ads & trackers'), trailing: Icon(adBlockEnabled ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: adBlockEnabled ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
+                    PopupMenuItem(value: 'adblock_info', child: const ListTile(dense: true, leading: Icon(Icons.security_rounded), title: Text('Ad blocking protection'))),
                     PopupMenuItem(value: 'desktop', child: ListTile(dense: true, leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Desktop site'), trailing: Icon(desktopMode ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: desktopMode ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
                     PopupMenuItem(value: 'dark', child: ListTile(dense: true, leading: const Icon(Icons.dark_mode_outlined), title: const Text('Dark mode'), trailing: Icon(widget.isDark ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: widget.isDark ? const Color(0xFF4285F4) : cs.onSurfaceVariant, size: 30))),
                     PopupMenuItem(value: 'settings', child: const ListTile(dense: true, leading: Icon(Icons.settings_outlined), title: Text('Settings'))),
