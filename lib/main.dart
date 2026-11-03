@@ -18,20 +18,20 @@ void _configureDroxNotifications(bool enabled, {bool bangla = false}) {
   FileDownloader().configureNotification(
     running: enabled
         ? TaskNotification(
-            bangla ? 'DROX • ডাউনলোড হচ্ছে' : 'DROX • Downloading',
-            '{filename} • {downloaded} / {total} • {progress} • {networkSpeed}',
+            bangla ? 'DROX • ডাউনলোড হচ্ছে • {filename}' : 'DROX • Downloading • {filename}',
+            '{downloaded} / {total} • {progress} • {networkSpeed}',
           )
         : null,
     paused: enabled
         ? TaskNotification(
-            bangla ? 'DROX • বিরতিতে' : 'DROX • Paused',
-            '{filename} • {downloaded} / {total} • {progress}',
+            bangla ? 'DROX • বিরতিতে • {filename}' : 'DROX • Paused • {filename}',
+            '{downloaded} / {total} • {progress}',
           )
         : null,
     complete: enabled
         ? TaskNotification(
-            bangla ? 'DROX • সম্পন্ন' : 'DROX • Complete',
-            '{filename} • {total} • 100%',
+            bangla ? 'DROX • সম্পন্ন • {filename}' : 'DROX • Complete • {filename}',
+            '{total} • 100%',
           )
         : null,
     error: enabled
@@ -542,14 +542,46 @@ class _DownloadHomeState extends State<DownloadHome> {
     final raw = prefs.getString(_historyKey);
     final restored = <DownloadEntry>[];
     final restoredIds = <String>{};
+    final restoredUrls = <String>{};
+    final savedItems = <Map<String, dynamic>>[];
+    final savedIdByUrl = <String, String>{};
 
-    // Reconnect to the downloader's native persistent records. Recreating a
-    // DownloadTask from only its URL gives it a new task ID and breaks Resume.
+    // Read the locally saved current task IDs first. Redownload replaces the
+    // task ID, so an older native record for the same URL must never be shown
+    // beside the new one after the app is reopened.
+    if (raw != null) {
+      try {
+        final data = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+        savedItems.addAll(data);
+        for (final item in data) {
+          final url = item['url'] as String?;
+          final id = item['taskId'] as String?;
+          if (url != null && id != null) savedIdByUrl.putIfAbsent(url, () => id);
+        }
+      } catch (_) {
+        // Keep native records available if local history is temporarily unreadable.
+      }
+    }
+
+    // Reconnect to native records, but discard stale duplicate records for a
+    // URL when the saved history points at a newer task ID.
     try {
       final records = await FileDownloader().database.allRecords();
       for (final record in records) {
         if (record.task is! DownloadTask) continue;
         final task = record.task as DownloadTask;
+        final savedId = savedIdByUrl[task.url];
+        final staleTask = (savedId != null && savedId != task.taskId) ||
+            restoredUrls.contains(task.url);
+        if (staleTask) {
+          try {
+            await FileDownloader().cancelTaskWithId(task.taskId);
+          } catch (_) {}
+          try {
+            await FileDownloader().database.deleteRecordWithId(task.taskId);
+          } catch (_) {}
+          continue;
+        }
         final entry = DownloadEntry(task)
           ..progress = record.progress.clamp(0.0, 1.0)
           ..expectedFileSize = record.expectedFileSize
@@ -560,45 +592,45 @@ class _DownloadHomeState extends State<DownloadHome> {
         }
         restored.add(entry);
         restoredIds.add(task.taskId);
+        restoredUrls.add(task.url);
       }
     } catch (_) {
       // Keep the locally saved list available if the native task database
       // cannot be read on this device.
     }
 
-    // Merge older history entries that predate native task-record restoration.
-    if (raw != null) {
-      try {
-        final data = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
-        for (final item in data) {
-          final id = item['taskId'] as String?;
-          if (id != null && restoredIds.contains(id)) continue;
-          final task = DownloadTask(
-            url: item['url'] as String,
-            filename: item['filename'] as String,
-            directory: 'DROX',
-            baseDirectory: BaseDirectory.applicationSupport,
-            updates: Updates.statusAndProgress,
-            allowPause: true,
-            retries: 3,
-            taskId: id,
-          );
-          final entry = DownloadEntry(task)
-            ..progress = (item['progress'] as num?)?.toDouble() ?? 0
-            ..expectedFileSize = (item['expectedFileSize'] as num?)?.toInt() ?? -1
-            ..status = (item['status'] as String?) ?? 'ইতিহাসে সংরক্ষিত'
-            ..error = item['error'] as String?
-            ..sharedPath = item['sharedPath'] as String?;
-          // If a native record is missing, do not falsely claim the old
-          // worker is still active. The Resume action can safely retry it.
-          if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status)) {
-            entry.status = 'বিরতি';
-          }
-          restored.add(entry);
-        }
-      } catch (_) {
-        // Do not delete the history on a transient parse/database issue.
+    // Restore local-only history entries once per URL. Active entries without
+    // a matching native worker are shown as paused, never silently re-enqueued
+    // as a second download.
+    for (final item in savedItems) {
+      final id = item['taskId'] as String?;
+      final url = item['url'] as String?;
+      if (url == null || restoredUrls.contains(url) ||
+          (id != null && restoredIds.contains(id))) {
+        continue;
       }
+      final task = DownloadTask(
+        url: url,
+        filename: item['filename'] as String,
+        directory: 'DROX',
+        baseDirectory: BaseDirectory.applicationSupport,
+        updates: Updates.statusAndProgress,
+        allowPause: true,
+        retries: 3,
+        taskId: id,
+      );
+      final entry = DownloadEntry(task)
+        ..progress = (item['progress'] as num?)?.toDouble() ?? 0
+        ..expectedFileSize = (item['expectedFileSize'] as num?)?.toInt() ?? -1
+        ..status = (item['status'] as String?) ?? 'ইতিহাসে সংরক্ষিত'
+        ..error = item['error'] as String?
+        ..sharedPath = item['sharedPath'] as String?;
+      if (['ডাউনলোড হচ্ছে', 'কিউতে আছে', 'আবার চেষ্টা করছে'].contains(entry.status)) {
+        entry.status = 'বিরতি';
+      }
+      restored.add(entry);
+      if (id != null) restoredIds.add(id);
+      restoredUrls.add(url);
     }
 
     // Completed downloads may not have received a Content-Length header.
