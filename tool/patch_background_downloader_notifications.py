@@ -60,6 +60,67 @@ patch("Notifications.kt", [
      "        val progressString =\n            if (progress in 0.0..1.0) (progress * 100).roundToInt().toString() + \"%\"\n            else \"--%\"\n        val output2 = progressRegEx.replace(output, progressString)\n        fun formatBytes(bytes: Long): String = when {\n            bytes < 0 -> \"--\"\n            bytes < 1024 -> \"$bytes B\"\n            bytes < 1024L * 1024L -> String.format(Locale.US, \"%.1f KB\", bytes / 1024.0)\n            bytes < 1024L * 1024L * 1024L -> String.format(Locale.US, \"%.1f MB\", bytes / (1024.0 * 1024.0))\n            else -> String.format(Locale.US, \"%.2f GB\", bytes / (1024.0 * 1024.0 * 1024.0))\n        }\n        val output2WithSizes = downloadedRegEx.replace(\n            totalRegEx.replace(output2, formatBytes(expectedFileSize)),\n            formatBytes(downloadedBytes)\n        )\n        // download speed"),
     ("        val output3 = networkSpeedRegEx.replace(output2, networkSpeedString)",
      "        val output3 = networkSpeedRegEx.replace(output2WithSizes, networkSpeedString)"),
+
+    ("import android.content.Intent\\n",
+     "import android.content.Intent\\nimport androidx.preference.PreferenceManager\\n"),
+    ("    private suspend fun handleAction(\\n",
+     """    private fun loadResumeData(context: Context, taskId: String): ResumeData? {
+        BDPlugin.localResumeData[taskId]?.let { return it }
+        return try {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            val mapJson = prefs.getString(BDPlugin.keyResumeDataMap, "{}") ?: "{}"
+            val resumeMap = bdJson.decodeFromString<MutableMap<String, String>>(mapJson)
+            val encoded = resumeMap[taskId] ?: return null
+            bdJson.decodeFromString<ResumeData>(encoded).also {
+                BDPlugin.localResumeData[taskId] = it
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not restore resume data for taskId $taskId", e)
+            null
+        }
+    }
+
+    private suspend fun handleAction(
+"""),
+    ("                val resumeData = BDPlugin.localResumeData[taskId]",
+     "                val resumeData = loadResumeData(context, taskId)"),
+    ("""                } else {
+                    BDPlugin.cancelActiveTaskWithId(
+                        context, taskId, WorkManager.getInstance(context)
+                    )
+                }
+            } else {
+                BDPlugin.cancelActiveTaskWithId(
+                    context, taskId, WorkManager.getInstance(context)
+                )
+            }
+
+            else -> {}""",
+     """                } else {
+                    Log.e(TAG, "Missing notification config for resume action on taskId $taskId")
+                }
+            } else {
+                // The app process may have been killed before resume data was persisted.
+                // In that case restart the same task from byte zero instead of treating
+                // the Resume action as Cancel.
+                val taskJsonString = bundle.getString(keyTask)
+                val notificationConfigJsonString = bundle.getString(keyNotificationConfig)
+                if (taskJsonString != null && notificationConfigJsonString != null) {
+                    try {
+                        val task = bdJson.decodeFromString<Task>(taskJsonString)
+                        if (!BDPlugin.doEnqueue(context, task, notificationConfigJsonString, null)) {
+                            Log.e(TAG, "Could not restart taskId $taskId from notification")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error restarting taskId $taskId from notification: ${e.message}", e)
+                    }
+                } else {
+                    Log.e(TAG, "Missing task or notification config for resume action on taskId $taskId")
+                }
+            }
+
+            else -> {}""")
+
 ])
 
 print(f"Applied notification byte-count patch to {package.name}")
