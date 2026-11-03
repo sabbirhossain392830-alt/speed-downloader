@@ -61,9 +61,9 @@ patch("Notifications.kt", [
     ("        val output3 = networkSpeedRegEx.replace(output2, networkSpeedString)",
      "        val output3 = networkSpeedRegEx.replace(output2WithSizes, networkSpeedString)"),
 
-    ("import android.content.Intent\\n",
-     "import android.content.Intent\\nimport androidx.preference.PreferenceManager\\n"),
-    ("    private suspend fun handleAction(\\n",
+    ("import android.content.Intent\n",
+     "import android.content.Intent\nimport androidx.preference.PreferenceManager\n"),
+    ("    private suspend fun handleAction(\n",
      """    private fun loadResumeData(context: Context, taskId: String): ResumeData? {
         BDPlugin.localResumeData[taskId]?.let { return it }
         return try {
