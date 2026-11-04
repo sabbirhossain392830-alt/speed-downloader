@@ -135,7 +135,25 @@ class BrowserPageState extends State<BrowserPage> {
     tabs.add(t); active = tabs.length - 1; showHistory = false; showTrail = false; showTabOverview = false; address.text = url;
     final ctrl = t.controller;
     await ctrl.setJavaScriptMode(JavaScriptMode.unrestricted);
-    await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) => _downloadPrompt(m.message));
+    await ctrl.addJavaScriptChannel('DroxDownload', onMessageReceived: (m) {
+      try {
+        final decoded = jsonDecode(m.message);
+        if (decoded is Map && decoded['candidates'] is List) {
+          final candidates = (decoded['candidates'] as List)
+              .whereType<String>()
+              .where((value) => value.startsWith('http://') || value.startsWith('https://'))
+              .toSet()
+              .toList();
+          if (candidates.length > 1) {
+            _chooseMediaCandidate(candidates);
+          } else if (candidates.length == 1) {
+            _downloadPrompt(candidates.single);
+          }
+          return;
+        }
+      } catch (_) {}
+      _downloadPrompt(m.message);
+    });
     await ctrl.addJavaScriptChannel('DroxRefresh', onMessageReceived: (_) async {
       if (t.refreshing) return;
       t.refreshing = true;
@@ -176,16 +194,25 @@ class BrowserPageState extends State<BrowserPage> {
         await ctrl.runJavaScript(r'''(function(){
           if(window.__droxMediaDetector)return;window.__droxMediaDetector=true;
           var seen=Object.create(null), lastPrompt=0, lastUserIntent=0;
+          var pendingCandidates=Object.create(null), candidateFlushTimer=null;
           var videoExt=/\.(mp4|m4v|mkv|avi|webm|mov|ogv|3gp|3g2|3gpp|mpeg|mpeg2|mpeg4|mpg|m1v|m2v|m2p|mpe|m2t|mts|m2ts|ts|m4s|f4v|flv|wmv|asf|vob|qt|ogx|rm|rmvb|divx|mxf|nut|roq|yuv|mpd|m3u8)(?:$|[?#])/i;
           var audioExt=/\.(mp3|m4a|m4b|aac|wav|ogg|oga|opus|flac|wma|amr|aiff|aif|ac3|eac3|ape|wv|mid|midi)(?:$|[?#])/i;
           var mediaType=/^(video\/|audio\/|application\/(vnd\.apple\.mpegurl|x-mpegurl|dash\+xml))/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
           function isMedia(raw,type){return mediaType.test(type||'')||videoExt.test(raw||'')||audioExt.test(raw||'')}
           function send(raw,reason,type,userSelected){
-            var u=valid(raw);if(!u||!isMedia(u,type)||seen[u]||!userSelected)return;
-            var now=Date.now();userSelected=!!userSelected||(now-lastUserIntent<12000);if(!userSelected||now-lastPrompt<900)return;
-            seen[u]=1;lastPrompt=now;
-            try{DroxDownload.postMessage(u)}catch(_){}
+            var u=valid(raw);if(!u||!isMedia(u,type)||seen[u])return;
+            var now=Date.now();
+            userSelected=!!userSelected||(now-lastUserIntent<12000);
+            if(!userSelected||now-lastPrompt<900)return;
+            seen[u]=1;pendingCandidates[u]=1;
+            if(candidateFlushTimer)clearTimeout(candidateFlushTimer);
+            candidateFlushTimer=setTimeout(function(){
+              var list=Object.keys(pendingCandidates);pendingCandidates=Object.create(null);
+              if(!list.length)return;
+              lastPrompt=Date.now();
+              try{DroxDownload.postMessage(JSON.stringify({candidates:list.slice(0,12)}))}catch(_){}
+            },850);
           }
           function mediaSources(v,userSelected){
             var candidates=[v.currentSrc,v.src];
@@ -323,6 +350,40 @@ class BrowserPageState extends State<BrowserPage> {
     var unit = 0;
     while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
     return '${value.toStringAsFixed(value >= 100 || unit == 0 ? 0 : 1)} ${units[unit]}';
+  }
+
+  Future<void> _chooseMediaCandidate(List<String> candidates) async {
+    if (!mounted || candidates.isEmpty) return;
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Choose media'),
+        content: SizedBox(
+          width: 520,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: candidates.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (_, index) {
+              final url = candidates[index];
+              final uri = Uri.tryParse(url);
+              final label = 'Media candidate ${index + 1}';
+              final detail = uri == null ? url : '${uri.host}${uri.path}';
+              return ListTile(
+                leading: Icon(Icons.video_library_outlined, color: Theme.of(ctx).colorScheme.primary),
+                title: Text(label),
+                subtitle: Text(detail, maxLines: 2, overflow: TextOverflow.ellipsis),
+                onTap: () => Navigator.pop(ctx, url),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+        ],
+      ),
+    );
+    if (selected != null && mounted) await _downloadPrompt(selected);
   }
 
   Future<void> _downloadPrompt(String url) async {
