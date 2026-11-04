@@ -267,13 +267,19 @@ jobs:
       - name: Install Android NDK with retry
         run: |
           set -e
-          yes | sdkmanager --licenses >/dev/null || true
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "sdkmanager not found at $SDKMANAGER"
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
           NDK_VERSION="28.2.13676358"
           for attempt in 1 2 3; do
             echo "Installing Android NDK $NDK_VERSION (attempt $attempt/3)"
-            rm -rf "$ANDROID_HOME/ndk/$NDK_VERSION" "$ANDROID_HOME/.temp"/*
-            if sdkmanager --install "ndk;$NDK_VERSION"; then
-              test -d "$ANDROID_HOME/ndk/$NDK_VERSION"
+            rm -rf "$SDK_ROOT/ndk/$NDK_VERSION" "$SDK_ROOT/.temp"/*
+            if "$SDKMANAGER" --install "ndk;$NDK_VERSION"; then
+              test -d "$SDK_ROOT/ndk/$NDK_VERSION"
               echo "NDK $NDK_VERSION installed."
               exit 0
             fi
