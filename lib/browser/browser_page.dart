@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-import '../shared/widgets/drox_widgets.dart';
 import '../downloads/services/media_verifier.dart';
 import '../downloads/services/stream_manifest_analyzer.dart';
 
