@@ -26,6 +26,7 @@ class DownloadController extends ChangeNotifier {
   bool _busy = false;
   final DroxStreamDownloadService _streamService = DroxStreamDownloadService();
   final Map<String, int> _streamSessions = <String, int>{};
+  final Set<String> _streamCancelRequested = <String>{};
 
   List<DroxDownloadItem> get items => List.unmodifiable(_items);
   bool get isBusy => _busy;
@@ -148,7 +149,12 @@ class DownloadController extends ChangeNotifier {
       final resultFuture = _streamService.download(
         manifestUrl: url,
         outputPath: outputPath,
-        onSessionId: (id) => _streamSessions[item.id] = id,
+        onSessionId: (id) {
+          _streamSessions[item.id] = id;
+          if (_streamCancelRequested.contains(item.id)) {
+            unawaited(_streamService.cancel(id));
+          }
+        },
         onProgress: (progress, bytes, elapsed) {
           if (item.state != DroxDownloadState.running) return;
           item.progress = progress.clamp(0.0, 1.0).toDouble();
@@ -188,6 +194,7 @@ class DownloadController extends ChangeNotifier {
       }
     } finally {
       _streamSessions.remove(item.id);
+      _streamCancelRequested.remove(item.id);
       await _persist();
       notifyListeners();
     }
@@ -231,6 +238,7 @@ class DownloadController extends ChangeNotifier {
 
   Future<void> cancel(DroxDownloadItem item) async {
     if (item.isStream) {
+      _streamCancelRequested.add(item.id);
       final sessionId = _streamSessions[item.id];
       if (sessionId != null) await _streamService.cancel(sessionId);
       item.state = DroxDownloadState.cancelled;
@@ -321,7 +329,13 @@ class DownloadController extends ChangeNotifier {
   Future<void> removeMany(List<DroxDownloadItem> selected, {bool deleteFiles = false}) async {
     for (final item in selected) {
       if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued || item.state == DroxDownloadState.paused) {
-        await _engine.cancel(item.task);
+        if (item.isStream) {
+          _streamCancelRequested.add(item.id);
+          final sessionId = _streamSessions[item.id];
+          if (sessionId != null) await _streamService.cancel(sessionId);
+        } else {
+          await _engine.cancel(item.task);
+        }
       }
       if (deleteFiles) {
         final path = item.renamedPath ?? await item.task.filePath();
@@ -340,7 +354,13 @@ class DownloadController extends ChangeNotifier {
 
   Future<void> remove(DroxDownloadItem item) async {
     if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued || item.state == DroxDownloadState.paused) {
-      await _engine.cancel(item.task);
+      if (item.isStream) {
+        _streamCancelRequested.add(item.id);
+        final sessionId = _streamSessions[item.id];
+        if (sessionId != null) await _streamService.cancel(sessionId);
+      } else {
+        await _engine.cancel(item.task);
+      }
     }
     _items.removeWhere((candidate) => candidate.id == item.id);
     await _persist();
