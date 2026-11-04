@@ -238,12 +238,15 @@ class BrowserPageState extends State<BrowserPage> {
               }catch(_){}
             })}catch(_){}
           }
-          function scan(){refreshPlaybackState();scanResources();scanFrames()}
-          document.querySelectorAll('video').forEach(function(v){
-            if(v.__droxPlaybackBound)return;v.__droxPlaybackBound=true;
-            ['play','playing'].forEach(function(evt){v.addEventListener(evt,function(){refreshPlaybackState();scanPlayingVideos();scanResources();scanFrames()},true)});
-            ['pause','ended','emptied'].forEach(function(evt){v.addEventListener(evt,function(){setTimeout(refreshPlaybackState,0)},true)});
-          });
+          function bindVideos(){
+            document.querySelectorAll('video').forEach(function(v){
+              if(v.__droxPlaybackBound)return;v.__droxPlaybackBound=true;
+              ['play','playing'].forEach(function(evt){v.addEventListener(evt,function(){refreshPlaybackState();scanPlayingVideos();scanResources();scanFrames()},true)});
+              ['pause','ended','emptied'].forEach(function(evt){v.addEventListener(evt,function(){setTimeout(refreshPlaybackState,0)},true)});
+            });
+          }
+          function scan(){bindVideos();refreshPlaybackState();scanResources();scanFrames()}
+          bindVideos();
           if(window.fetch){
             var originalFetch=window.fetch;
             window.fetch=function(){
