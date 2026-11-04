@@ -4,7 +4,7 @@ enum DroxDownloadState { queued, running, paused, complete, failed, cancelled }
 
 class DroxDownloadItem {
   DroxDownloadItem({required this.task, this.state = DroxDownloadState.queued, this.progress = 0, this.expectedBytes = -1, this.error});
-  final DownloadTask task;
+  DownloadTask task;
   DroxDownloadState state;
   double progress;
   int expectedBytes;
