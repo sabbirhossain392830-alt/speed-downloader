@@ -63,7 +63,7 @@ class DroxLinkResolver {
       return DroxLinkResolution(originalUrl: input, downloadUrl: input, provider: 'Unknown', kind: DroxLinkKind.unknown, canQueue: false, message: 'Enter a valid HTTP/HTTPS link.');
     }
     final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
-    if (_isDirectFilePath(uri.path)) {
+    if (_isDirectFilePath(uri.path) && host != 'dropbox.com' && host != 'dropboxusercontent.com') {
       return DroxLinkResolution(originalUrl: input, downloadUrl: input, provider: 'Direct file', kind: DroxLinkKind.directFile, canQueue: true, message: 'Direct file link detected.', filename: _filename(uri));
     }
     if (host == 'drive.google.com' || host == 'drive.usercontent.google.com') {
