@@ -23,12 +23,10 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   final YoutubeMetadataService _youtube = YoutubeMetadataService();
   final DroxLinkResolver _resolver = DroxLinkResolver();
   DroxLinkResolution? _resolution;
-  bool _checkingLink = false;
   final TextEditingController _url = TextEditingController();
   YoutubePreview? _preview;
   YoutubeLinkInfo? _youtubeLink;
   bool _checkingPreview = false;
-  bool _adding = false;
   String? _previewVideoId;
   int _selectedFilter = 0;
   final Set<String> _selectedIds = <String>{};
@@ -117,14 +115,13 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   Future<void> _inspectLink() async {
     final value = _url.text.trim();
     if (value.isEmpty) { _message('Paste a link first.'); return; }
-    setState(() => _checkingLink = true);
     try {
       final result = await _resolver.resolve(value);
       if (mounted) setState(() => _resolution = result);
     } catch (error) {
       if (mounted) _message('Link check failed: $error');
-    } finally {
-      if (mounted) setState(() => _checkingLink = false);
+    } catch (error) {
+      if (mounted) _message('Link check failed: $error');
     }
     final link = YoutubeLinkInfo.parse(value);
     if (link == null) {
@@ -157,40 +154,6 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
     final uri = Uri.tryParse(value);
     if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       _message('Could not open $label. Please check your internet connection.');
-    }
-  }
-
-  Future<void> _addDirectMedia() async {
-    final value = _url.text.trim();
-    final uri = Uri.tryParse(value);
-    if (uri == null || !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty) {
-      _message('Enter a valid HTTP/HTTPS link.');
-      return;
-    }
-    if (YoutubeLinkInfo.parse(value) != null) {
-      _message('Opening YouTube. Use its official Download option where available.');
-      await _openExternal(_youtubeLink?.canonicalUrl ?? value, 'YouTube');
-      return;
-    }
-    setState(() => _adding = true);
-    try {
-      final result = _resolution?.originalUrl == value ? _resolution! : await _resolver.resolve(value);
-      if (!result.canQueue) {
-        _message(result.message);
-        await _openExternal(result.originalUrl, result.provider);
-        return;
-      }
-      final filename = result.filename ?? (uri.pathSegments.isEmpty || !uri.pathSegments.last.contains('.')
-          ? 'drox_${DateTime.now().millisecondsSinceEpoch}.bin'
-          : Uri.decodeComponent(uri.pathSegments.last));
-      await _downloads.addDirectMedia(url: result.downloadUrl, filename: filename);
-      _url.clear();
-      setState(() => _resolution = null);
-      _message('Added ${result.provider} download to queue.');
-    } catch (error) {
-      _message('Could not add download: $error');
-    } finally {
-      if (mounted) setState(() => _adding = false);
     }
   }
 
@@ -291,25 +254,6 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       ),
     );
   }
-
-  Widget _youtubePreviewCard(YoutubePreview preview) => Card(
-    clipBehavior: Clip.antiAlias,
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Image.network(preview.thumbnailUrl, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.ondemand_video_rounded, size: 48))),
-      ),
-      Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(preview.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-          const SizedBox(height: 4),
-          Text(preview.authorName, style: Theme.of(context).textTheme.bodySmall),
-        ]),
-      ),
-    ]),
-  );
 
   Future<void> _showItemMenu(DroxDownloadItem item, String action) async {
     switch (action) {
