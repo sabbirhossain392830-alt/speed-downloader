@@ -191,7 +191,12 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
         default: return true;
       }
     }).toList();
-    return Column(
+    return PopScope<bool>(
+      canPop: _selectedIds.isEmpty,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _selectedIds.isNotEmpty) setState(() => _selectedIds.clear());
+      },
+      child: Column(
       children: [
         Material(
           color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF151A22) : const Color(0xFF6B351B),
@@ -200,7 +205,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                   IconButton(onPressed: () => setState(() => _selectedIds.clear()), icon: const Icon(Icons.close, color: Colors.white)),
                   Expanded(child: Text('${_selectedIds.length} selected', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
                   TextButton(onPressed: () => setState(() => _selectedIds.addAll(filtered.map((e) => e.id))), child: const Text('SELECT ALL', style: TextStyle(color: Colors.white))),
-                  IconButton(onPressed: () => _showBulkActions(filtered), icon: const Icon(Icons.more_vert, color: Colors.white)),
+                  IconButton(tooltip: 'Delete selected', onPressed: () => _showBulkActions(filtered, initialAction: 'delete'), icon: const Icon(Icons.delete_outline, color: Colors.white)),
                 ])
               : Row(children: [
                   _categoryTab('ALL', allCount, 0),
@@ -272,6 +277,9 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
 
   Future<void> _showItemMenu(DroxDownloadItem item, String action) async {
     switch (action) {
+      case 'remove':
+        await _runAction(() => _downloads.remove(item));
+        break;
       case 'copy':
         await Clipboard.setData(ClipboardData(text: item.url));
         _message('Download link copied.');
@@ -313,10 +321,10 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
     }
   }
 
-  Future<void> _showBulkActions(List<DroxDownloadItem> visible) async {
+  Future<void> _showBulkActions(List<DroxDownloadItem> visible, {String? initialAction}) async {
     final selected = visible.where((item) => _selectedIds.contains(item.id)).toList();
     if (selected.isEmpty) return;
-    final action = await showModalBottomSheet<String>(context: context, builder: (sheetContext) => SafeArea(
+    final action = initialAction ?? await showModalBottomSheet<String>(context: context, builder: (sheetContext) => SafeArea(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(leading: const Icon(Icons.delete_outline), title: const Text('Delete selected'), onTap: () => Navigator.pop(sheetContext, 'delete')),
         ListTile(leading: const Icon(Icons.download), title: const Text('Redownload selected'), onTap: () => Navigator.pop(sheetContext, 'redownload')),
@@ -361,6 +369,13 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       if (confirmed == true) await _runAction(() => _downloads.removeMany(selected, deleteFiles: deleteFiles));
       if (mounted) setState(() => _selectedIds.clear());
     }
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes >= 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)}GB';
+    if (bytes >= 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+    if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
+    return '$bytes B';
   }
 
   Widget _downloadCard(DroxDownloadItem item) {
@@ -423,7 +438,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: ink)),
                     const SizedBox(height: 4),
                     Row(children: [
-                      Expanded(child: Text('$percent% | ${sizeLabel()}',
+                      Expanded(child: Text('$percent% | ${paused ? _formatBytes(item.downloadedBytes) + ' / ' : ''}${sizeLabel()}',
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 12, color: ink))),
                       Text(status, style: TextStyle(fontSize: 12, color: ink.withValues(alpha: .85))),
@@ -447,6 +462,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                     PopupMenuItem(value: 'redownload', child: Text('Redownload')),
                     PopupMenuItem(value: 'rename', child: Text('Rename file')),
                     PopupMenuItem(value: 'copy', child: Text('Copy link')),
+                    PopupMenuItem(value: 'remove', child: Text('Remove from list')),
                   ],
                 )
               else if (running)
