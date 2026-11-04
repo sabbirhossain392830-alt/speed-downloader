@@ -57,7 +57,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
             : 'drox_stream';
         final safeName = rawName
             .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')
-            .replaceAll(RegExp(r'\\.(m3u8|mpd)$', caseSensitive: false), '')
+            .replaceAll(RegExp(r'\.(m3u8|mpd)$', caseSensitive: false), '')
             .trim();
         final filename = '${safeName.isEmpty ? 'drox_stream' : safeName}.mp4';
         await _downloads.addStreamMedia(url: clean, filename: filename);
