@@ -18,6 +18,7 @@ dependencies:
   webview_flutter: ^4.13.0
   package_info_plus: ^8.3.1
   url_launcher: ^6.3.1
+  open_filex: ^4.7.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
