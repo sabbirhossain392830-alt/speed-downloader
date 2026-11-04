@@ -274,9 +274,11 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       return value >= 1024 ? '${(value / 1024).toStringAsFixed(2)}GB' : '${value.toStringAsFixed(1)}MB';
     }
     final status = complete ? 'Finished' : failed ? 'Error' : paused ? 'Paused' : item.state == DroxDownloadState.queued ? 'Queued' : 'Downloading';
+    String speedLabel() { final v = item.speedBytesPerSecond; if (!running || v <= 0) return running ? 'Calculating speed...' : ''; if (v >= 1048576) return (v / 1048576).toStringAsFixed(2) + ' MB/s'; return (v / 1024).toStringAsFixed(1) + ' KB/s'; }
+    String etaLabel() { if (!running || item.expectedBytes <= 0 || item.speedBytesPerSecond <= 0) return running ? 'Time left: calculating...' : ''; final n = ((item.expectedBytes - item.downloadedBytes).clamp(0, item.expectedBytes) / item.speedBytesPerSecond).ceil(); if (n >= 3600) return 'Time left: ' + (n ~/ 3600).toString() + 'h ' + ((n % 3600) ~/ 60).toString() + 'm'; if (n >= 60) return 'Time left: ' + (n ~/ 60).toString() + 'm ' + (n % 60).toString() + 's'; return 'Time left: ' + n.toString() + 's'; }
     final ink = Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF202020);
     return Container(
-      height: 98,
+      height: 116,
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Stack(
         children: [
@@ -318,6 +320,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                         style: TextStyle(fontSize: 12, color: ink))),
                       Text(status, style: TextStyle(fontSize: 12, color: ink.withValues(alpha: .85))),
                     ]),
+                    if (running && item.state == DroxDownloadState.running) Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [Expanded(child: Text(speedLabel(), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: ink.withValues(alpha: .85)))), Text(etaLabel(), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: ink.withValues(alpha: .75)))])),
                     if (item.error != null)
                       Text(item.error!, maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.error)),
