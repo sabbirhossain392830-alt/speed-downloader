@@ -194,6 +194,7 @@ class DownloadController extends ChangeNotifier {
   }
 
   Future<void> pause(DroxDownloadItem item) async {
+    if (item.isStream) throw StateError('Pause is not supported for HLS/DASH streams yet.');
     final paused = await _engine.pause(item.task);
     if (!paused) throw StateError('The server may not support pause/resume.');
     item.state = DroxDownloadState.paused;
@@ -219,6 +220,7 @@ class DownloadController extends ChangeNotifier {
   }
 
   Future<void> resume(DroxDownloadItem item) async {
+    if (item.isStream) { await redownload(item); return; }
     final resumed = await _engine.resume(item.task);
     if (!resumed) throw StateError('This download could not be resumed.');
     item.state = DroxDownloadState.running;
@@ -228,6 +230,14 @@ class DownloadController extends ChangeNotifier {
   }
 
   Future<void> cancel(DroxDownloadItem item) async {
+    if (item.isStream) {
+      final sessionId = _streamSessions[item.id];
+      if (sessionId != null) await _streamService.cancel(sessionId);
+      item.state = DroxDownloadState.cancelled;
+      await _persist();
+      notifyListeners();
+      return;
+    }
     await _engine.cancel(item.task);
     item.state = DroxDownloadState.cancelled;
     await _persist();
@@ -261,6 +271,14 @@ class DownloadController extends ChangeNotifier {
   }
 
   Future<void> redownload(DroxDownloadItem item) async {
+    if (item.isStream) {
+      if (item.state == DroxDownloadState.running) await cancel(item);
+      try { final p = item.renamedPath ?? await item.task.filePath(); final f = File(p); if (await f.exists()) await f.delete(); } catch (_) {}
+      item.progress = 0; item.expectedBytes = -1; item.downloadedBytes = 0; item.error = null; item.renamedPath = null; item.state = DroxDownloadState.queued;
+      await _persist(); notifyListeners();
+      unawaited(addStreamMedia(url: item.url, filename: item.task.filename, existingItem: item));
+      return;
+    }
     // Restart this exact list item instead of inserting a duplicate row.
     if (item.state == DroxDownloadState.running ||
         item.state == DroxDownloadState.queued ||
