@@ -26,7 +26,7 @@ class DownloadEngine {
       url: uri.toString(),
       filename: filename,
       directory: directory,
-      baseDirectory: BaseDirectory.downloads,
+      baseDirectory: BaseDirectory.applicationSupport,
       updates: Updates.statusAndProgress,
       allowPause: true,
       retries: retries,
@@ -38,5 +38,7 @@ class DownloadEngine {
   Future<bool> pause(DownloadTask task) => _downloader.pause(task);
   Future<bool> resume(DownloadTask task) => _downloader.resume(task);
   Future<void> cancel(DownloadTask task) => _downloader.cancelTaskWithId(task.taskId);
+  Future<String?> moveToSharedDownloads(DownloadTask task) =>
+      _downloader.moveToSharedStorage(task, SharedStorage.downloads, directory: 'DROX');
   Future<String> filePath(DownloadTask task) => task.filePath();
 }
