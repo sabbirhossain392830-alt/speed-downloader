@@ -136,10 +136,10 @@ class DownloadController extends ChangeNotifier {
     }
   }
 
-  Future<void> addStreamMedia({required String url, required String filename}) async {
-    final task = await _engine.createTask(url: url, filename: filename);
-    final item = DroxDownloadItem.fromTask(task)..isStream = true;
-    _items.insert(0, item);
+  Future<void> addStreamMedia({required String url, required String filename, DroxDownloadItem? existingItem}) async {
+    final task = existingItem?.task ?? await _engine.createTask(url: url, filename: filename);
+    final item = existingItem ?? (DroxDownloadItem.fromTask(task)..isStream = true);
+    if (existingItem == null) _items.insert(0, item);
     item.state = DroxDownloadState.running;
     notifyListeners();
     await _persist();
