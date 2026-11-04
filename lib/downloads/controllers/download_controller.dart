@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/download_item.dart';
 import '../core/download_repository.dart';
 import '../engine/download_engine.dart';
+import '../services/stream_download_service.dart';
 
 /// Owns download state independently of Home and Browser widgets.
 class DownloadController extends ChangeNotifier {
@@ -23,6 +24,8 @@ class DownloadController extends ChangeNotifier {
   StreamSubscription<TaskUpdate>? _updates;
   bool _initialized = false;
   bool _busy = false;
+  final DroxStreamDownloadService _streamService = DroxStreamDownloadService();
+  final Map<String, int> _streamSessions = <String, int>{};
 
   List<DroxDownloadItem> get items => List.unmodifiable(_items);
   bool get isBusy => _busy;
@@ -92,6 +95,11 @@ class DownloadController extends ChangeNotifier {
           item.state = DroxDownloadState.paused;
         }
         item.error = data['error'] as String?;
+        item.isStream = data['isStream'] == true;
+        if (item.isStream && item.state != DroxDownloadState.complete) {
+          item.state = DroxDownloadState.failed;
+          item.error = 'Stream task stopped when DROX was closed. Start it again.';
+        }
         item.renamedFilename = data['displayFilename'] as String?;
         item.renamedPath = data['renamedPath'] as String?;
         _items.add(item);
@@ -125,6 +133,63 @@ class DownloadController extends ChangeNotifier {
       await _persist();
       notifyListeners();
       rethrow;
+    }
+  }
+
+  Future<void> addStreamMedia({required String url, required String filename}) async {
+    final task = await _engine.createTask(url: url, filename: filename);
+    final item = DroxDownloadItem.fromTask(task)..isStream = true;
+    _items.insert(0, item);
+    item.state = DroxDownloadState.running;
+    notifyListeners();
+    await _persist();
+    try {
+      final outputPath = await _engine.filePath(task);
+      final resultFuture = _streamService.download(
+        manifestUrl: url,
+        outputPath: outputPath,
+        onSessionId: (id) => _streamSessions[item.id] = id,
+        onProgress: (progress, bytes, elapsed) {
+          if (item.state != DroxDownloadState.running) return;
+          item.progress = progress.clamp(0.0, 1.0).toDouble();
+          item.downloadedBytes = bytes;
+          item.speedBytesPerSecond = elapsed > 0 ? bytes / elapsed : 0;
+          notifyListeners();
+          unawaited(_persist());
+        },
+      );
+      final result = await resultFuture;
+      if (item.state == DroxDownloadState.cancelled) return;
+      final file = File(result.outputPath);
+      if (!await file.exists() || await file.length() < 1024) {
+        throw StateError('Stream output is empty or incomplete.');
+      }
+      final handle = await file.open();
+      List<int> prefix;
+      try { prefix = await handle.read(2048); } finally { await handle.close(); }
+      if (_isHtmlOrChallenge(prefix)) {
+        await file.delete();
+        throw StateError('The server returned an HTML/security page, not media.');
+      }
+      final sharedPath = await _engine.moveFileToSharedDownloads(result.outputPath);
+      if (sharedPath == null || sharedPath.isEmpty) {
+        throw StateError('Downloaded, but could not publish to phone Downloads.');
+      }
+      item.renamedPath = sharedPath;
+      item.progress = 1;
+      item.expectedBytes = result.bytes;
+      item.downloadedBytes = result.bytes;
+      item.state = DroxDownloadState.complete;
+      item.error = null;
+    } catch (error) {
+      if (item.state != DroxDownloadState.cancelled) {
+        item.state = DroxDownloadState.failed;
+        item.error = error.toString();
+      }
+    } finally {
+      _streamSessions.remove(item.id);
+      await _persist();
+      notifyListeners();
     }
   }
 
