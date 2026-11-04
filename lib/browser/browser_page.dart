@@ -8,6 +8,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../shared/widgets/drox_widgets.dart';
 import '../downloads/services/media_verifier.dart';
+import '../downloads/services/stream_manifest_analyzer.dart';
 
 class BrowserPage extends StatefulWidget {
   const BrowserPage({super.key, required this.onDownload, required this.isDark, required this.isBangla, required this.onThemeTap, required this.onReturn, required this.onSettings});
@@ -354,25 +355,61 @@ class BrowserPageState extends State<BrowserPage> {
 
   Future<void> _chooseMediaCandidate(List<String> candidates) async {
     if (!mounted || candidates.isEmpty) return;
+    final verifier = DroxMediaVerifier();
+    final checked = await Future.wait(candidates.take(12).map((url) async {
+      try {
+        final result = await verifier.verify(url);
+        return <String, Object?>{
+          'url': url,
+          'verified': result.isMedia,
+          'name': result.filename,
+          'type': result.contentType,
+          'size': result.contentLength,
+          'manifest': result.isStreamingManifest,
+          'reason': result.reason,
+        };
+      } catch (_) {
+        return <String, Object?>{'url': url, 'verified': false, 'reason': 'Could not verify this response.'};
+      }
+    }));
+    final valid = checked.where((item) => item['verified'] == true).toList();
+    if (!mounted) return;
+    if (valid.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('DROX: No candidate returned a verified media/file response.')),
+      );
+      return;
+    }
+    String formatSize(Object? raw) {
+      if (raw is! int || raw <= 0) return 'Size unknown';
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      var value = raw.toDouble();
+      var unit = 0;
+      while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
+      return '${value.toStringAsFixed(value >= 100 || unit == 0 ? 0 : 1)} ${units[unit]}';
+    }
     final selected = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Choose media'),
+        title: const Text('Choose verified media'),
         content: SizedBox(
           width: 520,
           child: ListView.separated(
             shrinkWrap: true,
-            itemCount: candidates.length,
+            itemCount: valid.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (_, index) {
-              final url = candidates[index];
+              final item = valid[index];
+              final url = item['url'] as String;
               final uri = Uri.tryParse(url);
-              final label = 'Media candidate ${index + 1}';
-              final detail = uri == null ? url : '${uri.host}${uri.path}';
+              final filename = (item['name'] as String?) ??
+                  (uri?.pathSegments.isNotEmpty == true ? uri!.pathSegments.last : 'Media file');
+              final type = (item['type'] as String?) ?? 'Verified media';
+              final detail = '$filename\n$type • ${formatSize(item['size'])}';
               return ListTile(
-                leading: Icon(Icons.video_library_outlined, color: Theme.of(ctx).colorScheme.primary),
-                title: Text(label),
-                subtitle: Text(detail, maxLines: 2, overflow: TextOverflow.ellipsis),
+                leading: Icon(Icons.verified_outlined, color: Theme.of(ctx).colorScheme.primary),
+                title: Text('Media candidate ${index + 1}'),
+                subtitle: Text(detail, maxLines: 3, overflow: TextOverflow.ellipsis),
                 onTap: () => Navigator.pop(ctx, url),
               );
             },
@@ -383,7 +420,59 @@ class BrowserPageState extends State<BrowserPage> {
         ],
       ),
     );
-    if (selected != null && mounted) await _downloadPrompt(selected);
+    if (selected == null || !mounted) return;
+    final chosen = valid.firstWhere((item) => item['url'] == selected);
+    if (chosen['manifest'] == true && selected.toLowerCase().contains('.m3u8')) {
+      final qualityUrl = await _chooseHlsQuality(selected);
+      if (qualityUrl == null || !mounted) return;
+      await _downloadPrompt(qualityUrl);
+      return;
+    }
+    await _downloadPrompt(selected);
+  }
+
+  Future<String?> _chooseHlsQuality(String manifestUrl) async {
+    try {
+      final response = await Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 12),
+        headers: const {'Accept': 'application/vnd.apple.mpegurl, application/x-mpegURL, */*'},
+      )).get<String>(manifestUrl, options: Options(responseType: ResponseType.plain));
+      final body = response.data ?? '';
+      final manifest = DroxStreamManifestAnalyzer().analyzeHls(body, manifestUrl: manifestUrl);
+      final options = DroxStreamManifestAnalyzer().qualityOptions(manifest);
+      if (options.isEmpty) return manifestUrl;
+      if (!mounted) return null;
+      return showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Select video quality'),
+          content: SizedBox(
+            width: 420,
+            child: ListView(
+              shrinkWrap: true,
+              children: options.map((option) => ListTile(
+                leading: const Icon(Icons.high_quality_outlined),
+                title: Text(option.label),
+                subtitle: Text([
+                  if (option.bandwidth != null) '${(option.bandwidth! / 1000000).toStringAsFixed(2)} Mbps',
+                  if (option.codecs != null) option.codecs!,
+                ].join(' • ')),
+                onTap: () => Navigator.pop(ctx, option.url),
+              )).toList(),
+            ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL'))],
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not read stream quality information.')),
+        );
+      }
+      return null;
+    }
   }
 
   Future<void> _downloadPrompt(String url) async {
