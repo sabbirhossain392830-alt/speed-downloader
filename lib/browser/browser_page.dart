@@ -145,10 +145,8 @@ class BrowserPageState extends State<BrowserPage> {
               .where((value) => value.startsWith('http://') || value.startsWith('https://'))
               .toSet()
               .toList();
-          if (candidates.length > 1) {
+          if (candidates.isNotEmpty) {
             _chooseMediaCandidate(candidates);
-          } else if (candidates.length == 1) {
-            _downloadPrompt(candidates.single);
           }
           return;
         }
@@ -356,123 +354,202 @@ class BrowserPageState extends State<BrowserPage> {
   Future<void> _chooseMediaCandidate(List<String> candidates) async {
     if (!mounted || candidates.isEmpty) return;
     final verifier = DroxMediaVerifier();
-    final checked = await Future.wait(candidates.take(12).map((url) async {
+    final options = <Map<String, Object?>>[];
+    final seen = <String>{};
+
+    Future<void> addOption({
+      required String url,
+      required String label,
+      required String kind,
+      String? filename,
+      String? contentType,
+      int? size,
+      String? quality,
+    }) async {
+      if (!seen.add(url)) return;
+      try {
+        final verified = await verifier.verify(url);
+        if (!verified.isMedia) return;
+        options.add(<String, Object?>{
+          'url': verified.url,
+          'label': label,
+          'kind': kind,
+          'name': verified.filename ?? filename ?? _filenameFromUrl(verified.url),
+          'type': verified.contentType ?? contentType ?? 'Verified media',
+          'size': verified.contentLength ?? size,
+          'quality': quality,
+        });
+      } catch (_) {}
+    }
+
+    for (final url in candidates.take(12)) {
       try {
         final result = await verifier.verify(url);
-        return <String, Object?>{
-          'url': url,
-          'verified': result.isMedia,
-          'name': result.filename,
-          'type': result.contentType,
-          'size': result.contentLength,
-          'manifest': result.isStreamingManifest,
-          'reason': result.reason,
-        };
-      } catch (_) {
-        return <String, Object?>{'url': url, 'verified': false, 'reason': 'Could not verify this response.'};
-      }
-    }));
-    final valid = checked.where((item) => item['verified'] == true).toList();
+        if (!result.isMedia) continue;
+        final type = result.contentType ?? 'Verified media';
+        final isAudio = type.startsWith('audio/');
+        final isManifest = result.isStreamingManifest;
+        final kind = isAudio ? 'AUDIO' : 'VIDEO / FILE';
+        if (isManifest && url.toLowerCase().contains('.m3u8')) {
+          try {
+            final response = await Dio(BaseOptions(
+              connectTimeout: const Duration(seconds: 8),
+              receiveTimeout: const Duration(seconds: 10),
+              headers: const {'Accept': 'application/vnd.apple.mpegurl, application/x-mpegURL, */*'},
+            )).get<String>(result.url, options: Options(responseType: ResponseType.plain));
+            final manifest = DroxStreamManifestAnalyzer().analyzeHls(
+              response.data ?? '', manifestUrl: result.url,
+            );
+            final qualities = DroxStreamManifestAnalyzer().qualityOptions(manifest);
+            if (qualities.isNotEmpty) {
+              for (final quality in qualities) {
+                await addOption(
+                  url: quality.url,
+                  label: 'Video · ${quality.label}',
+                  kind: 'VIDEO',
+                  filename: result.filename,
+                  contentType: 'application/vnd.apple.mpegurl',
+                  quality: quality.label,
+                );
+              }
+              for (final track in manifest.renditions.where((r) =>
+                  r.type.toUpperCase() == 'AUDIO' && r.url != result.url)) {
+                await addOption(
+                  url: track.url,
+                  label: 'Audio · ${track.name}',
+                  kind: 'AUDIO',
+                  filename: '${track.name}.m3u8',
+                  contentType: 'application/vnd.apple.mpegurl',
+                  quality: track.language,
+                );
+              }
+              continue;
+            }
+          } catch (_) {
+            // Keep the verified manifest as a fallback option.
+          }
+        }
+        await addOption(
+          url: result.url,
+          label: isAudio ? 'Audio · ${result.filename ?? 'Audio track'}' :
+              (isManifest ? 'Streaming video · Adaptive' : '$kind · ${result.filename ?? _filenameFromUrl(result.url)}'),
+          kind: kind,
+          filename: result.filename,
+          contentType: type,
+          size: result.contentLength,
+          quality: isManifest ? 'Adaptive' : null,
+        );
+      } catch (_) {}
+    }
+
     if (!mounted) return;
-    if (valid.isEmpty) {
+    if (options.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('DROX: No candidate returned a verified media/file response.')),
+        const SnackBar(content: Text('DROX: No candidate returned a verified media response.')),
       );
       return;
     }
-    String formatSize(Object? raw) {
-      if (raw is! int || raw <= 0) return 'Size unknown';
-      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-      var value = raw.toDouble();
-      var unit = 0;
-      while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
-      return '${value.toStringAsFixed(value >= 100 || unit == 0 ? 0 : 1)} ${units[unit]}';
-    }
+
+    var selectedIndex = 0;
     final selected = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Choose verified media'),
-        content: SizedBox(
-          width: 520,
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemCount: valid.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (_, index) {
-              final item = valid[index];
-              final url = item['url'] as String;
-              final uri = Uri.tryParse(url);
-              final filename = (item['name'] as String?) ??
-                  (uri?.pathSegments.isNotEmpty == true ? uri!.pathSegments.last : 'Media file');
-              final type = (item['type'] as String?) ?? 'Verified media';
-              final detail = '$filename\n$type • ${formatSize(item['size'])}';
-              return ListTile(
-                leading: Icon(Icons.verified_outlined, color: Theme.of(ctx).colorScheme.primary),
-                title: Text('Media candidate ${index + 1}'),
-                subtitle: Text(detail, maxLines: 3, overflow: TextOverflow.ellipsis),
-                onTap: () => Navigator.pop(ctx, url),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
-        ],
-      ),
+      barrierDismissible: false,
+      builder: (ctx) {
+        final colors = Theme.of(ctx).colorScheme;
+        return StatefulBuilder(builder: (ctx, updateDialog) {
+          final item = options[selectedIndex];
+          final name = (item['name'] as String?) ?? 'Media file';
+          final type = (item['type'] as String?) ?? 'Verified media';
+          final size = _formatFileSize(item['size'] as int?);
+          final quality = item['quality'] as String?;
+          return AlertDialog(
+            backgroundColor: colors.surface,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            title: Row(children: [
+              const Expanded(child: Text('DROX · Download', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700))),
+              Icon(Icons.downloading_rounded, color: colors.primary, size: 27),
+            ]),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Choose video or audio · ${options.length} option(s)',
+                      style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 260),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colors.outlineVariant),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        separatorBuilder: (_, __) => Divider(height: 1, color: colors.outlineVariant),
+                        itemBuilder: (_, index) {
+                          final option = options[index];
+                          final isAudioOption = option['kind'] == 'AUDIO';
+                          final optionName = (option['name'] as String?) ?? 'Media file';
+                          final optionSize = _formatFileSize(option['size'] as int?);
+                          final optionQuality = option['quality'] as String?;
+                          return ListTile(
+                            dense: true,
+                            selected: selectedIndex == index,
+                            selectedTileColor: colors.primaryContainer.withOpacity(.45),
+                            leading: Icon(isAudioOption ? Icons.audiotrack_rounded : Icons.video_file_rounded,
+                              color: selectedIndex == index ? colors.primary : colors.onSurfaceVariant),
+                            title: Text((option['label'] as String?) ?? optionName,
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                            subtitle: Text('$optionName\n${option['type']} · $optionSize${optionQuality == null ? '' : ' · $optionQuality'}',
+                              maxLines: 3, overflow: TextOverflow.ellipsis),
+                            trailing: Radio<int>(
+                              value: index,
+                              groupValue: selectedIndex,
+                              onChanged: (value) { if (value != null) updateDialog(() => selectedIndex = value); },
+                            ),
+                            onTap: () => updateDialog(() => selectedIndex = index),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text('Selected file details', style: TextStyle(fontWeight: FontWeight.w700, color: colors.onSurface)),
+                    const SizedBox(height: 7),
+                    _detailRow('Name', name),
+                    _detailRow('Type', type),
+                    _detailRow('Size', size),
+                    if (quality != null) _detailRow('Quality', quality),
+                    const SizedBox(height: 6),
+                    Text('শুধু নির্বাচিত অপশনটিই ডাউনলোড হবে।',
+                      style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, item['url'] as String),
+                child: const Text('DOWNLOAD SELECTED'),
+              ),
+            ],
+          );
+        });
+      },
     );
-    if (selected == null || !mounted) return;
-    final chosen = valid.firstWhere((item) => item['url'] == selected);
-    if (chosen['manifest'] == true && selected.toLowerCase().contains('.m3u8')) {
-      final qualityUrl = await _chooseHlsQuality(selected);
-      if (qualityUrl == null || !mounted) return;
-      await _downloadPrompt(qualityUrl);
-      return;
-    }
-    await _downloadPrompt(selected);
+    if (selected != null && mounted) widget.onDownload(selected);
   }
 
-  Future<String?> _chooseHlsQuality(String manifestUrl) async {
-    try {
-      final response = await Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 12),
-        headers: const {'Accept': 'application/vnd.apple.mpegurl, application/x-mpegURL, */*'},
-      )).get<String>(manifestUrl, options: Options(responseType: ResponseType.plain));
-      final body = response.data ?? '';
-      final manifest = DroxStreamManifestAnalyzer().analyzeHls(body, manifestUrl: manifestUrl);
-      final options = DroxStreamManifestAnalyzer().qualityOptions(manifest);
-      if (options.isEmpty) return manifestUrl;
-      if (!mounted) return null;
-      return showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Select video quality'),
-          content: SizedBox(
-            width: 420,
-            child: ListView(
-              shrinkWrap: true,
-              children: options.map((option) => ListTile(
-                leading: const Icon(Icons.high_quality_outlined),
-                title: Text(option.label),
-                subtitle: Text([
-                  if (option.bandwidth != null) '${(option.bandwidth! / 1000000).toStringAsFixed(2)} Mbps',
-                  if (option.codecs != null) option.codecs!,
-                ].join(' • ')),
-                onTap: () => Navigator.pop(ctx, option.url),
-              )).toList(),
-            ),
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL'))],
-        ),
-      );
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not read stream quality information.')),
-        );
-      }
-      return null;
-    }
+  String _filenameFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    var value = uri?.pathSegments.isNotEmpty == true ? uri!.pathSegments.last : 'media_file';
+    try { value = Uri.decodeComponent(value); } catch (_) {}
+    return value.isEmpty ? 'media_file' : value;
   }
 
   Future<void> _downloadPrompt(String url) async {
