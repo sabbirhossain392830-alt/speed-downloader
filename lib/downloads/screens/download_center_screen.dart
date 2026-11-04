@@ -382,9 +382,10 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
             Positioned(left: 0, right: 0, bottom: 0,
               child: Container(height: 4, color: const Color(0xFFE6F0FC))),
           if (running || paused)
-            Positioned(left: 0, bottom: 0,
-              child: FractionallySizedBox(widthFactor: item.progress.clamp(0.0, 1.0),
-                child: Container(width: MediaQuery.of(context).size.width, height: 4, color: const Color(0xFF2878D0)))),
+            Positioned(left: 0, right: 0, bottom: 0,
+              child: SizedBox(height: 4, child: LayoutBuilder(builder: (context, constraints) =>
+                Align(alignment: Alignment.centerLeft,
+                  child: Container(width: constraints.maxWidth * item.progress.clamp(0.0, 1.0), height: 4, color: const Color(0xFF2878D0)))))),
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 5, 5, 5),
             child: Row(children: [
