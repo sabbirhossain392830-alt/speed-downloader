@@ -225,6 +225,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                 ),
         ),
       ],
+      ),
     );
   }
 
