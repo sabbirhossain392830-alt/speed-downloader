@@ -25,6 +25,7 @@ class DownloadRepository {
       'url': item.url,
       'filename': item.task.filename,
       'displayFilename': item.renamedFilename,
+      'renamedPath': item.renamedPath,
       'state': item.state.name,
       'progress': item.progress,
       'expectedBytes': item.expectedBytes,
