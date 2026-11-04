@@ -291,6 +291,31 @@ class BrowserPageState extends State<BrowserPage> {
     if (url.isNotEmpty) await ctrl.loadRequest(Uri.parse(url));
   }
   final Set<String> _promptedDownloadUrls = <String>{};
+  String _extensionForMediaType(String? mediaType) {
+    final type = (mediaType ?? '').split(';').first.trim().toLowerCase();
+    const extensions = <String, String>{
+      'video/mp4': 'mp4',
+      'video/webm': 'webm',
+      'video/x-matroska': 'mkv',
+      'video/quicktime': 'mov',
+      'video/x-msvideo': 'avi',
+      'video/x-flv': 'flv',
+      'video/mp2t': 'ts',
+      'audio/mpeg': 'mp3',
+      'audio/mp4': 'm4a',
+      'audio/aac': 'aac',
+      'audio/wav': 'wav',
+      'audio/ogg': 'ogg',
+      'audio/opus': 'opus',
+      'audio/flac': 'flac',
+      'application/vnd.apple.mpegurl': 'm3u8',
+      'application/x-mpegurl': 'm3u8',
+      'application/dash+xml': 'mpd',
+      'application/pdf': 'pdf',
+    };
+    return extensions[type] ?? 'bin';
+  }
+
   String _formatFileSize(int? bytes) {
     if (bytes == null || bytes <= 0) return widget.isBangla ? 'অজানা' : 'Unknown';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -323,8 +348,11 @@ class BrowserPageState extends State<BrowserPage> {
         type = verification.contentType ?? 'অজানা';
         if (verification.filename != null && verification.filename!.isNotEmpty) {
           name = verification.filename!;
-        } else if (verification.isStreamingManifest) {
-          name = verification.filename ?? (verification.url.toLowerCase().contains('.mpd') ? 'stream.mpd' : 'stream.m3u8');
+        } else if (name == 'media_file' || !name.contains('.')) {
+          final extension = _extensionForMediaType(type);
+          name = verification.isStreamingManifest
+              ? (extension == 'mpd' ? 'stream.mpd' : 'stream.m3u8')
+              : 'drox_media.$extension';
         }
       }
     } catch (_) {
