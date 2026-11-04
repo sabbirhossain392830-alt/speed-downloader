@@ -28,6 +28,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   bool _adding = false;
   String? _previewVideoId;
   int _selectedFilter = 0;
+  final Set<String> _selectedIds = <String>{};
 
   /// Starts a browser-detected direct file/media download and shows it in the home queue.
   Future<void> downloadDetectedUrl(String value) async {
@@ -193,12 +194,19 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       children: [
         Material(
           color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF151A22) : const Color(0xFF6B351B),
-          child: Row(children: [
-            _categoryTab('ALL', allCount, 0),
-            _categoryTab('DOWNLOADING', activeCount, 1),
-            _categoryTab('FINISHED', finishedCount, 2),
-            _categoryTab('ERROR', errorCount, 3),
-          ]),
+          child: _selectedIds.isNotEmpty
+              ? Row(children: [
+                  IconButton(onPressed: () => setState(() => _selectedIds.clear()), icon: const Icon(Icons.close, color: Colors.white)),
+                  Expanded(child: Text('${_selectedIds.length} selected', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
+                  TextButton(onPressed: () => setState(() => _selectedIds.addAll(filtered.map((e) => e.id))), child: const Text('SELECT ALL', style: TextStyle(color: Colors.white))),
+                  IconButton(onPressed: () => _showBulkActions(filtered), icon: const Icon(Icons.more_vert, color: Colors.white)),
+                ])
+              : Row(children: [
+                  _categoryTab('ALL', allCount, 0),
+                  _categoryTab('DOWNLOADING', activeCount, 1),
+                  _categoryTab('FINISHED', finishedCount, 2),
+                  _categoryTab('ERROR', errorCount, 3),
+                ]),
         ),
         Expanded(
           child: filtered.isEmpty
@@ -261,6 +269,87 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
     ]),
   );
 
+  Future<void> _showItemMenu(DroxDownloadItem item, String action) async {
+    switch (action) {
+      case 'copy':
+        await Clipboard.setData(ClipboardData(text: item.url));
+        _message('Download link copied.');
+        break;
+      case 'redownload':
+        await _runAction(() => _downloads.redownload(item));
+        break;
+      case 'rename':
+        final controller = TextEditingController(text: item.filename);
+        final name = await showDialog<String>(context: context, builder: (dialogContext) => AlertDialog(
+          title: const Text('Rename file'),
+          content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'File name')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('CANCEL')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('SAVE')),
+          ],
+        ));
+        if (name != null && name.trim().isNotEmpty) await _runAction(() => _downloads.rename(item, name));
+        controller.dispose();
+        break;
+      case 'folder':
+        try {
+          final path = await item.task.filePath();
+          final slash = path.lastIndexOf('/');
+          final folder = slash > 0 ? path.substring(0, slash) : path;
+          final opened = await launchUrl(Uri.file(folder), mode: LaunchMode.externalApplication);
+          if (!opened && mounted) {
+            await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
+              title: const Text('File location'),
+              content: SelectableText(folder),
+              actions: [
+                TextButton(onPressed: () { Clipboard.setData(ClipboardData(text: folder)); Navigator.pop(dialogContext); }, child: const Text('COPY PATH')),
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('CLOSE')),
+              ],
+            ));
+          }
+        } catch (error) { _message('Could not open folder: $error'); }
+        break;
+    }
+  }
+
+  Future<void> _showBulkActions(List<DroxDownloadItem> visible) async {
+    final selected = visible.where((item) => _selectedIds.contains(item.id)).toList();
+    if (selected.isEmpty) return;
+    final action = await showModalBottomSheet<String>(context: context, builder: (sheetContext) => SafeArea(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.delete_outline), title: const Text('Delete selected'), onTap: () => Navigator.pop(sheetContext, 'delete')),
+        ListTile(leading: const Icon(Icons.download), title: const Text('Redownload selected'), onTap: () => Navigator.pop(sheetContext, 'redownload')),
+        ListTile(leading: const Icon(Icons.link), title: const Text('Copy selected links'), onTap: () => Navigator.pop(sheetContext, 'copy')),
+      ]),
+    ));
+    if (action == 'copy') {
+      await Clipboard.setData(ClipboardData(text: selected.map((item) => item.url).join('\\n')));
+      _message('Selected links copied.');
+    } else if (action == 'redownload') {
+      for (final item in selected) { await _runAction(() => _downloads.redownload(item)); }
+      if (mounted) setState(() => _selectedIds.clear());
+    } else if (action == 'delete') {
+      final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF14243A) : const Color(0xFFF3F8FF),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: Color(0xFF2878D0), width: 1.2)),
+        icon: const Icon(Icons.delete_sweep_rounded, color: Color(0xFF2878D0), size: 38),
+        title: const Text('Delete selected files?', textAlign: TextAlign.center),
+        content: Text('Are you sure you want to delete ${selected.length} selected file(s)?', textAlign: TextAlign.center),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('CANCEL', style: TextStyle(color: Color(0xFF2878D0), fontWeight: FontWeight.w700))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2878D0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('DELETE'),
+          ),
+        ],
+      ));
+      if (confirmed == true) await _runAction(() => _downloads.removeMany(selected));
+      if (mounted) setState(() => _selectedIds.clear());
+    }
+  }
+
   Widget _downloadCard(DroxDownloadItem item) {
     final running = item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued;
     final paused = item.state == DroxDownloadState.paused;
@@ -282,6 +371,15 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Stack(
         children: [
+          Positioned.fill(child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onLongPress: () => setState(() => _selectedIds.add(item.id)),
+              onTap: _selectedIds.isEmpty ? null : () => setState(() {
+                if (_selectedIds.contains(item.id)) { _selectedIds.remove(item.id); } else { _selectedIds.add(item.id); }
+              }),
+            ),
+          )),
           if (running || paused)
             Positioned(left: 0, right: 0, bottom: 0,
               child: Container(height: 3, color: ink.withValues(alpha: .10))),
@@ -324,7 +422,20 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                 ),
               ),
               const SizedBox(width: 4),
-              if (running)
+              if (_selectedIds.contains(item.id))
+                const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.check_circle, color: Color(0xFF2878D0), size: 28))
+              else if (complete)
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, color: ink),
+                  onSelected: (action) => _showItemMenu(item, action),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'folder', child: Text('Open folder')),
+                    PopupMenuItem(value: 'redownload', child: Text('Redownload')),
+                    PopupMenuItem(value: 'rename', child: Text('Rename file')),
+                    PopupMenuItem(value: 'copy', child: Text('Copy link')),
+                  ],
+                )
+              else if (running)
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   tooltip: 'Pause',
