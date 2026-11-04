@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
@@ -69,16 +70,29 @@ class DroxMediaVerifier {
     }
 
     try {
-      final response = await _dio.get<List<int>>(input,
+      // Stream the response and stop after a small signature prefix. Some
+      // servers ignore Range and return the entire file; ResponseType.bytes
+      // would buffer that whole response before verification can stop it.
+      final response = await _dio.get<ResponseBody>(input,
           options: Options(
-            responseType: ResponseType.bytes,
+            responseType: ResponseType.stream,
             headers: const {'Range': 'bytes=0-2047'},
             validateStatus: (s) => s != null && s < 500,
             followRedirects: true,
           ));
       final status = response.statusCode ?? 0;
       if (status >= 400) return _reject(response.realUri.toString(), 'HTTP $status');
-      final bytes = response.data ?? const <int>[];
+      final body = response.data;
+      final builder = BytesBuilder(copy: false);
+      if (body != null) {
+        await for (final chunk in body.stream) {
+          final remaining = 2048 - builder.length;
+          if (remaining <= 0) break;
+          builder.add(chunk.length > remaining ? chunk.sublist(0, remaining) : chunk);
+          if (builder.length >= 2048) break;
+        }
+      }
+      final bytes = builder.takeBytes();
       final type = _cleanType(response.headers.value(Headers.contentTypeHeader));
       final finalUrl = response.realUri.toString();
       final disposition = response.headers.value('content-disposition');
@@ -206,7 +220,7 @@ class DroxMediaVerifier {
 
   String? _filenameFromDisposition(String? value) {
     if (value == null) return null;
-    final match = RegExp(r"filename\\*=UTF-8''([^;]+)", caseSensitive: false)
+    final match = RegExp(r"filename\*=UTF-8''([^;]+)", caseSensitive: false)
             .firstMatch(value) ??
         RegExp(r'filename="?([^";]+)', caseSensitive: false).firstMatch(value);
     final raw = match?.group(1);
