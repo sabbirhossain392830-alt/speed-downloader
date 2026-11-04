@@ -205,6 +205,11 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                   IconButton(onPressed: () => setState(() => _selectedIds.clear()), icon: const Icon(Icons.close, color: Colors.white)),
                   Expanded(child: Text('${_selectedIds.length} selected', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
                   TextButton(onPressed: () => setState(() => _selectedIds.addAll(filtered.map((e) => e.id))), child: const Text('SELECT ALL', style: TextStyle(color: Colors.white))),
+                  IconButton(
+                    tooltip: 'Redownload selected',
+                    onPressed: () => _showBulkActions(filtered, initialAction: 'redownload'),
+                    icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                  ),
                   IconButton(tooltip: 'Delete selected', onPressed: () => _showBulkActions(filtered, initialAction: 'delete'), icon: const Icon(Icons.delete_outline, color: Colors.white)),
                 ])
               : Row(children: [
@@ -300,6 +305,33 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
         ));
         if (name != null && name.trim().isNotEmpty) await _runAction(() => _downloads.rename(item, name));
         controller.dispose();
+        break;
+      case 'open':
+        try {
+          final path = item.renamedPath ?? await item.task.filePath();
+          final file = File(path);
+          if (!await file.exists()) {
+            _message('Downloaded file was not found in phone storage.');
+            break;
+          }
+          final lower = item.filename.toLowerCase();
+          final mimeType = lower.endsWith('.mp4') ? 'video/mp4'
+              : lower.endsWith('.mkv') ? 'video/x-matroska'
+              : lower.endsWith('.webm') ? 'video/webm'
+              : lower.endsWith('.mov') ? 'video/quicktime'
+              : lower.endsWith('.avi') ? 'video/x-msvideo'
+              : lower.endsWith('.mp3') ? 'audio/mpeg'
+              : lower.endsWith('.m4a') ? 'audio/mp4'
+              : lower.endsWith('.pdf') ? 'application/pdf'
+              : lower.endsWith('.apk') ? 'application/vnd.android.package-archive'
+              : 'application/octet-stream';
+          final result = await OpenFilex.open(path, type: mimeType);
+          if (result.type != ResultType.done) {
+            _message(result.message.isNotEmpty ? result.message : 'No compatible app found to open this file.');
+          }
+        } catch (error) {
+          _message('Could not open file: $error');
+        }
         break;
       case 'folder':
         try {
@@ -459,6 +491,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                   icon: Icon(Icons.more_vert, color: ink),
                   onSelected: (action) => _showItemMenu(item, action),
                   itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'open', child: Text('Open file')),
                     PopupMenuItem(value: 'folder', child: Text('Open folder')),
                     PopupMenuItem(value: 'redownload', child: Text('Redownload')),
                     PopupMenuItem(value: 'rename', child: Text('Rename file')),
