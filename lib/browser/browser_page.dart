@@ -193,8 +193,8 @@ class BrowserPageState extends State<BrowserPage> {
           if(window.__droxMediaDetector)return;window.__droxMediaDetector=true;
           var seen=Object.create(null), lastPrompt=0, videoPlaybackActive=false;
           var pendingCandidates=Object.create(null), candidateFlushTimer=null;
-          var videoExt=/\\.(mp4|m4v|mkv|avi|webm|mov|ogv|3gp|3g2|3gpp|mpeg|mpeg2|mpeg4|mpg|m1v|m2v|m2p|mpe|m2t|mts|m2ts|ts|m4s|f4v|flv|wmv|asf|vob|qt|ogx|rm|rmvb|divx|mxf|nut|roq|yuv|mpd|m3u8)(?:$|[?#])/i;
-          var mediaType=/^(video\\/|application\\/(vnd\\.apple\\.mpegurl|x-mpegurl|dash\\+xml))/i;
+          var videoExt=/\.(mp4|m4v|mkv|avi|webm|mov|ogv|3gp|3g2|3gpp|mpeg|mpeg2|mpeg4|mpg|m1v|m2v|m2p|mpe|m2t|mts|m2ts|ts|m4s|f4v|flv|wmv|asf|vob|qt|ogx|rm|rmvb|divx|mxf|nut|roq|yuv|mpd|m3u8)(?:$|[?#])/i;
+          var mediaType=/^(video\/|application\/(vnd\.apple\.mpegurl|x-mpegurl|dash\+xml))/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
           function activeVideos(){return Array.prototype.filter.call(document.querySelectorAll('video'),function(v){return !v.paused&&!v.ended&&v.readyState>=2})}
           function refreshPlaybackState(){
