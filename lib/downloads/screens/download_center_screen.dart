@@ -37,29 +37,53 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   Future<void> downloadDetectedUrl(String value) async {
     final clean = value.trim();
     if (clean.isEmpty) return;
-    final existing = _downloads.items.where((item) => item.url == clean &&
-        (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued ||
-         item.state == DroxDownloadState.paused)).firstOrNull;
+    final existing = _downloads.items.where((item) =>
+        item.url == clean &&
+        (item.state == DroxDownloadState.running ||
+            item.state == DroxDownloadState.queued ||
+            item.state == DroxDownloadState.paused)).firstOrNull;
     if (existing != null) {
       _message('This download is already in the list.');
       return;
     }
+
     try {
       final parsed = Uri.tryParse(clean);
       final manifestPath = parsed?.path.toLowerCase() ?? '';
-      if (parsed != null && (manifestPath.endsWith('.m3u8') || manifestPath.endsWith('.mpd'))) {
-        final rawName = parsed.pathSegments.isNotEmpty ? Uri.decodeComponent(parsed.pathSegments.last) : 'drox_stream';
-        final safeName = rawName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_').replaceAll(RegExp(r'\.(m3u8|mpd)
+      if (parsed != null &&
+          (manifestPath.endsWith('.m3u8') || manifestPath.endsWith('.mpd'))) {
+        final rawName = parsed.pathSegments.isNotEmpty
+            ? Uri.decodeComponent(parsed.pathSegments.last)
+            : 'drox_stream';
+        final safeName = rawName
+            .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')
+            .replaceAll(RegExp(r'\\.(m3u8|mpd)$', caseSensitive: false), '')
+            .trim();
+        final filename = '${safeName.isEmpty ? 'drox_stream' : safeName}.mp4';
+        await _downloads.addStreamMedia(url: clean, filename: filename);
+        if (mounted) {
+          setState(() => _selectedFilter = 0);
+          _message('HLS/DASH stream added to DROX queue.');
+        }
+        return;
+      }
+
+      final result = await _resolver.resolve(clean);
       if (!result.canQueue) {
         _message(result.message);
         return;
       }
       final uri = Uri.tryParse(result.downloadUrl);
       final filename = result.filename ??
-          (uri == null || uri.pathSegments.isEmpty || !uri.pathSegments.last.contains('.')
+          (uri == null ||
+                  uri.pathSegments.isEmpty ||
+                  !uri.pathSegments.last.contains('.')
               ? 'drox_${DateTime.now().millisecondsSinceEpoch}.bin'
               : Uri.decodeComponent(uri.pathSegments.last));
-      await _downloads.addDirectMedia(url: result.downloadUrl, filename: filename);
+      await _downloads.addDirectMedia(
+        url: result.downloadUrl,
+        filename: filename,
+      );
       if (mounted) {
         setState(() => _selectedFilter = 0);
         _message('Download started.');
