@@ -43,7 +43,7 @@ class DroxMediaVerifier {
 
   final Dio _dio;
 
-  Future<DroxMediaVerification> verify(String input) async {
+  Future<DroxMediaVerification> verify(String input, {String? hintedContentType}) async {
     final uri = Uri.tryParse(input);
     if (uri == null || !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty) {
       return _reject(input, 'Invalid HTTP URL.');
@@ -101,11 +101,15 @@ class DroxMediaVerifier {
       if (_looksLikeHtml(bytes) || _isHtml(type)) {
         return _reject(finalUrl, 'Server returned HTML or a security challenge.');
       }
+      final hintedType = _cleanType(hintedContentType);
       final signature = _signatureType(bytes);
       final manifest = _looksLikeHls(bytes) || _looksLikeDash(bytes) || _isManifestPath(finalUrl);
       if (manifest || _isMediaType(type) || signature != null) {
         return _accept(finalUrl, signature ?? type, disposition, length,
             manifest: manifest);
+      }
+      if (_isMediaType(hintedType) && bytes.isNotEmpty) {
+        return _accept(finalUrl, hintedType, disposition, length, manifest: _isManifestType(hintedType));
       }
       // A server may legitimately serve an unknown binary format. Only trust
       // it when it explicitly advertises attachment and is not HTML.
@@ -134,7 +138,7 @@ class DroxMediaVerifier {
       isMedia: true,
       url: url,
       contentType: type,
-      filename: _filenameFromDisposition(disposition),
+      filename: _filenameFromDisposition(disposition) ?? _filenameFromUrl(url, type),
       contentLength: length,
       reason: manifest ? 'Streaming manifest verified.' : 'Media response verified.',
       isStreamingManifest: manifest,
@@ -216,6 +220,24 @@ class DroxMediaVerifier {
     if (value == null) return null;
     final match = RegExp(r'/([0-9]+)$').firstMatch(value);
     return match == null ? null : int.tryParse(match.group(1)!);
+  }
+
+  bool _isManifestType(String? type) => type == 'application/vnd.apple.mpegurl' || type == 'application/x-mpegurl' || type == 'application/dash+xml';
+
+  String? _filenameFromUrl(String url, String? type) {
+    final uri = Uri.tryParse(url);
+    final leaf = uri?.pathSegments.isNotEmpty == true ? uri!.pathSegments.last : '';
+    final decoded = leaf.isEmpty ? '' : Uri.decodeComponent(leaf);
+    if (decoded.contains('.') && !decoded.startsWith('.')) return decoded;
+    final extension = switch (_cleanType(type)) {
+      'video/mp4' => 'mp4', 'video/webm' => 'webm', 'video/x-matroska' => 'mkv',
+      'video/quicktime' => 'mov', 'video/x-msvideo' => 'avi', 'video/mp2t' => 'ts',
+      'audio/mpeg' => 'mp3', 'audio/mp4' => 'm4a', 'audio/aac' => 'aac',
+      'audio/wav' => 'wav', 'audio/ogg' => 'ogg', 'audio/opus' => 'opus',
+      'application/vnd.apple.mpegurl' || 'application/x-mpegurl' => 'm3u8',
+      'application/dash+xml' => 'mpd', _ => 'media',
+    };
+    return 'drox_media.' + extension;
   }
 
   String? _filenameFromDisposition(String? value) {
