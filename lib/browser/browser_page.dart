@@ -210,7 +210,7 @@ class BrowserPageState extends State<BrowserPage> {
             if(!videoPlaybackActive)return;
             var u=valid(raw);if(!u||seen[u])return;
             if(!mediaType.test(type||'')&&!videoExt.test(u))return;
-            var path='';try{path=new URL(u).pathname.toLowerCase()}catch(_){} if(/\\.(ts|m4s|cmfv|cmfa|aac|mp3|vtt)(?:$|[?#])/i.test(path))return; seen[u]=1;pendingCandidates[u]={url:u,type:(type||'').toLowerCase()};
+            var path='';try{path=new URL(u).pathname.toLowerCase()}catch(_){} if(/\.(ts|m4s|cmfv|cmfa|aac|mp3|vtt)(?:$|[?#])/i.test(path))return; seen[u]=1;pendingCandidates[u]={url:u,type:(type||'').toLowerCase()};
             if(candidateFlushTimer)clearTimeout(candidateFlushTimer);
             candidateFlushTimer=setTimeout(function(){
               var list=Object.keys(pendingCandidates).map(function(k){return pendingCandidates[k]});pendingCandidates=Object.create(null);
