@@ -174,16 +174,20 @@ class BrowserPageState extends State<BrowserPage> {
         t.url = u;
         await ctrl.runJavaScript(r'''(function(){
           if(window.__droxMediaDetector)return;window.__droxMediaDetector=true;
-          var seen={};
+          var seen={};var lastMediaPrompt=0;
           var exts=/\.(mp4|m4v|mkv|avi|webm|mov|ogv|3gp|mpeg|mpg|mp3|m4a|aac|wav|ogg|oga|opus|flac|m3u8|mpd|pdf|epub|zip|rar|7z|tar|gz|bz2|xz|iso|dmg|apk|aab|exe|msi|deb|rpm|jpg|jpeg|png|webp|gif|bmp|svg|tif|tiff|txt|csv|json|xml|docx?|xlsx?|pptx?|odt|ods|odp|srt|vtt|ass|ssa|ttf|otf|woff2?)(?:$|[?#])/i;
           var mediaTypes=/^(video\/|audio\/|application\/(vnd\.apple\.mpegurl|x-mpegurl|dash\+xml))/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
-          function send(raw){var u=valid(raw);if(!u||seen[u])return;seen[u]=1;DroxDownload.postMessage(u)}
-          function mediaSources(v){var list=[v.currentSrc,v.src];v.querySelectorAll('source[src]').forEach(function(s){list.push(s.src)});list.forEach(function(u){if(u)send(u)})}
-          function scan(){document.querySelectorAll('video,audio').forEach(function(v){
-            if(!v.__droxBound){v.__droxBound=true;
-            }
-          })}
+          function send(raw,force){var u=valid(raw);if(!u)return;var now=Date.now();if(seen[u]||(!force&&now-lastMediaPrompt<1800))return;seen[u]=1;lastMediaPrompt=now;DroxDownload.postMessage(u)}
+          function mediaSources(v){
+            var candidates=[v.currentSrc,v.src];
+            v.querySelectorAll('source[src]').forEach(function(source){candidates.push(source.src)});
+            try{performance.getEntriesByType('resource').slice(-100).reverse().forEach(function(entry){if(exts.test(entry.name))candidates.push(entry.name)})}catch(_){}
+            var unique=[];candidates.forEach(function(raw){var u=valid(raw);if(u&&unique.indexOf(u)<0)unique.push(u)});
+            var best=unique.find(function(u){return /\.(mp4|m4v|mkv|webm|mov|mp3|m4a|aac|wav|ogg|flac)(?:$|[?#])/i.test(u)})||unique.find(function(u){return /\.(m3u8|mpd)(?:$|[?#])/i.test(u)})||unique[0];
+            if(best)send(best,true);
+          }
+          function scan(){document.querySelectorAll('video,audio').forEach(function(v){if(!v.__droxBound){v.__droxBound=true;v.addEventListener('click',function(){mediaSources(v)},true);v.addEventListener('play',function(){mediaSources(v)},true);}})}
           function scanResources(){}
           function scanFrames(){}
           if(window.fetch){var originalFetch=window.fetch;window.fetch=function(){var p=originalFetch.apply(this,arguments);try{var u=typeof arguments[0]==='string'?arguments[0]:arguments[0].url; p.then(function(r){var ct=r.headers.get('content-type')||'';var target=r.url||u;if(mediaTypes.test(ct)||exts.test(target||'')){}})}catch(_){}return p}}
@@ -246,22 +250,6 @@ class BrowserPageState extends State<BrowserPage> {
     if (_promptedDownloadUrls.contains(url)) return;
     _promptedDownloadUrls.add(url);
     if (!mounted) { _promptedDownloadUrls.remove(url); return; }
-    final wantsDownload = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.video_file_rounded, size: 42),
-        title: const Text('ভিডিওটি ডাউনলোড করবেন?'),
-        content: Text('এই ওয়েবসাইটে একটি ভিডিও পাওয়া গেছে।\n\n${uri.host}'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('এখন নয়')),
-          FilledButton.icon(onPressed: () => Navigator.pop(ctx, true), icon: const Icon(Icons.download_rounded), label: const Text('হ্যাঁ, ডাউনলোড')),
-        ],
-      ),
-    );
-    if (wantsDownload != true || !mounted) {
-      _promptedDownloadUrls.remove(url);
-      return;
-    }
     var finalUrl = url;
     var name = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'media_file';
     try { name = Uri.decodeComponent(name); } catch (_) {}
