@@ -81,6 +81,8 @@ class DownloadController extends ChangeNotifier {
         if (progress is num) item.progress = progress.toDouble().clamp(0, 1).toDouble();
         final expected = data['expectedBytes'];
         if (expected is num) item.expectedBytes = expected.toInt();
+        final downloaded = data['downloadedBytes'];
+        if (downloaded is num) item.downloadedBytes = downloaded.toInt();
         final savedState = data['state'] as String?;
         item.state = DroxDownloadState.paused;
         for (final candidate in DroxDownloadState.values) {
