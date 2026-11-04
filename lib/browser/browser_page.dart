@@ -180,32 +180,32 @@ class BrowserPageState extends State<BrowserPage> {
           var mediaType=/^(video\/|audio\/|application\/(vnd\.apple\.mpegurl|x-mpegurl|dash\+xml))/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
           function isMedia(raw,type){return mediaType.test(type||'')||videoExt.test(raw||'')||audioExt.test(raw||'')}
-          function send(raw,reason,type){
-            var u=valid(raw);if(!u||!isMedia(u,type)||seen[u])return;
+          function send(raw,reason,type,userSelected){
+            var u=valid(raw);if(!u||!isMedia(u,type)||seen[u]||!userSelected)return;
             var now=Date.now();if(now-lastPrompt<900)return;
             seen[u]=1;lastPrompt=now;
             try{DroxDownload.postMessage(u)}catch(_){}
           }
-          function mediaSources(v){
+          function mediaSources(v,userSelected){
             var candidates=[v.currentSrc,v.src];
             try{v.querySelectorAll('source[src]').forEach(function(s){candidates.push(s.src)})}catch(_){}
-            candidates.forEach(function(raw){send(raw,'element',v.tagName==='VIDEO'?'video/*':'audio/*')});
+            candidates.forEach(function(raw){send(raw,'element',v.tagName==='VIDEO'?'video/*':'audio/*',!!userSelected)});
           }
           function scan(){
             document.querySelectorAll('video,audio').forEach(function(v){
-              mediaSources(v);
+              mediaSources(v,false);
               if(!v.__droxBound){v.__droxBound=true;
-                ['play','loadedmetadata','canplay','click'].forEach(function(evt){v.addEventListener(evt,function(){mediaSources(v)},true)});
+                ['play','loadedmetadata','canplay','click'].forEach(function(evt){v.addEventListener(evt,function(){mediaSources(v,true)},true)});
               }
             });
             document.querySelectorAll('a[href]').forEach(function(a){
-              if(videoExt.test(a.href||'')){send(a.href,'anchor','')}
+              if(videoExt.test(a.href||'')){send(a.href,'anchor','',false)}
             });
           }
           function scanResources(){
             try{
               performance.getEntriesByType('resource').slice(-250).forEach(function(entry){
-                if(videoExt.test(entry.name)||audioExt.test(entry.name))send(entry.name,'resource','');
+                if(videoExt.test(entry.name)||audioExt.test(entry.name))send(entry.name,'resource','',false);
               });
             }catch(_){}
           }
@@ -214,9 +214,9 @@ class BrowserPageState extends State<BrowserPage> {
               try{var doc=frame.contentDocument;if(!doc)return;
                 doc.querySelectorAll('video,audio').forEach(function(v){
                   var sources=[v.currentSrc,v.src];v.querySelectorAll('source[src]').forEach(function(s){sources.push(s.src)});
-                  sources.forEach(function(u){send(u,'iframe',v.tagName==='VIDEO'?'video/*':'audio/*')});
+                  sources.forEach(function(u){send(u,'iframe',v.tagName==='VIDEO'?'video/*':'audio/*',false)});
                 });
-                doc.querySelectorAll('a[href]').forEach(function(a){if(videoExt.test(a.href||''))send(a.href,'iframe-link','')});
+                doc.querySelectorAll('a[href]').forEach(function(a){if(videoExt.test(a.href||''))send(a.href,'iframe-link','',false)});
               }catch(_){}
             })}catch(_){}
           }
@@ -227,7 +227,7 @@ class BrowserPageState extends State<BrowserPage> {
               var promise=originalFetch.apply(this,args);
               promise.then(function(response){
                 try{var type=response.headers.get('content-type')||'';var target=response.url||requestUrl;
-                  if(isMedia(target,type))send(target,'fetch',type);
+                  if(isMedia(target,type))send(target,'fetch',type,false);
                 }catch(_){}
               }).catch(function(){});
               return promise;
@@ -240,7 +240,7 @@ class BrowserPageState extends State<BrowserPage> {
             XMLHttpRequest.prototype.send=function(){
               this.addEventListener('load',function(){
                 try{var type=this.getResponseHeader('content-type')||'';var target=this.responseURL||this.__droxUrl||'';
-                  if(isMedia(target,type))send(target,'xhr',type);
+                  if(isMedia(target,type))send(target,'xhr',type,false);
                 }catch(_){}
               });
               return originalSend.apply(this,arguments);
@@ -257,9 +257,9 @@ class BrowserPageState extends State<BrowserPage> {
           document.addEventListener('click',function(e){
             var target=e.target;
             var media=target&&target.closest?target.closest('video,audio'):null;
-            if(media){mediaSources(media);return}
+            if(media){mediaSources(media,true);return}
             var a=target&&target.closest?target.closest('a[href]'):null;
-            if(a&&videoExt.test(a.href||'')){e.preventDefault();e.stopImmediatePropagation();send(a.href,'click','')}
+            if(a&&videoExt.test(a.href||'')){e.preventDefault();e.stopImmediatePropagation();send(a.href,'click','',true)}
           },true);
         })();''');
         if (adBlockEnabled) await ctrl.runJavaScript(_droxAdBlockScript);
