@@ -331,6 +331,42 @@ class DownloadController extends ChangeNotifier {
 
   Future<void> _publishCompletedFile(DroxDownloadItem item) async {
     try {
+      // The transfer plugin can report HTTP 200 as "complete" even when a
+      // CDN has delivered an HTML login/error/Cloudflare page. Validate the
+      // actual local bytes before publishing or keeping the completed state.
+      final localPath = item.renamedPath ?? await _engine.filePath(item.task);
+      final localFile = File(localPath);
+      if (!await localFile.exists()) {
+        item.state = DroxDownloadState.failed;
+        item.error = 'Download engine reported completion, but the file is missing.';
+        await _persist();
+        notifyListeners();
+        return;
+      }
+      final fileLength = await localFile.length();
+      if (fileLength == 0) {
+        item.state = DroxDownloadState.failed;
+        item.error = 'The server returned an empty file.';
+        await _persist();
+        notifyListeners();
+        return;
+      }
+      final handle = await localFile.open();
+      List<int> prefix;
+      try {
+        prefix = await handle.read(2048);
+      } finally {
+        await handle.close();
+      }
+      if (_isHtmlOrChallenge(prefix)) {
+        await localFile.delete();
+        item.state = DroxDownloadState.failed;
+        item.progress = 0;
+        item.error = 'The server returned an HTML page or security challenge, not the requested file.';
+        await _persist();
+        notifyListeners();
+        return;
+      }
       final sharedPath = await _engine.moveToSharedDownloads(item.task);
       if (sharedPath != null && sharedPath.isNotEmpty) {
         item.renamedPath = sharedPath;
@@ -346,6 +382,19 @@ class DownloadController extends ChangeNotifier {
       await _persist();
       notifyListeners();
     }
+  }
+
+  bool _isHtmlOrChallenge(List<int> bytes) {
+    if (bytes.isEmpty) return false;
+    final sample = utf8.decode(bytes.take(2048).toList(), allowMalformed: true)
+        .trimLeft()
+        .toLowerCase();
+    return sample.startsWith('<!doctype html') ||
+        sample.startsWith('<html') ||
+        sample.startsWith('<head') ||
+        sample.startsWith('<body') ||
+        sample.contains('cf-chl-') ||
+        (sample.contains('cloudflare') && sample.contains('challenge'));
   }
 
   Future<void> _persist() => _repository.save(_items);
