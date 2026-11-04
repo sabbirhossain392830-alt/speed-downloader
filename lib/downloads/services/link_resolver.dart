@@ -212,7 +212,7 @@ class DroxLinkResolver {
   DroxLinkResolution _manual(String url, String provider, DroxLinkKind kind, String message) =>
       DroxLinkResolution(originalUrl: url, downloadUrl: url, provider: provider, kind: kind, canQueue: false, message: message);
 
-  bool _isDirectFilePath(String path) => RegExp(r'\.(mp4|m4v|mkv|avi|mov|webm|ogv|3gp|mpeg|mpg|m1v|m2v|mpe|m2t|mts|m2ts|ts|m4s|f4v|flv|wmv|asf|vob|3g2|qt|ogx|rm|rmvb|divx|mxf|mp3|m4a|wav|flac|aac|ogg|opus|pdf|epub|zip|rar|7z|tar|gz|bz2|xz|iso|dmg|apk|aab|exe|msi|deb|rpm|jpg|jpeg|png|webp|gif|bmp|svg|tif|tiff|txt|csv|json|xml|html|docx?|xlsx?|pptx?|odt|ods|odp|srt|vtt|ass|ssa|ttf|otf|woff2?)$', caseSensitive: false).hasMatch(path);
+  bool _isDirectFilePath(String path) => RegExp(r'\.(mp4|m4v|mkv|avi|mov|webm|ogv|3gp|3g2|3gpp|mpeg|mpeg2|mpeg4|mpg|m1v|m2v|m2p|mpe|m2t|mts|m2ts|ts|m4s|f4v|flv|wmv|asf|vob|qt|ogx|rm|rmvb|divx|mxf|nut|roq|yuv|mp3|m4a|m4b|wav|flac|aac|ogg|oga|opus|wma|amr|aiff|aif|ac3|eac3|ape|wv|mid|midi|pdf|epub|zip|rar|7z|tar|gz|bz2|xz|iso|dmg|apk|aab|exe|msi|deb|rpm|jpg|jpeg|png|webp|gif|bmp|svg|tif|tiff|txt|csv|json|xml|html|docx?|xlsx?|pptx?|odt|ods|odp|srt|vtt|ass|ssa|ttf|otf|woff2?)$', caseSensitive: false).hasMatch(path);
 
   String? _filename(Uri uri) => uri.pathSegments.isEmpty ? null : Uri.decodeComponent(uri.pathSegments.last);
 
