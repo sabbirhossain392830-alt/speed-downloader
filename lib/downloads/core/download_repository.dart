@@ -29,6 +29,7 @@ class DownloadRepository {
       'state': item.state.name,
       'progress': item.progress,
       'expectedBytes': item.expectedBytes,
+      'downloadedBytes': item.downloadedBytes,
       'error': item.error,
     }).toList();
     await prefs.setString(_storageKey, jsonEncode(data));
