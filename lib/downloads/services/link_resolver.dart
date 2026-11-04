@@ -117,7 +117,7 @@ class DroxLinkResolver {
   Future<DroxLinkResolution> resolve(String input) async {
     final parsed = Uri.tryParse(input.trim());
     if (parsed != null && parsed.host.isNotEmpty) {
-      final host = parsed.host.toLowerCase().replaceFirst(RegExp(r'^www\\.'), '');
+      final host = parsed.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
       if (host == 'github.com' &&
           parsed.pathSegments.length >= 5 &&
           parsed.pathSegments[2] == 'releases' &&
