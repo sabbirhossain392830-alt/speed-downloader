@@ -120,9 +120,6 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       if (mounted) setState(() => _resolution = result);
     } catch (error) {
       if (mounted) _message('Link check failed: $error');
-    } catch (error) {
-      if (mounted) _message('Link check failed: $error');
-    }
     final link = YoutubeLinkInfo.parse(value);
     if (link == null) {
       if (mounted) setState(() { _youtubeLink = null; _preview = null; _previewVideoId = null; });
