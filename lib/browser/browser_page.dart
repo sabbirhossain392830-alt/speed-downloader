@@ -175,7 +175,7 @@ class BrowserPageState extends State<BrowserPage> {
         t.url = u;
         await ctrl.runJavaScript(r'''(function(){
           if(window.__droxMediaDetector)return;window.__droxMediaDetector=true;
-          var seen=Object.create(null), lastPrompt=0;
+          var seen=Object.create(null), lastPrompt=0, lastUserIntent=0;
           var videoExt=/\.(mp4|m4v|mkv|avi|webm|mov|ogv|3gp|3g2|3gpp|mpeg|mpeg2|mpeg4|mpg|m1v|m2v|m2p|mpe|m2t|mts|m2ts|ts|m4s|f4v|flv|wmv|asf|vob|qt|ogx|rm|rmvb|divx|mxf|nut|roq|yuv|mpd|m3u8)(?:$|[?#])/i;
           var audioExt=/\.(mp3|m4a|m4b|aac|wav|ogg|oga|opus|flac|wma|amr|aiff|aif|ac3|eac3|ape|wv|mid|midi)(?:$|[?#])/i;
           var mediaType=/^(video\/|audio\/|application\/(vnd\.apple\.mpegurl|x-mpegurl|dash\+xml))/i;
@@ -183,7 +183,7 @@ class BrowserPageState extends State<BrowserPage> {
           function isMedia(raw,type){return mediaType.test(type||'')||videoExt.test(raw||'')||audioExt.test(raw||'')}
           function send(raw,reason,type,userSelected){
             var u=valid(raw);if(!u||!isMedia(u,type)||seen[u]||!userSelected)return;
-            var now=Date.now();if(now-lastPrompt<900)return;
+            var now=Date.now();userSelected=!!userSelected||(now-lastUserIntent<12000);if(!userSelected||now-lastPrompt<900)return;
             seen[u]=1;lastPrompt=now;
             try{DroxDownload.postMessage(u)}catch(_){}
           }
@@ -206,7 +206,7 @@ class BrowserPageState extends State<BrowserPage> {
           function scanResources(){
             try{
               performance.getEntriesByType('resource').slice(-250).forEach(function(entry){
-                if(videoExt.test(entry.name)||audioExt.test(entry.name))send(entry.name,'resource','',false);
+                if(videoExt.test(entry.name)||audioExt.test(entry.name))send(entry.name,'resource','',Date.now()-lastUserIntent<12000);
               });
             }catch(_){}
           }
@@ -228,7 +228,7 @@ class BrowserPageState extends State<BrowserPage> {
               var promise=originalFetch.apply(this,args);
               promise.then(function(response){
                 try{var type=response.headers.get('content-type')||'';var target=response.url||requestUrl;
-                  if(isMedia(target,type))send(target,'fetch',type,false);
+                  if(isMedia(target,type))send(target,'fetch',type,Date.now()-lastUserIntent<12000);
                 }catch(_){}
               }).catch(function(){});
               return promise;
@@ -241,7 +241,7 @@ class BrowserPageState extends State<BrowserPage> {
             XMLHttpRequest.prototype.send=function(){
               this.addEventListener('load',function(){
                 try{var type=this.getResponseHeader('content-type')||'';var target=this.responseURL||this.__droxUrl||'';
-                  if(isMedia(target,type))send(target,'xhr',type,false);
+                  if(isMedia(target,type))send(target,'xhr',type,Date.now()-lastUserIntent<12000);
                 }catch(_){}
               });
               return originalSend.apply(this,arguments);
@@ -256,6 +256,7 @@ class BrowserPageState extends State<BrowserPage> {
           new MutationObserver(function(){scan();scanResources();scanFrames()}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
           setInterval(function(){scan();scanResources();scanFrames()},2000);
           document.addEventListener('click',function(e){
+            lastUserIntent=Date.now();
             var target=e.target;
             var media=target&&target.closest?target.closest('video,audio'):null;
             if(media){mediaSources(media,true);return}
