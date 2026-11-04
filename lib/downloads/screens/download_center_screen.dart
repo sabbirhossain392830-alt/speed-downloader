@@ -293,7 +293,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
         break;
       case 'folder':
         try {
-          final path = await item.task.filePath();
+          final path = item.renamedPath ?? await item.task.filePath();
           final slash = path.lastIndexOf('/');
           final folder = slash > 0 ? path.substring(0, slash) : path;
           final opened = await launchUrl(Uri.file(folder), mode: LaunchMode.externalApplication);
