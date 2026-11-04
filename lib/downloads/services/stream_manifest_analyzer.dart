@@ -101,15 +101,15 @@ class DroxStreamManifestAnalyzer {
       }
       if (line.startsWith('#EXT-X-MEDIA:')) {
         final attrs = _attributes(line.substring('#EXT-X-MEDIA:'.length));
-        final uri = attrs['URI'];
+        final uri = attrs['uri'];
         renditions.add(DroxStreamRendition(
-          type: attrs['TYPE'] ?? 'UNKNOWN',
-          groupId: attrs['GROUP-ID'] ?? '',
-          name: attrs['NAME'] ?? attrs['LANGUAGE'] ?? 'Track',
+          type: attrs['type'] ?? 'UNKNOWN',
+          groupId: attrs['group-id'] ?? '',
+          name: attrs['name'] ?? attrs['language'] ?? 'Track',
           url: uri == null ? manifestUrl : _resolve(manifestUrl, uri),
-          language: attrs['LANGUAGE'],
-          isDefault: attrs['DEFAULT'] == 'YES',
-          isAutoselect: attrs['AUTOSELECT'] == 'YES',
+          language: attrs['language'],
+          isDefault: attrs['default'] == 'YES',
+          isAutoselect: attrs['autoselect'] == 'YES',
         ));
       }
       if (line.startsWith('#EXT-X-STREAM-INF:')) {
@@ -119,14 +119,14 @@ class DroxStreamManifestAnalyzer {
           next++;
         }
         if (next < lines.length) {
-          final resolution = attrs['RESOLUTION']?.split('x');
+          final resolution = attrs['resolution']?.split('x');
           variants.add(DroxStreamVariant(
             url: _resolve(manifestUrl, lines[next]),
             width: resolution != null && resolution.length == 2 ? int.tryParse(resolution[0]) : null,
             height: resolution != null && resolution.length == 2 ? int.tryParse(resolution[1]) : null,
-            bandwidth: int.tryParse(attrs['AVERAGE-BANDWIDTH'] ?? attrs['BANDWIDTH'] ?? ''),
-            codecs: attrs['CODECS'],
-            audioGroup: attrs['AUDIO'],
+            bandwidth: int.tryParse(attrs['average-bandwidth'] ?? attrs['bandwidth'] ?? ''),
+            codecs: attrs['codecs'],
+            audioGroup: attrs['audio'],
           ));
           i = next;
         }
@@ -170,7 +170,7 @@ class DroxStreamManifestAnalyzer {
     final periodBodies = periodMatches.isEmpty ? [xml] : periodMatches.map((m) => m.group(1) ?? '').toList();
 
     for (final periodBody in periodBodies) {
-      final periodBase = _childBaseUrl(periodBody, mpdBase);
+      final periodBase = mpdBase; // Avoid reapplying nested AdaptationSet BaseURL values.
       final adaptations = RegExp(r'<AdaptationSet\b([^>]*)>([\s\S]*?)</AdaptationSet>', caseSensitive: false);
       for (final adaptation in adaptations.allMatches(periodBody)) {
         final adaptationAttrs = _attributes(adaptation.group(1) ?? '');
