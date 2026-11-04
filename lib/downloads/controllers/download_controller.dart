@@ -269,9 +269,15 @@ class DownloadController extends ChangeNotifier {
     if (index < 0) return;
     final item = _items[index];
     if (update is TaskProgressUpdate) {
-      item.progress = update.progress.clamp(0, 1).toDouble();
-      if (update.hasExpectedFileSize) item.expectedBytes = update.expectedFileSize;
-      if (item.expectedBytes > 0) {
+      // Negative progress values are plugin sentinels (paused/failed/canceled), not percentages.
+      // Preserve the last real percentage instead of clamping a pause sentinel to zero.
+      if (update.progress >= 0 && update.progress <= 1) {
+        item.progress = update.progress;
+      }
+      if (update.hasExpectedFileSize && update.expectedFileSize > 0) {
+        item.expectedBytes = update.expectedFileSize;
+      }
+      if (item.expectedBytes > 0 && item.progress >= 0 && item.progress <= 1) {
         final now = DateTime.now();
         final currentBytes = (item.progress * item.expectedBytes).round();
         item.downloadedBytes = currentBytes;
