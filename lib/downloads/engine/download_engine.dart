@@ -40,5 +40,7 @@ class DownloadEngine {
   Future<void> cancel(DownloadTask task) => _downloader.cancelTaskWithId(task.taskId);
   Future<String?> moveToSharedDownloads(DownloadTask task) =>
       _downloader.moveToSharedStorage(task, SharedStorage.downloads, directory: 'DROX');
+  Future<String?> moveFileToSharedDownloads(String sourcePath) =>
+      _downloader.moveFileToSharedStorage(sourcePath, SharedStorage.downloads, directory: 'DROX');
   Future<String> filePath(DownloadTask task) => task.filePath();
 }
