@@ -177,8 +177,43 @@ class DownloadController extends ChangeNotifier {
   }
 
   Future<void> redownload(DroxDownloadItem item) async {
-    final filename = item.filename;
-    await addDirectMedia(url: item.url, filename: filename);
+    // Restart this exact list item instead of inserting a duplicate row.
+    if (item.state == DroxDownloadState.running ||
+        item.state == DroxDownloadState.queued ||
+        item.state == DroxDownloadState.paused) {
+      await _engine.cancel(item.task);
+    }
+    try {
+      final oldPath = item.renamedPath ?? await item.task.filePath();
+      final oldFile = File(oldPath);
+      if (await oldFile.exists()) await oldFile.delete();
+    } catch (_) {
+      // A missing partial file is fine; the task will start from zero.
+    }
+    final filename = item.task.filename;
+    final task = await _engine.createTask(url: item.url, filename: filename);
+    item.task = task;
+    item.renamedFilename = null;
+    item.renamedPath = null;
+    item.progress = 0;
+    item.expectedBytes = -1;
+    item.downloadedBytes = 0;
+    item.speedBytesPerSecond = 0;
+    item.speedSampleAt = null;
+    item.speedSampleBytes = 0;
+    item.error = null;
+    item.state = DroxDownloadState.queued;
+    notifyListeners();
+    await _persist();
+    try {
+      await _engine.enqueue(task);
+    } catch (error) {
+      item.state = DroxDownloadState.failed;
+      item.error = error.toString();
+      await _persist();
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> removeMany(List<DroxDownloadItem> selected) async {
