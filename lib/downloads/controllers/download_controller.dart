@@ -91,6 +91,7 @@ class DownloadController extends ChangeNotifier {
         }
         item.error = data['error'] as String?;
         item.renamedFilename = data['displayFilename'] as String?;
+        item.renamedPath = data['renamedPath'] as String?;
         _items.add(item);
       }
       _initialized = true;
@@ -162,6 +163,7 @@ class DownloadController extends ChangeNotifier {
       final targetName = hasExtension ? clean : clean + _extension(item.filename);
       await oldFile.rename(oldFile.parent.path + Platform.pathSeparator + targetName);
       item.renamedFilename = targetName;
+      item.renamedPath = oldFile.parent.path + Platform.pathSeparator + targetName;
     } else {
       item.renamedFilename = clean.contains('.') ? clean : clean + _extension(item.filename);
     }
@@ -185,7 +187,7 @@ class DownloadController extends ChangeNotifier {
         await _engine.cancel(item.task);
       }
       try {
-        final path = await item.task.filePath();
+        final path = item.renamedPath ?? await item.task.filePath();
         final file = File(path);
         if (await file.exists()) await file.delete();
       } catch (_) {}
