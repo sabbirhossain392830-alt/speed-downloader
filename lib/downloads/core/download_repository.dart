@@ -23,7 +23,8 @@ class DownloadRepository {
     final data = items.map((item) => {
       'id': item.id,
       'url': item.url,
-      'filename': item.filename,
+      'filename': item.task.filename,
+      'displayFilename': item.renamedFilename,
       'state': item.state.name,
       'progress': item.progress,
       'expectedBytes': item.expectedBytes,
