@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../controllers/download_controller.dart';
 import '../core/download_item.dart';
@@ -296,8 +297,8 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
           final path = item.renamedPath ?? await item.task.filePath();
           final slash = path.lastIndexOf('/');
           final folder = slash > 0 ? path.substring(0, slash) : path;
-          final opened = await launchUrl(Uri.file(folder), mode: LaunchMode.externalApplication);
-          if (!opened && mounted) {
+          final result = await OpenFilex.open(folder);
+          if (result.type != ResultType.done && mounted) {
             await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
               title: const Text('File location'),
               content: SelectableText(folder),
@@ -366,29 +367,26 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
     String speedLabel() { final v = item.speedBytesPerSecond; if (!running || v <= 0) return running ? 'Calculating speed...' : ''; if (v >= 1048576) return (v / 1048576).toStringAsFixed(2) + ' MB/s'; return (v / 1024).toStringAsFixed(1) + ' KB/s'; }
     String etaLabel() { if (!running || item.expectedBytes <= 0 || item.speedBytesPerSecond <= 0) return running ? 'Time left: calculating...' : ''; final n = ((item.expectedBytes - item.downloadedBytes).clamp(0, item.expectedBytes) / item.speedBytesPerSecond).ceil(); if (n >= 3600) return 'Time left: ' + (n ~/ 3600).toString() + 'h ' + ((n % 3600) ~/ 60).toString() + 'm'; if (n >= 60) return 'Time left: ' + (n ~/ 60).toString() + 'm ' + (n % 60).toString() + 's'; return 'Time left: ' + n.toString() + 's'; }
     final ink = Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF202020);
-    return Container(
-      height: 116,
-      color: Theme.of(context).scaffoldBackgroundColor,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () => setState(() => _selectedIds.add(item.id)),
+      onTap: _selectedIds.isEmpty ? null : () => setState(() {
+        if (_selectedIds.contains(item.id)) { _selectedIds.remove(item.id); } else { _selectedIds.add(item.id); }
+      }),
+      child: Container(
+      height: 94,
+      color: _selectedIds.contains(item.id) ? const Color(0xFF2878D0).withValues(alpha: .10) : Theme.of(context).scaffoldBackgroundColor,
       child: Stack(
         children: [
-          Positioned.fill(child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onLongPress: () => setState(() => _selectedIds.add(item.id)),
-              onTap: _selectedIds.isEmpty ? null : () => setState(() {
-                if (_selectedIds.contains(item.id)) { _selectedIds.remove(item.id); } else { _selectedIds.add(item.id); }
-              }),
-            ),
-          )),
           if (running || paused)
             Positioned(left: 0, right: 0, bottom: 0,
-              child: Container(height: 3, color: ink.withValues(alpha: .10))),
+              child: Container(height: 4, color: const Color(0xFFE6F0FC))),
           if (running || paused)
             Positioned(left: 0, bottom: 0,
-              child: SizedBox(width: MediaQuery.of(context).size.width * item.progress.clamp(0.0, 1.0), height: 3,
-                child: Container(color: const Color(0xFF2878D0)))),
+              child: FractionallySizedBox(widthFactor: item.progress.clamp(0.0, 1.0),
+                child: Container(width: MediaQuery.of(context).size.width, height: 4, color: const Color(0xFF2878D0)))),
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 5, 7),
+            padding: const EdgeInsets.fromLTRB(10, 5, 5, 5),
             child: Row(children: [
               SizedBox(
                 width: 42,
@@ -407,7 +405,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                   children: [
                     Text(item.filename, maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: ink)),
-                    const SizedBox(height: 7),
+                    const SizedBox(height: 4),
                     Row(children: [
                       Expanded(child: Text('$percent% | ${sizeLabel()}',
                         maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -460,7 +458,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
           ),
         ],
       ),
-    );
+    ));
   }
 
 }
