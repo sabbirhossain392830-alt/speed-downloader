@@ -54,13 +54,13 @@ class DroxMediaVerifier {
       head = await _dio.head<dynamic>(input,
           options: Options(validateStatus: (s) => s != null && s < 500));
       final status = head.statusCode ?? 0;
-      if (status >= 400) return _reject(input, 'HTTP $status');
+      if (status >= 400 && status != 405 && status != 501) return _reject(input, 'HTTP $status');
       final type = _cleanType(head.headers.value(Headers.contentTypeHeader));
       final disposition = head.headers.value('content-disposition');
       final length = int.tryParse(head.headers.value(Headers.contentLengthHeader) ?? '');
       final finalUrl = head.realUri.toString();
       if (_isHtml(type)) return _reject(finalUrl, 'Server returned HTML, not media.');
-      if (_isMediaType(type) || _isManifestPath(finalUrl)) {
+      if (_isMediaType(type)) {
         return _accept(finalUrl, type, disposition, length,
             manifest: _isManifestPath(finalUrl));
       }
@@ -195,7 +195,7 @@ class DroxMediaVerifier {
         ascii.decode(b.skip(8).take(4).toList(), allowInvalid: true) == 'AVI ') {
       return 'video/x-msvideo';
     }
-    if (b.length >= 2 && b[0] == 0x47 && b[1] <= 0xFF) return 'video/mp2t';
+    if (b.length >= 189 && b[0] == 0x47 && b[188] == 0x47 && (b.length < 377 || b[376] == 0x47)) return 'video/mp2t';
     return null;
   }
 
