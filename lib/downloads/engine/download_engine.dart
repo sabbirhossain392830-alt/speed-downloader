@@ -26,7 +26,7 @@ class DownloadEngine {
       url: uri.toString(),
       filename: filename,
       directory: directory,
-      baseDirectory: BaseDirectory.applicationSupport,
+      baseDirectory: BaseDirectory.downloads,
       updates: Updates.statusAndProgress,
       allowPause: true,
       retries: retries,
