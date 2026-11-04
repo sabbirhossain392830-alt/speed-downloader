@@ -34,6 +34,7 @@ class DroxMediaVerifier {
               sendTimeout: const Duration(seconds: 10),
               followRedirects: true,
               maxRedirects: 8,
+              maxContentLength: 4096,
               headers: const {
                 'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36',
                 'Accept': '*/*',
