@@ -139,14 +139,20 @@ class BrowserPageState extends State<BrowserPage> {
       try {
         final decoded = jsonDecode(m.message);
         if (decoded is Map && decoded['candidates'] is List) {
-          final candidates = (decoded['candidates'] as List)
-              .whereType<String>()
-              .where((value) => value.startsWith('http://') || value.startsWith('https://'))
-              .toSet()
-              .toList();
-          if (candidates.isNotEmpty) {
-            _chooseMediaCandidate(candidates);
+          final candidates = <String>[];
+          for (final entry in decoded['candidates'] as List) {
+            if (entry is String) {
+              if (entry.startsWith('http://') || entry.startsWith('https://')) candidates.add(entry);
+            } else if (entry is Map && entry['url'] is String) {
+              final value = entry['url'] as String;
+              if (!value.startsWith('http://') && !value.startsWith('https://')) continue;
+              final type = entry['type'] is String ? (entry['type'] as String).toLowerCase() : '';
+              if (type.startsWith('video/') || type.startsWith('audio/') || type == 'application/vnd.apple.mpegurl' || type == 'application/x-mpegurl' || type == 'application/dash+xml') _detectedMediaTypes[value] = type;
+              candidates.add(value);
+            }
           }
+          final unique = candidates.toSet().toList();
+          if (unique.isNotEmpty) _chooseMediaCandidate(unique);
           return;
         }
       } catch (_) {}
@@ -204,10 +210,10 @@ class BrowserPageState extends State<BrowserPage> {
             if(!videoPlaybackActive)return;
             var u=valid(raw);if(!u||seen[u])return;
             if(!mediaType.test(type||'')&&!videoExt.test(u))return;
-            seen[u]=1;pendingCandidates[u]=1;
+            var path='';try{path=new URL(u).pathname.toLowerCase()}catch(_){} if(/\\.(ts|m4s|cmfv|cmfa|aac|mp3|vtt)(?:$|[?#])/i.test(path))return; seen[u]=1;pendingCandidates[u]={url:u,type:(type||'').toLowerCase()};
             if(candidateFlushTimer)clearTimeout(candidateFlushTimer);
             candidateFlushTimer=setTimeout(function(){
-              var list=Object.keys(pendingCandidates);pendingCandidates=Object.create(null);
+              var list=Object.keys(pendingCandidates).map(function(k){return pendingCandidates[k]});pendingCandidates=Object.create(null);
               if(!list.length||!videoPlaybackActive)return;
               lastPrompt=Date.now();
               try{DroxDownload.postMessage(JSON.stringify({candidates:list.slice(0,12)}))}catch(_){}
@@ -306,6 +312,7 @@ class BrowserPageState extends State<BrowserPage> {
     if (url.isNotEmpty) await ctrl.loadRequest(Uri.parse(url));
   }
   final Set<String> _promptedDownloadUrls = <String>{};
+  final Map<String, String> _detectedMediaTypes = <String, String>{};
   String _extensionForMediaType(String? mediaType) {
     final type = (mediaType ?? '').split(';').first.trim().toLowerCase();
     const extensions = <String, String>{
@@ -357,7 +364,7 @@ class BrowserPageState extends State<BrowserPage> {
     }) async {
       if (!seen.add(url)) return;
       try {
-        final verified = await verifier.verify(url);
+        final verified = await verifier.verify(url, hintedContentType: _detectedMediaTypes[url]);
         if (!verified.isMedia) return;
         options.add(<String, Object?>{
           'url': verified.url,
