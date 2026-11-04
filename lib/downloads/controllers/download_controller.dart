@@ -130,8 +130,25 @@ class DownloadController extends ChangeNotifier {
     final paused = await _engine.pause(item.task);
     if (!paused) throw StateError('The server may not support pause/resume.');
     item.state = DroxDownloadState.paused;
+    await _refreshDownloadedBytes(item);
     await _persist();
     notifyListeners();
+  }
+
+  Future<void> _refreshDownloadedBytes(DroxDownloadItem item) async {
+    try {
+      final path = item.renamedPath ?? await item.task.filePath();
+      final file = File(path);
+      if (!await file.exists()) return;
+      final length = await file.length();
+      item.downloadedBytes = length;
+      if (item.expectedBytes > 0) {
+        item.progress = (length / item.expectedBytes).clamp(0.0, 1.0).toDouble();
+      }
+    } catch (_) {
+      // Keep the last progress update if the platform does not expose the
+      // partial file path while a task is paused.
+    }
   }
 
   Future<void> resume(DroxDownloadItem item) async {
