@@ -330,12 +330,24 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       for (final item in selected) { await _runAction(() => _downloads.redownload(item)); }
       if (mounted) setState(() => _selectedIds.clear());
     } else if (action == 'delete') {
-      final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+      bool deleteFiles = false;
+      final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, setDialogState) => AlertDialog(
         backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF14243A) : const Color(0xFFF3F8FF),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: Color(0xFF2878D0), width: 1.2)),
         icon: const Icon(Icons.delete_sweep_rounded, color: Color(0xFF2878D0), size: 38),
         title: const Text('Delete selected files?', textAlign: TextAlign.center),
-        content: Text('Are you sure you want to delete ${selected.length} selected file(s)?', textAlign: TextAlign.center),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Remove ${selected.length} selected item(s) from DROX history?', textAlign: TextAlign.center),
+          const SizedBox(height: 10),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: deleteFiles,
+            onChanged: (value) => setDialogState(() => deleteFiles = value ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text('Also delete files from phone storage'),
+            subtitle: const Text('Unchecked = remove history only'),
+          ),
+        ]),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('CANCEL', style: TextStyle(color: Color(0xFF2878D0), fontWeight: FontWeight.w700))),
@@ -345,8 +357,8 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
             child: const Text('DELETE'),
           ),
         ],
-      ));
-      if (confirmed == true) await _runAction(() => _downloads.removeMany(selected));
+      )));
+      if (confirmed == true) await _runAction(() => _downloads.removeMany(selected, deleteFiles: deleteFiles));
       if (mounted) setState(() => _selectedIds.clear());
     }
   }
@@ -378,14 +390,17 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       color: _selectedIds.contains(item.id) ? const Color(0xFF2878D0).withValues(alpha: .10) : Theme.of(context).scaffoldBackgroundColor,
       child: Stack(
         children: [
-          if (running || paused)
-            Positioned(left: 0, right: 0, bottom: 0,
-              child: Container(height: 4, color: const Color(0xFFE6F0FC))),
-          if (running || paused)
-            Positioned(left: 0, right: 0, bottom: 0,
-              child: SizedBox(height: 4, child: LayoutBuilder(builder: (context, constraints) =>
-                Align(alignment: Alignment.centerLeft,
-                  child: Container(width: constraints.maxWidth * item.progress.clamp(0.0, 1.0), height: 4, color: const Color(0xFF2878D0)))))),
+          // Progress is painted across the whole slim row, matching both reference themes.
+          if (running || paused || complete)
+            Positioned.fill(child: ColoredBox(color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF25282B) : const Color(0xFFF4F5F6))),
+          if (running || paused || complete)
+            Positioned.fill(child: Align(alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(widthFactor: (complete ? 1.0 : item.progress).clamp(0.0, 1.0),
+                heightFactor: 1,
+                child: ColoredBox(color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF659F99).withValues(alpha: .92)
+                    : const Color(0xFF659F99).withValues(alpha: .32))))),
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 5, 5, 5),
             child: Row(children: [
