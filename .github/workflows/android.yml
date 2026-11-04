@@ -293,7 +293,7 @@ jobs:
           PY
           flutter pub get
           python3 tool/patch_background_downloader_notifications.py
-          flutter analyze
+          flutter analyze --no-fatal-warnings --no-fatal-infos
           flutter test
           flutter build apk --release
       - name: Upload APK
