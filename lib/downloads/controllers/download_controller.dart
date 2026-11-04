@@ -163,6 +163,26 @@ class DownloadController extends ChangeNotifier {
     if (update is TaskProgressUpdate) {
       item.progress = update.progress.clamp(0, 1).toDouble();
       if (update.hasExpectedFileSize) item.expectedBytes = update.expectedFileSize;
+      if (item.expectedBytes > 0) {
+        final now = DateTime.now();
+        final currentBytes = (item.progress * item.expectedBytes).round();
+        item.downloadedBytes = currentBytes;
+        final sampleAt = item.speedSampleAt;
+        if (sampleAt == null) {
+          item.speedSampleAt = now;
+          item.speedSampleBytes = currentBytes;
+        } else {
+          final elapsedMs = now.difference(sampleAt).inMilliseconds;
+          if (elapsedMs >= 700) {
+            final delta = currentBytes - item.speedSampleBytes;
+            if (delta >= 0) {
+              item.speedBytesPerSecond = delta * 1000 / elapsedMs;
+              item.speedSampleAt = now;
+              item.speedSampleBytes = currentBytes;
+            }
+          }
+        }
+      }
     } else if (update is TaskStatusUpdate) {
       switch (update.status) {
         case TaskStatus.enqueued:
