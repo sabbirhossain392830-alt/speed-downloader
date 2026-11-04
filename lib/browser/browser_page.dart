@@ -195,7 +195,7 @@ class BrowserPageState extends State<BrowserPage> {
             document.querySelectorAll('video,audio').forEach(function(v){
               mediaSources(v,false);
               if(!v.__droxBound){v.__droxBound=true;
-                ['play','loadedmetadata','canplay','click'].forEach(function(evt){v.addEventListener(evt,function(){mediaSources(v,true)},true)});
+                ['play','loadedmetadata','canplay','click'].forEach(function(evt){v.addEventListener(evt,function(){var selected=evt==='click'||(evt==='play'&&navigator.userActivation&&navigator.userActivation.isActive);mediaSources(v,!!selected)},true)});
               }
             });
             document.querySelectorAll('a[href]').forEach(function(a){
