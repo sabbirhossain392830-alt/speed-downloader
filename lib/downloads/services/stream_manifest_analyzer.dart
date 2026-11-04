@@ -73,7 +73,7 @@ class DroxStreamManifest {
 /// Inspects public HLS/DASH metadata. It does not bypass DRM or access controls.
 class DroxStreamManifestAnalyzer {
   DroxStreamManifest analyzeHls(String source, {required String manifestUrl}) {
-    final lines = source.split(RegExp(r'\\r?\\n')).map((e) => e.trim()).toList();
+    final lines = source.split(RegExp(r'\r?\n')).map((e) => e.trim()).toList();
     final variants = <DroxStreamVariant>[];
     final renditions = <DroxStreamRendition>[];
     final segments = <String>[];
@@ -137,19 +137,19 @@ class DroxStreamManifestAnalyzer {
   List<DroxStreamVariant> analyzeDash(String xml, {required String manifestUrl}) {
     final variants = <DroxStreamVariant>[];
     final mpdBase = _childBaseUrl(xml, manifestUrl);
-    final periods = RegExp(r'<Period\\b[^>]*>([\\s\\S]*?)</Period>', caseSensitive: false);
+    final periods = RegExp(r'<Period\b[^>]*>([\\s\\S]*?)</Period>', caseSensitive: false);
     final periodMatches = periods.allMatches(xml).toList();
     final periodBodies = periodMatches.isEmpty ? [xml] : periodMatches.map((m) => m.group(1) ?? '').toList();
 
     for (final periodBody in periodBodies) {
       final periodBase = _childBaseUrl(periodBody, mpdBase);
-      final adaptations = RegExp(r'<AdaptationSet\\b([^>]*)>([\\s\\S]*?)</AdaptationSet>', caseSensitive: false);
+      final adaptations = RegExp(r'<AdaptationSet\b([^>]*)>([\\s\\S]*?)</AdaptationSet>', caseSensitive: false);
       for (final adaptation in adaptations.allMatches(periodBody)) {
         final adaptationAttrs = _attributes(adaptation.group(1) ?? '');
         final adaptationBody = adaptation.group(2) ?? '';
         final adaptationBase = _childBaseUrl(adaptationBody, periodBase);
         final inheritedTemplate = _firstTagAttributes(adaptationBody, 'SegmentTemplate');
-        final reps = RegExp(r'<Representation\\b([^>]*?)(?:/\\s*>|>([\\s\\S]*?)</Representation>)', caseSensitive: false);
+        final reps = RegExp(r'<Representation\b([^>]*?)(?:/\\s*>|>([\\s\\S]*?)</Representation>)', caseSensitive: false);
         for (final rep in reps.allMatches(adaptationBody)) {
           final attrs = _attributes(rep.group(1) ?? '');
           final repBody = rep.group(2) ?? '';
@@ -180,14 +180,14 @@ class DroxStreamManifestAnalyzer {
   }
 
   String _childBaseUrl(String xml, String fallback) {
-    final match = RegExp(r'<BaseURL\\b[^>]*>([\\s\\S]*?)</BaseURL>', caseSensitive: false).firstMatch(xml);
+    final match = RegExp(r'<BaseURL\b[^>]*>([\\s\\S]*?)</BaseURL>', caseSensitive: false).firstMatch(xml);
     if (match == null) return fallback;
     final value = _decodeXml(match.group(1)!.trim());
     return value.isEmpty ? fallback : _resolve(fallback, value);
   }
 
   Map<String, String> _firstTagAttributes(String xml, String tag) {
-    final match = RegExp('<$tag\\\\b([^>]*)>', caseSensitive: false).firstMatch(xml);
+    final match = RegExp('<$tag\\b([^>]*)>', caseSensitive: false).firstMatch(xml);
     return match == null ? <String, String>{} : _attributes(match.group(1) ?? '');
   }
 
