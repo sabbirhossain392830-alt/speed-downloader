@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:background_downloader/background_downloader.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -89,6 +90,7 @@ class DownloadController extends ChangeNotifier {
           item.state = DroxDownloadState.paused;
         }
         item.error = data['error'] as String?;
+        item.renamedFilename = data['displayFilename'] as String?;
         _items.add(item);
       }
       _initialized = true;
@@ -143,6 +145,52 @@ class DownloadController extends ChangeNotifier {
   Future<void> cancel(DroxDownloadItem item) async {
     await _engine.cancel(item.task);
     item.state = DroxDownloadState.cancelled;
+    await _persist();
+    notifyListeners();
+  }
+
+  Future<void> rename(DroxDownloadItem item, String newName) async {
+    final clean = newName.trim();
+    if (clean.isEmpty || clean.contains('/') || clean.contains('\\')) {
+      throw const FormatException('Enter a valid filename.');
+    }
+    final oldPath = await item.task.filePath();
+    final oldFile = File(oldPath);
+    if (await oldFile.exists()) {
+      final dot = clean.lastIndexOf('.');
+      final hasExtension = dot > 0;
+      final targetName = hasExtension ? clean : clean + _extension(item.filename);
+      await oldFile.rename(oldFile.parent.path + Platform.pathSeparator + targetName);
+      item.renamedFilename = targetName;
+    } else {
+      item.renamedFilename = clean.contains('.') ? clean : clean + _extension(item.filename);
+    }
+    await _persist();
+    notifyListeners();
+  }
+
+  String _extension(String name) {
+    final dot = name.lastIndexOf('.');
+    return dot > 0 ? name.substring(dot) : '';
+  }
+
+  Future<void> redownload(DroxDownloadItem item) async {
+    final filename = item.filename;
+    await addDirectMedia(url: item.url, filename: filename);
+  }
+
+  Future<void> removeMany(List<DroxDownloadItem> selected) async {
+    for (final item in selected) {
+      if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued) {
+        await _engine.cancel(item.task);
+      }
+      try {
+        final path = await item.task.filePath();
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+      _items.removeWhere((candidate) => candidate.id == item.id);
+    }
     await _persist();
     notifyListeners();
   }
