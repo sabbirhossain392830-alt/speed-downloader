@@ -13,6 +13,7 @@ dependencies:
 
   dio: ^5.8.0+1
   background_downloader: 9.6.5
+  ffmpeg_kit_flutter_new_https: ^2.6.8
   path_provider: ^2.1.5
   shared_preferences: ^2.5.3
   webview_flutter: ^4.13.0
