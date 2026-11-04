@@ -339,6 +339,12 @@ class BrowserPageState extends State<BrowserPage> {
     } catch (_) {
       statusNote = 'সার্ভার থেকে ফাইলের তথ্য পাওয়া যায়নি';
     }
+    // Never show a download prompt for an unverified response, an HTML page,
+    // a Cloudflare challenge, or an HTTP error response.
+    if (statusNote.isNotEmpty) {
+      _promptedDownloadUrls.remove(url);
+      return;
+    }
     name = name.replaceAll(RegExp(r'[\\\\/:*?"<>|]'), '_');
     if (!mounted) return;
     final approved = await showDialog<bool>(
