@@ -362,6 +362,15 @@ class BrowserPageState extends State<BrowserPage> {
     // a Cloudflare challenge, or an HTTP error response.
     if (statusNote.isNotEmpty) {
       _promptedDownloadUrls.remove(url);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('DROX: $statusNote'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
     name = name.replaceAll(RegExp(r'[\\\\/:*?"<>|]'), '_');
