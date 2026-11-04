@@ -94,7 +94,8 @@ class DroxStreamDownloadService {
         onProgress?.call(progress, size, elapsed);
       },
     );
-    onSessionId?.call(await session.getSessionId());
+    final sessionId = await session.getSessionId();
+    if (sessionId != null) onSessionId?.call(sessionId);
     return completer.future;
   }
 
