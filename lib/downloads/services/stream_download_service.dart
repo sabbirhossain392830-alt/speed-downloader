@@ -26,6 +26,7 @@ class DroxStreamDownloadService {
     double? durationSeconds,
     Map<String, String> headers = const {},
     void Function(double progress, int bytes, double elapsedSeconds)? onProgress,
+    void Function(int sessionId)? onSessionId,
   }) async {
     final uri = Uri.tryParse(manifestUrl);
     if (uri == null ||
@@ -53,7 +54,7 @@ class DroxStreamDownloadService {
         '-movflags +faststart ${_quote(outputPath)}';
 
     final completer = Completer<DroxStreamDownloadResult>();
-    await FFmpegKit.executeAsync(
+    final session = await FFmpegKit.executeAsync(
       command,
       (session) async {
         if (completer.isCompleted) return;
@@ -93,6 +94,7 @@ class DroxStreamDownloadService {
         onProgress?.call(progress, size, elapsed);
       },
     );
+    onSessionId?.call(await session.getSessionId());
     return completer.future;
   }
 
