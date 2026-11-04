@@ -216,16 +216,18 @@ class DownloadController extends ChangeNotifier {
     }
   }
 
-  Future<void> removeMany(List<DroxDownloadItem> selected) async {
+  Future<void> removeMany(List<DroxDownloadItem> selected, {bool deleteFiles = false}) async {
     for (final item in selected) {
       if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued) {
         await _engine.cancel(item.task);
       }
-      try {
-        final path = item.renamedPath ?? await item.task.filePath();
-        final file = File(path);
-        if (await file.exists()) await file.delete();
-      } catch (_) {}
+      if (deleteFiles) {
+        try {
+          final path = item.renamedPath ?? await item.task.filePath();
+          final file = File(path);
+          if (await file.exists()) await file.delete();
+        } catch (_) {}
+      }
       _items.removeWhere((candidate) => candidate.id == item.id);
     }
     await _persist();
