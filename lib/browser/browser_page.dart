@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../shared/widgets/drox_widgets.dart';
+import '../downloads/services/media_verifier.dart';
 
 class BrowserPage extends StatefulWidget {
   const BrowserPage({super.key, required this.onDownload, required this.isDark, required this.isBangla, required this.onThemeTap, required this.onReturn, required this.onSettings});
@@ -312,32 +313,21 @@ class BrowserPageState extends State<BrowserPage> {
     var type = 'অজানা';
     var statusNote = '';
     try {
-      final dio = Dio(BaseOptions(
-        followRedirects: true,
-        receiveTimeout: const Duration(seconds: 12),
-        sendTimeout: const Duration(seconds: 12),
-        validateStatus: (s) => s != null && s < 500,
-      ));
-      final response = await dio.head(url);
-      final responseType = (response.headers.value('content-type') ?? '').toLowerCase();
-      if ((response.statusCode ?? 200) >= 400) {
-        statusNote = 'সার্ভার লিংকটি অনুমোদন করেনি (HTTP ${response.statusCode})';
-      } else if (responseType.contains('text/html')) {
-        statusNote = 'এটি সরাসরি মিডিয়া ফাইল নয়—সার্ভার HTML/Cloudflare পেজ পাঠাচ্ছে';
+      final verification = await DroxMediaVerifier().verify(url);
+      if (!verification.isMedia) {
+        statusNote = verification.reason;
       } else {
-        if (response.realUri.toString().startsWith('http')) finalUrl = response.realUri.toString();
-        final length = int.tryParse(response.headers.value('content-length') ?? '');
-        size = _formatFileSize(length);
-        type = responseType.split(';').first.isEmpty ? 'অজানা' : responseType.split(';').first;
+        finalUrl = verification.url;
+        size = _formatFileSize(verification.contentLength);
+        type = verification.contentType ?? 'অজানা';
+        if (verification.filename != null && verification.filename!.isNotEmpty) {
+          name = verification.filename!;
+        } else if (verification.isStreamingManifest) {
+          name = verification.filename ?? (verification.url.toLowerCase().contains('.mpd') ? 'stream.mpd' : 'stream.m3u8');
+        }
       }
-      final disposition = response.headers.value('content-disposition') ?? '';
-      final match = RegExp(r'filename\s*=\s*([^;]+)', caseSensitive: false).firstMatch(disposition);
-      if (match != null && match.group(1)!.trim().isNotEmpty) {
-        try { name = Uri.decodeComponent(match.group(1)!.trim().replaceAll('"', '').replaceAll("'", '')); } catch (_) { name = match.group(1)!.trim().replaceAll('"', '').replaceAll("'", ''); }
-      }
-      if (response.statusCode != null && response.statusCode! >= 400) statusNote = 'সার্ভার তথ্য যাচাই করতে দেয়নি';
     } catch (_) {
-      statusNote = 'সার্ভার থেকে ফাইলের তথ্য পাওয়া যায়নি';
+      statusNote = 'সার্ভার থেকে মিডিয়া যাচাই করা যায়নি';
     }
     // Never show a download prompt for an unverified response, an HTML page,
     // a Cloudflare challenge, or an HTTP error response.
