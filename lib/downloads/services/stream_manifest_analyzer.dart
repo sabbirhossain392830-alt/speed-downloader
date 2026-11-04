@@ -70,6 +70,18 @@ class DroxStreamManifest {
   final bool isLive;
 }
 
+/// A normalized option shown when a master playlist exposes several qualities.
+class DroxStreamQualityOption {
+  const DroxStreamQualityOption({required this.url, required this.label, this.width, this.height, this.bandwidth, this.codecs});
+  final String url;
+  final String label;
+  final int? width;
+  final int? height;
+  final int? bandwidth;
+  final String? codecs;
+}
+
+
 /// Inspects public HLS/DASH metadata. It does not bypass DRM or access controls.
 class DroxStreamManifestAnalyzer {
   DroxStreamManifest analyzeHls(String source, {required String manifestUrl}) {
@@ -132,6 +144,22 @@ class DroxStreamManifestAnalyzer {
       durationSeconds: duration > 0 ? duration : null,
       isLive: live,
     );
+  }
+
+  List<DroxStreamQualityOption> qualityOptions(DroxStreamManifest manifest) {
+    final options = manifest.variants.map((variant) => DroxStreamQualityOption(
+      url: variant.url,
+      label: variant.qualityLabel,
+      width: variant.width,
+      height: variant.height,
+      bandwidth: variant.bandwidth,
+      codecs: variant.codecs,
+    )).toList();
+    options.sort((a, b) {
+      final byHeight = (b.height ?? 0).compareTo(a.height ?? 0);
+      return byHeight != 0 ? byHeight : (b.bandwidth ?? 0).compareTo(a.bandwidth ?? 0);
+    });
+    return options;
   }
 
   List<DroxStreamVariant> analyzeDash(String xml, {required String manifestUrl}) {
