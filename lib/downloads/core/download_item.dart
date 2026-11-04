@@ -14,6 +14,7 @@ class DroxDownloadItem {
   int speedSampleBytes = 0;
   int downloadedBytes = 0;
   String? renamedFilename;
+  String? renamedPath;
 
   String get id => task.taskId;
   String get filename => renamedFilename ?? task.filename;
