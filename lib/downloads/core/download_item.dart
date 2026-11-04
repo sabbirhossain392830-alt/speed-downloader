@@ -13,9 +13,10 @@ class DroxDownloadItem {
   DateTime? speedSampleAt;
   int speedSampleBytes = 0;
   int downloadedBytes = 0;
+  String? renamedFilename;
 
   String get id => task.taskId;
-  String get filename => task.filename;
+  String get filename => renamedFilename ?? task.filename;
   String get url => task.url;
 
   factory DroxDownloadItem.fromTask(DownloadTask task) => DroxDownloadItem(task: task);
