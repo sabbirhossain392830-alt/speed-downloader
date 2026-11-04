@@ -9,6 +9,10 @@ class DroxDownloadItem {
   double progress;
   int expectedBytes;
   String? error;
+  double speedBytesPerSecond = 0;
+  DateTime? speedSampleAt;
+  int speedSampleBytes = 0;
+  int downloadedBytes = 0;
 
   String get id => task.taskId;
   String get filename => task.filename;
