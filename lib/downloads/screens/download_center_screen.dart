@@ -335,24 +335,6 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
           _message('Could not open file: $error');
         }
         break;
-      case 'folder':
-        try {
-          final path = item.renamedPath ?? await item.task.filePath();
-          final slash = path.lastIndexOf('/');
-          final folder = slash > 0 ? path.substring(0, slash) : path;
-          final result = await OpenFilex.open(folder);
-          if (result.type != ResultType.done && mounted) {
-            await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
-              title: const Text('File location'),
-              content: SelectableText(folder),
-              actions: [
-                TextButton(onPressed: () { Clipboard.setData(ClipboardData(text: folder)); Navigator.pop(dialogContext); }, child: const Text('COPY PATH')),
-                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('CLOSE')),
-              ],
-            ));
-          }
-        } catch (error) { _message('Could not open folder: $error'); }
-        break;
     }
   }
 
@@ -370,8 +352,21 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
       await Clipboard.setData(ClipboardData(text: selected.map((item) => item.url).join('\\n')));
       _message('Selected links copied.');
     } else if (action == 'redownload') {
-      for (final item in selected) { await _runAction(() => _downloads.redownload(item)); }
-      if (mounted) setState(() => _selectedIds.clear());
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Redownload selected files?'),
+          content: const Text('Are you sure you want to redownload selected file(s)?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('NO')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('YES')),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        for (final item in selected) { await _runAction(() => _downloads.redownload(item)); }
+        if (mounted) setState(() => _selectedIds.clear());
+      }
     } else if (action == 'delete') {
       bool deleteFiles = false;
       final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, setDialogState) => AlertDialog(
@@ -473,7 +468,7 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: ink)),
                     const SizedBox(height: 4),
                     Row(children: [
-                      Expanded(child: Text('$percent% | ${paused ? _formatBytes(item.downloadedBytes) + ' / ' : ''}${sizeLabel()}',
+                      Expanded(child: Text('$percent% | ${_formatBytes(item.downloadedBytes)} / ${sizeLabel()}',
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 12, color: ink))),
                       Text(status, style: TextStyle(fontSize: 12, color: ink.withValues(alpha: .85))),
@@ -494,7 +489,6 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
                   onSelected: (action) => _showItemMenu(item, action),
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'open', child: Text('Open file')),
-                    PopupMenuItem(value: 'folder', child: Text('Open folder')),
                     PopupMenuItem(value: 'redownload', child: Text('Redownload')),
                     PopupMenuItem(value: 'rename', child: Text('Rename file')),
                     PopupMenuItem(value: 'copy', child: Text('Copy link')),
