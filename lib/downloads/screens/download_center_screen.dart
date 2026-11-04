@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,8 +9,11 @@ import 'package:open_filex/open_filex.dart';
 import '../controllers/download_controller.dart';
 import '../core/download_item.dart';
 import '../services/youtube_metadata_service.dart';
+import '../services/youtube_stream_service.dart';
 import '../services/link_resolver.dart';
+import '../youtube/youtube_download_option.dart';
 import '../youtube/youtube_link_info.dart';
+import 'youtube_quality_sheet.dart';
 
 /// Standalone v2 download screen. It does not modify BrowserPage.
 class DownloadCenterScreen extends StatefulWidget {
@@ -35,6 +39,11 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   Future<void> downloadDetectedUrl(String value) async {
     final clean = value.trim();
     if (clean.isEmpty) return;
+    final youtube = YoutubeLinkInfo.parse(clean);
+    if (youtube != null) {
+      await _startYoutubeDownload(youtube);
+      return;
+    }
     final existing = _downloads.items.where((item) =>
         item.url == clean &&
         (item.state == DroxDownloadState.running ||
@@ -95,8 +104,49 @@ class DownloadCenterScreenState extends State<DownloadCenterScreen> {
   Future<void> acceptSharedUrl(String value) async {
     _url.text = value.trim();
     if (!mounted) return;
+    final youtube = YoutubeLinkInfo.parse(_url.text);
+    if (youtube != null) {
+      await _startYoutubeDownload(youtube);
+      return;
+    }
     setState(() {});
     await _inspectLink();
+  }
+
+  bool _loadingYoutube = false;
+
+  /// Reads the video's qualities, lets the user pick one and queues it.
+  Future<void> _startYoutubeDownload(YoutubeLinkInfo link) async {
+    if (_loadingYoutube) return;
+    _loadingYoutube = true;
+    _message('Reading YouTube video...');
+    try {
+      final details = await _downloads.loadYoutube(link);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      final option = await showYoutubeQualitySheet(context, details);
+      if (option == null || !mounted) return;
+      final job = option.toJob(details.videoId);
+      if (_downloads.isYoutubeJobActive(job)) {
+        _message('This download is already in the list.');
+        return;
+      }
+      final filename = youtubeFilename(
+        title: details.title,
+        label: option.label,
+        extension: option.extension,
+      );
+      // Not awaited: the item shows its own progress in the list.
+      unawaited(_runAction(() => _downloads.addYoutubeMedia(job: job, filename: filename)));
+      if (mounted) {
+        setState(() => _selectedFilter = 0);
+        _message('YouTube download added to DROX queue.');
+      }
+    } catch (error) {
+      _message(describeYoutubeError(error));
+    } finally {
+      _loadingYoutube = false;
+    }
   }
 
   @override

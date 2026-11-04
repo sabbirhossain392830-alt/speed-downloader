@@ -11,7 +11,8 @@ DROX uses a provider-aware link resolver before adding a task to the background 
 - GitHub release pages: public GitHub API lookup can queue a release automatically only when exactly one public asset exists; releases with multiple assets ask the user to choose on GitHub. Direct release asset URLs are supported.
 - Internet Archive item pages: public metadata lookup can queue automatically only when exactly one supported downloadable file exists; multi-file items ask the user to choose a file on the Archive page. Direct Archive download URLs are supported.
 - HTTP response inspection checks status, MIME type, content length and Content-Disposition filename. HTML pages are not queued as files.
-- MediaFire, MEGA, Box, pCloud, TeraBox, WeTransfer and common video platforms are recognized and opened for their own authorized download flow; they are not falsely advertised as direct-download support.
+- YouTube links (watch, youtu.be, shorts, music, embed, live URL forms) open a quality picker, then download either a single MP4/M4A stream or a video + audio pair merged with FFmpeg. Live streams, purchase/membership-only, private, removed and age-restricted videos are reported as unavailable. See `README.md` in this folder.
+- MediaFire, MEGA, Box, pCloud, TeraBox, WeTransfer and the other video platforms are recognized and opened for their own authorized download flow; they are not falsely advertised as direct-download support.
 
 ## Recognized providers / future adapters
 
@@ -22,8 +23,8 @@ Recognition does not mean every URL is downloadable. Each provider may require a
 ## Safety and compatibility
 
 - Only HTTP/HTTPS URLs are accepted by the download engine.
-- DROX does not bypass login, private-share permissions, DRM, paywalls, or platform download restrictions.
-- Video-host links are metadata/open-page only unless the provider supplies an authorized downloadable file URL.
+- DROX does not bypass login, private-share permissions, DRM or paywalls. YouTube's Terms of Service do not allow downloading outside its own features, so YouTube support is for sideloaded builds and for videos you own or may save.
+- Video-host links other than YouTube are metadata/open-page only unless the provider supplies an authorized downloadable file URL. YouTube downloads use only the streams YouTube serves publicly without signing in.
 - HLS/DASH manifests, FTP/SFTP, WebDAV, torrent and encrypted cloud formats are not enabled in this update; they need separate protocol implementations and testing.
 - BrowserPage is intentionally untouched.
 

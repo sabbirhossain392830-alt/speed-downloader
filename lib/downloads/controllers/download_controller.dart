@@ -9,6 +9,9 @@ import '../core/download_item.dart';
 import '../core/download_repository.dart';
 import '../engine/download_engine.dart';
 import '../services/stream_download_service.dart';
+import '../services/youtube_stream_service.dart';
+import '../youtube/youtube_download_option.dart';
+import '../youtube/youtube_link_info.dart';
 
 /// Owns download state independently of Home and Browser widgets.
 class DownloadController extends ChangeNotifier {
@@ -27,6 +30,10 @@ class DownloadController extends ChangeNotifier {
   final DroxStreamDownloadService _streamService = DroxStreamDownloadService();
   final Map<String, int> _streamSessions = <String, int>{};
   final Set<String> _streamCancelRequested = <String>{};
+  YoutubeStreamService? _youtubeServiceInstance;
+  final Map<String, YoutubeCancelToken> _youtubeCancels = <String, YoutubeCancelToken>{};
+
+  YoutubeStreamService get _youtube => _youtubeServiceInstance ??= YoutubeStreamService();
 
   List<DroxDownloadItem> get items => List.unmodifiable(_items);
   bool get isBusy => _busy;
@@ -97,6 +104,7 @@ class DownloadController extends ChangeNotifier {
         }
         item.error = data['error'] as String?;
         item.isStream = data['isStream'] == true;
+        item.youtube = YoutubeJob.fromJson(data['youtube']);
         if (item.isStream && item.state != DroxDownloadState.complete) {
           item.state = DroxDownloadState.failed;
           item.error = 'Stream task stopped when DROX was closed. Start it again.';
@@ -200,6 +208,94 @@ class DownloadController extends ChangeNotifier {
     }
   }
 
+  /// Reads title, thumbnail and the available qualities of a YouTube video.
+  Future<YoutubeVideoDetails> loadYoutube(YoutubeLinkInfo link) => _youtube.load(link);
+
+  /// True while the same YouTube quality of the same video is already queued.
+  bool isYoutubeJobActive(YoutubeJob job) => _items.any((item) {
+        final existing = item.youtube;
+        return existing != null &&
+            existing.sameTarget(job) &&
+            (item.state == DroxDownloadState.running ||
+                item.state == DroxDownloadState.queued ||
+                item.state == DroxDownloadState.paused);
+      });
+
+  Future<void> addYoutubeMedia({
+    required YoutubeJob job,
+    required String filename,
+    DroxDownloadItem? existingItem,
+  }) async {
+    final sourceUrl = 'https://www.youtube.com/watch?v=${job.videoId}';
+    final task = existingItem?.task ?? await _engine.createTask(url: sourceUrl, filename: filename);
+    final item = existingItem ??
+        (DroxDownloadItem.fromTask(task)
+          ..isStream = true
+          ..youtube = job);
+    if (existingItem == null) _items.insert(0, item);
+    // Registering the token replaces the one of any run being restarted, so a
+    // late callback from the old run can no longer touch this item's state.
+    final cancel = YoutubeCancelToken();
+    _youtubeCancels[item.id] = cancel;
+    bool isCurrentRun() => identical(_youtubeCancels[item.id], cancel);
+    item.expectedBytes = job.estimatedBytes > 0 ? job.estimatedBytes : -1;
+    item.state = DroxDownloadState.running;
+    notifyListeners();
+    await _persist();
+    try {
+      final outputPath = await _engine.filePath(task);
+      final bytes = await _youtube.download(
+        job: job,
+        outputPath: outputPath,
+        cancel: cancel,
+        onProgress: (progress, received, elapsed) {
+          if (!isCurrentRun() || item.state != DroxDownloadState.running) return;
+          item.progress = progress.clamp(0.0, 1.0).toDouble();
+          item.downloadedBytes = received;
+          item.speedBytesPerSecond = elapsed > 0 ? received / elapsed : 0;
+          notifyListeners();
+          unawaited(_persist());
+        },
+      );
+      if (!isCurrentRun() || item.state == DroxDownloadState.cancelled) return;
+      final file = File(outputPath);
+      final handle = await file.open();
+      List<int> prefix;
+      try {
+        prefix = await handle.read(2048);
+      } finally {
+        await handle.close();
+      }
+      if (_isHtmlOrChallenge(prefix)) {
+        await file.delete();
+        throw StateError('YouTube returned a web page instead of media.');
+      }
+      final sharedPath = await _engine.moveFileToSharedDownloads(outputPath);
+      if (sharedPath == null || sharedPath.isEmpty) {
+        throw StateError('Downloaded, but could not publish to phone Downloads.');
+      }
+      item.renamedPath = sharedPath;
+      item.progress = 1;
+      item.expectedBytes = bytes;
+      item.downloadedBytes = bytes;
+      item.state = DroxDownloadState.complete;
+      item.error = null;
+    } on YoutubeDownloadCancelled {
+      if (isCurrentRun()) item.state = DroxDownloadState.cancelled;
+    } catch (error) {
+      if (isCurrentRun() && item.state != DroxDownloadState.cancelled) {
+        item.state = DroxDownloadState.failed;
+        item.error = describeYoutubeError(error);
+      }
+    } finally {
+      if (isCurrentRun()) {
+        _youtubeCancels.remove(item.id);
+        await _persist();
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> pause(DroxDownloadItem item) async {
     if (item.isStream) throw StateError('Pause is not supported for HLS/DASH streams yet.');
     final paused = await _engine.pause(item.task);
@@ -239,6 +335,7 @@ class DownloadController extends ChangeNotifier {
   Future<void> cancel(DroxDownloadItem item) async {
     if (item.isStream) {
       _streamCancelRequested.add(item.id);
+      _youtubeCancels[item.id]?.cancel();
       final sessionId = _streamSessions[item.id];
       if (sessionId != null) await _streamService.cancel(sessionId);
       item.state = DroxDownloadState.cancelled;
@@ -284,7 +381,12 @@ class DownloadController extends ChangeNotifier {
       try { final p = item.renamedPath ?? await item.task.filePath(); final f = File(p); if (await f.exists()) await f.delete(); } catch (_) {}
       item.progress = 0; item.expectedBytes = -1; item.downloadedBytes = 0; item.error = null; item.renamedPath = null; item.state = DroxDownloadState.queued;
       await _persist(); notifyListeners();
-      unawaited(addStreamMedia(url: item.url, filename: item.task.filename, existingItem: item));
+      final youtubeJob = item.youtube;
+      if (youtubeJob != null) {
+        unawaited(addYoutubeMedia(job: youtubeJob, filename: item.task.filename, existingItem: item));
+      } else {
+        unawaited(addStreamMedia(url: item.url, filename: item.task.filename, existingItem: item));
+      }
       return;
     }
     // Restart this exact list item instead of inserting a duplicate row.
@@ -331,6 +433,7 @@ class DownloadController extends ChangeNotifier {
       if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued || item.state == DroxDownloadState.paused) {
         if (item.isStream) {
           _streamCancelRequested.add(item.id);
+          _youtubeCancels[item.id]?.cancel();
           final sessionId = _streamSessions[item.id];
           if (sessionId != null) await _streamService.cancel(sessionId);
         } else {
@@ -356,6 +459,7 @@ class DownloadController extends ChangeNotifier {
     if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued || item.state == DroxDownloadState.paused) {
       if (item.isStream) {
         _streamCancelRequested.add(item.id);
+        _youtubeCancels[item.id]?.cancel();
         final sessionId = _streamSessions[item.id];
         if (sessionId != null) await _streamService.cancel(sessionId);
       } else {
@@ -505,6 +609,7 @@ class DownloadController extends ChangeNotifier {
   @override
   void dispose() {
     _updates?.cancel();
+    _youtubeServiceInstance?.dispose();
     super.dispose();
   }
 }

@@ -32,6 +32,7 @@ class DownloadRepository {
       'downloadedBytes': item.downloadedBytes,
       'error': item.error,
       'isStream': item.isStream,
+      'youtube': item.youtube?.toJson(),
     }).toList();
     await prefs.setString(_storageKey, jsonEncode(data));
   }

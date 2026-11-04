@@ -107,7 +107,12 @@ class DroxLinkResolver {
     if (host == 'pcloud.com' || host.endsWith('.pcloud.com')) return _manual(input, 'pCloud', DroxLinkKind.pCloud, 'Open the public pCloud share page; protected or private shares need authorization.');
     if (host.contains('terabox')) return _manual(input, 'TeraBox', DroxLinkKind.terabox, 'TeraBox may require its official app or account authorization.');
     if (host == 'wetransfer.com' || host.endsWith('.wetransfer.com')) return _manual(input, 'WeTransfer', DroxLinkKind.weTransfer, 'Open the transfer page; expiry and access permissions apply.');
-    if (_isVideoHost(host)) return _manual(input, _videoProvider(host), DroxLinkKind.videoPlatform, 'This platform link is recognized, but DROX only downloads media when the platform provides an authorized download link.');
+    if (_isVideoHost(host)) {
+      final provider = _videoProvider(host);
+      return _manual(input, provider, DroxLinkKind.videoPlatform, provider == 'YouTube'
+          ? 'YouTube links open the YouTube quality picker instead of the file queue.'
+          : 'This platform link is recognized, but DROX only downloads media when the platform provides an authorized download link.');
+    }
     if (host == 'github.com' && uri.pathSegments.length >= 4 && uri.pathSegments[2] == 'releases') {
       return _manual(input, 'GitHub Releases', DroxLinkKind.webPage, 'Open the release page and select an asset; direct asset URLs can be downloaded in DROX.');
     }

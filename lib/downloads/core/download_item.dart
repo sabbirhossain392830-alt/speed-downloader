@@ -1,5 +1,7 @@
 import 'package:background_downloader/background_downloader.dart';
 
+import '../youtube/youtube_download_option.dart';
+
 enum DroxDownloadState { queued, running, paused, complete, failed, cancelled }
 
 class DroxDownloadItem {
@@ -10,6 +12,9 @@ class DroxDownloadItem {
   int expectedBytes;
   String? error;
   bool isStream;
+
+  /// Set only for YouTube downloads; lets a failed/interrupted item be retried.
+  YoutubeJob? youtube;
   double speedBytesPerSecond = 0;
   DateTime? speedSampleAt;
   int speedSampleBytes = 0;

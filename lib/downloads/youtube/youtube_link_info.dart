@@ -6,7 +6,7 @@ class YoutubeLinkInfo {
   static YoutubeLinkInfo? parse(String input) {
     final uri = Uri.tryParse(input.trim());
     if (uri == null || !{'http', 'https'}.contains(uri.scheme)) return null;
-    final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\\.'), '');
+    final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
     String? id;
     if (host == 'youtu.be') {
       if (uri.pathSegments.isNotEmpty) id = uri.pathSegments.first;
