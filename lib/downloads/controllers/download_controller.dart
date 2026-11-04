@@ -288,6 +288,7 @@ class DownloadController extends ChangeNotifier {
           item.state = DroxDownloadState.complete;
           item.progress = 1;
           item.error = null;
+          unawaited(_publishCompletedFile(item));
           break;
         case TaskStatus.failed:
         case TaskStatus.notFound:
@@ -301,6 +302,25 @@ class DownloadController extends ChangeNotifier {
     }
     notifyListeners();
     _persist();
+  }
+
+  Future<void> _publishCompletedFile(DroxDownloadItem item) async {
+    try {
+      final sharedPath = await _engine.moveToSharedDownloads(item.task);
+      if (sharedPath != null && sharedPath.isNotEmpty) {
+        item.renamedPath = sharedPath;
+        await _persist();
+        notifyListeners();
+      } else {
+        item.error = 'Downloaded, but could not move file to shared Downloads.';
+        await _persist();
+        notifyListeners();
+      }
+    } catch (error) {
+      item.error = 'Could not publish file to Downloads: $error';
+      await _persist();
+      notifyListeners();
+    }
   }
 
   Future<void> _persist() => _repository.save(_items);
