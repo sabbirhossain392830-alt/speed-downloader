@@ -176,8 +176,8 @@ class BrowserPageState extends State<BrowserPage> {
         await ctrl.runJavaScript(r'''(function(){
           if(window.__droxMediaDetector)return;window.__droxMediaDetector=true;
           var seen=Object.create(null), lastPrompt=0;
-          var videoExt=/\.(mp4|m4v|mkv|avi|webm|mov|ogv|3gp|mpeg|mpg|m1v|m2v|mpe|m2t|mts|m2ts|ts|m4s|f4v|flv|wmv|asf|vob|3g2|qt|ogx|rm|rmvb|divx|mxf|mpd|m3u8)(?:$|[?#])/i;
-          var audioExt=/\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|wma|amr)(?:$|[?#])/i;
+          var videoExt=/\.(mp4|m4v|mkv|avi|webm|mov|ogv|3gp|3g2|3gpp|mpeg|mpeg2|mpeg4|mpg|m1v|m2v|m2p|mpe|m2t|mts|m2ts|ts|m4s|f4v|flv|wmv|asf|vob|qt|ogx|rm|rmvb|divx|mxf|nut|roq|yuv|mpd|m3u8)(?:$|[?#])/i;
+          var audioExt=/\.(mp3|m4a|m4b|aac|wav|ogg|oga|opus|flac|wma|amr|aiff|aif|ac3|eac3|ape|wv|mid|midi)(?:$|[?#])/i;
           var mediaType=/^(video\/|audio\/|application\/(vnd\.apple\.mpegurl|x-mpegurl|dash\+xml))/i;
           function valid(raw){try{var u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:null}catch(_){return null}}
           function isMedia(raw,type){return mediaType.test(type||'')||videoExt.test(raw||'')||audioExt.test(raw||'')}
