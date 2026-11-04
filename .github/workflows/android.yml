@@ -264,6 +264,23 @@ jobs:
               }
           }
           KOTLIN
+      - name: Install Android NDK with retry
+        run: |
+          set -e
+          yes | sdkmanager --licenses >/dev/null || true
+          NDK_VERSION="28.2.13676358"
+          for attempt in 1 2 3; do
+            echo "Installing Android NDK $NDK_VERSION (attempt $attempt/3)"
+            rm -rf "$ANDROID_HOME/ndk/$NDK_VERSION" "$ANDROID_HOME/.temp"/*
+            if sdkmanager --install "ndk;$NDK_VERSION"; then
+              test -d "$ANDROID_HOME/ndk/$NDK_VERSION"
+              echo "NDK $NDK_VERSION installed."
+              exit 0
+            fi
+            sleep 8
+          done
+          echo "NDK installation failed after 3 attempts."
+          exit 1
       - name: Build APK
         run: |
           python3 - <<'PY'
