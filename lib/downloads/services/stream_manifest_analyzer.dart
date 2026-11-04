@@ -164,7 +164,9 @@ class DroxStreamManifestAnalyzer {
 
   List<DroxStreamVariant> analyzeDash(String xml, {required String manifestUrl}) {
     final variants = <DroxStreamVariant>[];
-    final mpdBase = _childBaseUrl(xml, manifestUrl);
+    // Keep the MPD URL as the initial base; nested BaseURL elements are
+    // applied once at their AdaptationSet/Representation scope below.
+    final mpdBase = manifestUrl;
     final periods = RegExp(r'<Period\b[^>]*>([\s\S]*?)</Period>', caseSensitive: false);
     final periodMatches = periods.allMatches(xml).toList();
     final periodBodies = periodMatches.isEmpty ? [xml] : periodMatches.map((m) => m.group(1) ?? '').toList();
