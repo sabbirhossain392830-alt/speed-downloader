@@ -218,15 +218,17 @@ class DownloadController extends ChangeNotifier {
 
   Future<void> removeMany(List<DroxDownloadItem> selected, {bool deleteFiles = false}) async {
     for (final item in selected) {
-      if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued) {
+      if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued || item.state == DroxDownloadState.paused) {
         await _engine.cancel(item.task);
       }
       if (deleteFiles) {
-        try {
-          final path = item.renamedPath ?? await item.task.filePath();
-          final file = File(path);
-          if (await file.exists()) await file.delete();
-        } catch (_) {}
+        final path = item.renamedPath ?? await item.task.filePath();
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+        } else {
+          throw FileSystemException('Downloaded file was not found; it was not removed from history.', path);
+        }
       }
       _items.removeWhere((candidate) => candidate.id == item.id);
     }
@@ -235,7 +237,7 @@ class DownloadController extends ChangeNotifier {
   }
 
   Future<void> remove(DroxDownloadItem item) async {
-    if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued) {
+    if (item.state == DroxDownloadState.running || item.state == DroxDownloadState.queued || item.state == DroxDownloadState.paused) {
       await _engine.cancel(item.task);
     }
     _items.removeWhere((candidate) => candidate.id == item.id);
